@@ -1,0 +1,820 @@
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { getTerrainHeight } from './Terrain.jsx';
+import { resolveAssetUrl } from '../utils/localAssets.js';
+
+const ANIMAL_CONFIGS = [
+    {
+        file: 'Fox.gltf',
+        soundFile: 'fox.mp3',
+        scale: 1.2,
+        speed: 0.06,
+        runSpeed: 0.12,
+        count: 1,
+        name: 'Red Fox',
+        species: 'Vulpes vulpes',
+        emoji: '🦊',
+        description: 'A clever and adaptable predator known for its beautiful red coat and bushy tail.'
+    },
+    {
+        file: 'Deer.gltf',
+        soundFile: 'deer.mp3',
+        scale: 1.3,
+        speed: 0.05,
+        runSpeed: 0.11,
+        count: 1,
+        name: 'White-tailed Deer',
+        species: 'Odocoileus virginianus',
+        emoji: '🦌',
+        description: 'A graceful herbivore known for the white underside of its tail, often raised as an alarm signal.'
+    },
+    {
+        file: 'Wolf.gltf',
+        soundFile: 'wolf.mp3',
+        scale: 1.2,
+        speed: 0.07,
+        runSpeed: 0.14,
+        count: 1,
+        name: 'Gray Wolf',
+        species: 'Canis lupus',
+        emoji: '🐺',
+        description: 'A social pack animal and apex predator, known for its complex communication through howling.'
+    },
+    {
+        file: 'Horse.gltf',
+        soundFile: 'horse.mp3',
+        scale: 1.3,
+        speed: 0.08,
+        runSpeed: 0.16,
+        count: 1,
+        name: 'Domestic Horse',
+        species: 'Equus caballus',
+        emoji: '🐴',
+        description: 'A majestic animal that has been a companion to humans for thousands of years.'
+    },
+    {
+        file: 'Donkey.gltf',
+        soundFile: 'donkey.mp3',
+        scale: 1.5,
+        speed: 0.05,
+        runSpeed: 0.09,
+        count: 1,
+        name: 'Donkey',
+        species: 'Equus asinus',
+        emoji: '🫏',
+        description: 'A sure-footed and hardy animal, often used as a working companion.'
+    },
+    {
+        file: 'Cow.gltf',
+        soundFile: 'cow.mp3',
+        scale: 1.1,
+        speed: 0.04,
+        runSpeed: 0.07,
+        count: 1,
+        name: 'Domestic Cow',
+        species: 'Bos taurus',
+        emoji: '🐄',
+        description: 'A gentle herbivore raised for milk and companionship in farms worldwide.'
+    },
+    {
+        file: 'Alpaca.gltf',
+        soundFile: 'alpaca.mp3',
+        scale: 1.1,
+        speed: 0.05,
+        runSpeed: 0.09,
+        count: 1,
+        name: 'Alpaca',
+        species: 'Vicugna pacos',
+        emoji: '🦙',
+        description: 'A fluffy South American camelid, prized for its soft and luxurious fleece.'
+    },
+    {
+        file: 'Husky.gltf',
+        soundFile: 'husky.mp3',
+        scale: 1.6,
+        speed: 0.07,
+        runSpeed: 0.14,
+        count: 1,
+        name: 'Siberian Husky',
+        species: 'Canis lupus familiaris',
+        emoji: '🐕',
+        description: 'An energetic sled dog breed known for its striking blue eyes and thick double coat.'
+    },
+    {
+        file: 'ShibaInu.gltf',
+        soundFile: 'shibainu.mp3',
+        scale: 1.3,
+        speed: 0.06,
+        runSpeed: 0.11,
+        count: 1,
+        name: 'Shiba Inu',
+        species: 'Canis lupus familiaris',
+        emoji: '🐕',
+        description: 'A small, agile Japanese breed known for its spirited personality and fox-like appearance.'
+    },
+    {
+        file: 'Stag.gltf',
+        soundFile: 'redd.mp3',
+        scale: 1.3,
+        speed: 0.06,
+        runSpeed: 0.13,
+        collisionRadius: 2.0,
+        count: 1,
+        name: 'Red Deer Stag',
+        species: 'Cervus elaphus',
+        emoji: '🦌',
+        description: 'A magnificent male deer with impressive antlers, symbol of wild forests.'
+    },
+    {
+        file: 'Bull.gltf',
+        soundFile: 'bull.wav',
+        scale: 1.4,
+        speed: 0.045,
+        runSpeed: 0.085,
+        collisionRadius: 1.8,
+        count: 1,
+        name: 'Bull',
+        species: 'Bos taurus',
+        emoji: '🐃',
+        description: 'A powerful and muscular male bovine, respected for its strength and presence.'
+    },
+    {
+        file: 'monkey/scene.gltf',
+        targetHeight: 1.5,
+        scale: 3,
+        speed: 0.04,
+        runSpeed: 0.08,
+        collisionRadius: 1.15,
+        count: 1,
+        movementStyle: 'static',
+        spawnArea: { x: 120, z: 90, radius: 28 },
+        name: 'Forest Monkey',
+        species: 'Macaca fascicularis',
+        emoji: '🐒',
+        description: 'A monkey resting in the forest area.'
+    },
+    {
+        file: 'rabbit/scene.gltf',
+        floorHeight: 0.08,
+        scale: 0.05,
+        speed: 0.03,
+        runSpeed: 0.05,
+        collisionRadius: 0.65,
+        count: 1,
+        movementStyle: 'static',
+        idleAnimation: 'Idle',
+        spawnArea: { x: -42, z: 58, radius: 16 },
+        name: 'Rabbit (Idle)',
+        species: 'Oryctolagus cuniculus',
+        emoji: '🐇',
+        description: 'A rabbit that stays in an idle animation.'
+    },
+    {
+        file: 'rabbit/scene.gltf',
+        floorHeight: 0.08,
+        scale: 0.05,
+        speed: 0.03,
+        runSpeed: 0.05,
+        collisionRadius: 0.65,
+        count: 1,
+        movementStyle: 'walkOnly',
+        walkAnimation: 'Walk',
+        spawnArea: { x: -26, z: 70, radius: 18 },
+        name: 'Rabbit (Walk)',
+        species: 'Oryctolagus cuniculus',
+        emoji: '🐇',
+        description: 'A rabbit that stays in a walking animation.'
+    },
+    {
+        file: 'tiger/scene.gltf',
+        floorHeight: 1.7,
+        scale: 4.25,
+        soundFile: 'tiger.mp3',
+        speed: 0.038,
+        runSpeed: 0.082,
+        count: 1,
+        collisionRadius: 2.2,
+        movementStyle: 'bigCat',
+        idleAnimation: 'Eat',
+        specialAnimation: 'Howl',
+        specialAnimationInterval: 5,
+        specialAnimationChance: 0.65,
+        specialAnimationTimeScale: 0.78,
+        groundClearance: 0.28,
+        name: 'Bengal Tiger',
+        species: 'Panthera tigris tigris',
+        emoji: '🐅',
+        description: 'A majestic big cat in a natural standing idle pose.'
+    }
+];
+
+const AMBIENT_SOUND_RADIUS = 55;
+const AMBIENT_SOUND_RADIUS_SQ = AMBIENT_SOUND_RADIUS * AMBIENT_SOUND_RADIUS;
+const AMBIENT_SOUND_MIN_INTERVAL = 5;
+const AMBIENT_SOUND_MAX_INTERVAL = 11;
+let CONTACT_SHADOW_TEXTURE = null;
+
+function getContactShadowTexture() {
+    if (CONTACT_SHADOW_TEXTURE) return CONTACT_SHADOW_TEXTURE;
+
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(size / 2, size / 2, size * 0.08, size / 2, size / 2, size * 0.5);
+    grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+
+    CONTACT_SHADOW_TEXTURE = new THREE.CanvasTexture(canvas);
+    CONTACT_SHADOW_TEXTURE.colorSpace = THREE.SRGBColorSpace;
+    CONTACT_SHADOW_TEXTURE.needsUpdate = true;
+    return CONTACT_SHADOW_TEXTURE;
+}
+
+function createContactShadow(size, opacity) {
+    const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size),
+        new THREE.MeshBasicMaterial({
+            map: getContactShadowTexture(),
+            transparent: true,
+            opacity,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
+            toneMapped: false
+        })
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.renderOrder = 1;
+    return mesh;
+}
+
+function createAnimalSound(soundFile) {
+    if (!soundFile || typeof Audio === 'undefined') return null;
+    const normalized = String(soundFile).replace(/^\/+/, '');
+    const fallbackPath = `/audio/${normalized}`;
+    const audio = new Audio(fallbackPath);
+    audio.preload = 'auto';
+    audio.volume = 0.75;
+    audio.setAttribute('playsinline', 'true');
+
+    resolveAssetUrl(fallbackPath)
+        .then((assetUrl) => {
+            if (assetUrl) {
+                audio.src = assetUrl;
+            }
+        })
+        .catch(() => { });
+
+    return audio;
+}
+
+function isBlockedByObstacle(x, z, radius, obstacles) {
+    if (!obstacles || obstacles.length === 0) return false;
+    for (const obs of obstacles) {
+        const dx = x - obs.x;
+        const dz = z - obs.z;
+        const minDist = radius + obs.radius;
+        if (dx * dx + dz * dz < minDist * minDist) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function findSpawnPosition(spawnIndex, totalAnimals, bounds, radius, obstacles, spawnArea = null) {
+    const hasSpawnArea = spawnArea
+        && Number.isFinite(spawnArea.x)
+        && Number.isFinite(spawnArea.z);
+    const maxAttempts = hasSpawnArea ? 60 : 40;
+
+    for (let i = 0; i < maxAttempts; i++) {
+        let x;
+        let z;
+
+        if (hasSpawnArea) {
+            const areaRadius = Math.max(radius + 1.5, Number.isFinite(spawnArea.radius) ? spawnArea.radius : 12);
+            const angle = Math.random() * Math.PI * 2;
+            const radial = Math.sqrt(Math.random()) * areaRadius;
+            x = spawnArea.x + Math.cos(angle) * radial;
+            z = spawnArea.z + Math.sin(angle) * radial;
+        } else {
+            const ring = 30 + (spawnIndex * 14) + Math.random() * 18;
+            const angle = (spawnIndex / totalAnimals) * Math.PI * 2 + Math.random() * Math.PI * 0.8;
+            x = Math.cos(angle) * ring;
+            z = Math.sin(angle) * ring;
+        }
+
+        if (Math.abs(x) > bounds - radius || Math.abs(z) > bounds - radius) continue;
+        if (!isBlockedByObstacle(x, z, radius, obstacles)) {
+            return { x, z };
+        }
+    }
+
+    if (hasSpawnArea) {
+        const fallbackRadius = Math.max(radius + 1, (Number.isFinite(spawnArea.radius) ? spawnArea.radius : 12) * 0.4);
+        const fallbackAngle = Math.random() * Math.PI * 2;
+        return {
+            x: THREE.MathUtils.clamp(spawnArea.x + Math.cos(fallbackAngle) * fallbackRadius, -(bounds - radius), bounds - radius),
+            z: THREE.MathUtils.clamp(spawnArea.z + Math.sin(fallbackAngle) * fallbackRadius, -(bounds - radius), bounds - radius),
+        };
+    }
+
+    // Safe fallback if all sampled points are blocked.
+    return {
+        x: Math.cos(Math.random() * Math.PI * 2) * 50,
+        z: Math.sin(Math.random() * Math.PI * 2) * 50,
+    };
+}
+
+function getTerrainNormalAt(x, z, sample = 0.75) {
+    const hL = getTerrainHeight(x - sample, z);
+    const hR = getTerrainHeight(x + sample, z);
+    const hD = getTerrainHeight(x, z - sample);
+    const hU = getTerrainHeight(x, z + sample);
+    return new THREE.Vector3(hL - hR, 2 * sample, hD - hU).normalize();
+}
+
+function getRandomSpecialInterval(config) {
+    const min = config.specialAnimationIntervalMin ?? config.specialAnimationInterval ?? 0;
+    const max = config.specialAnimationIntervalMax ?? min;
+    if (max <= min) return Math.max(0, min);
+    return min + Math.random() * (max - min);
+}
+
+class GLTFAnimal {
+    // Added 'obstacles' to the constructor
+    constructor(model, animations, config, scene, spawnIndex, obstacles) {
+        this.group = model;
+        this.config = config;
+        this.obstacles = obstacles; // Store obstacles for AI logic
+        this.dynamicBox = new THREE.Box3();
+        this.mixer = null;
+        this.actions = {};
+        this.currentAction = null;
+        this.transitionTime = 0.4;
+
+        this.group.scale.setScalar(config.scale);
+
+        if (typeof config.targetHeight === 'number' && config.targetHeight > 0) {
+            // Some third-party assets come with wildly different unit scales.
+            // Fit to a target world height so they appear at expected size.
+            const fitBox = new THREE.Box3().setFromObject(this.group);
+            const fitSize = new THREE.Vector3();
+            fitBox.getSize(fitSize);
+            const sourceHeight = Math.max(fitSize.y, 0.001);
+            const rawFitScale = config.targetHeight / sourceHeight;
+            // Guard against bad bounds from malformed/skinned assets.
+            const fitScale = Number.isFinite(rawFitScale)
+                ? THREE.MathUtils.clamp(rawFitScale, 0.01, 25)
+                : 1;
+            this.group.scale.multiplyScalar(fitScale);
+        }
+
+        const alignedBox = new THREE.Box3().setFromObject(this.group);
+        // this.baseYOffset = THREE.MathUtils.clamp(-alignedBox.min.y, -2, 12);
+        this.baseYOffset = THREE.MathUtils.clamp(-alignedBox.min.y, -2, 12);
+        if (typeof config.floorHeight === 'number') {
+            this.baseYOffset += config.floorHeight;
+        }
+
+        this.group.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = false;
+                child.receiveShadow = false;
+                if (child.material) {
+                    child.material.side = THREE.FrontSide;
+                }
+            }
+        });
+
+        if (animations && animations.length > 0) {
+            this.mixer = new THREE.AnimationMixer(this.group);
+            animations.forEach(clip => {
+                const action = this.mixer.clipAction(clip);
+                action.setEffectiveTimeScale(1);
+                action.setEffectiveWeight(1);
+                action.enabled = true;
+                this.actions[clip.name.toLowerCase()] = action;
+            });
+
+            const actionKeys = Object.keys(this.actions);
+            if (actionKeys.length > 0) {
+                const forcedIdleName = this.config.idleAnimation ? this.config.idleAnimation.toLowerCase() : '';
+                const forcedIdleKey = forcedIdleName
+                    ? actionKeys.find(k => k === forcedIdleName || k.includes(forcedIdleName))
+                    : null;
+                const safeIdleKeys = actionKeys.filter((k) => (k.includes('run') || k.includes('walk') || k.includes('idle') || k.includes('stand') || k.includes('breathing') || k.includes('eating') || k.includes('eat') || k.includes('rest') || k.includes('sit')) && !k.includes('lie') && !k.includes('prone') && !k.includes('attack') && !k.includes('death'));
+                const safestAnyKey = actionKeys.find((k) => !k.includes('lie') && !k.includes('prone') && !k.includes('attack') && !k.includes('death'));
+                const idleKey = forcedIdleKey || safeIdleKeys[0] || safestAnyKey;
+                const firstAction = this.actions[idleKey];
+                if (firstAction) {
+                    firstAction.reset();
+                    firstAction.play();
+                    this.currentAction = firstAction;
+                    this.mixer.update(0);
+                }
+            }
+        }
+
+        const spawnRadius = 30 + (spawnIndex * 14) + Math.random() * 18;
+        const spawnAngle = (spawnIndex / ANIMAL_CONFIGS.length) * Math.PI * 2 + Math.random() * 0.5;
+
+        this.pos = new THREE.Vector3(Math.cos(spawnAngle) * spawnRadius, 0, Math.sin(spawnAngle) * spawnRadius);
+        this.angle = Math.random() * Math.PI * 2;
+        this.targetAngle = this.angle;
+        this.timer = 4 + Math.random() * 5;
+        this.state = 'idle';
+        this.turnSpeed = 0.04;
+        this.bounds = 170;
+        this.radius = config.collisionRadius ?? Math.max(1.1, config.scale * 0.65);
+        this.movementStyle = config.movementStyle ?? 'default';
+        this.currentSpeed = 0;
+        this.targetSpeed = 0;
+        this.sound = createAnimalSound(config.soundFile);
+        this.nextAmbientSoundAt = Math.random() * 3;
+        this.motionOffset = Math.random() * Math.PI * 2;
+        this.shadow = createContactShadow(this.radius * 2.35, 0.23);
+        this.slopePitch = 0;
+        this.slopeRoll = 0;
+        this.nextSpecialAnimationAt = performance.now() * 0.001 + getRandomSpecialInterval(config);
+        this.specialAnimationActive = false;
+        this.specialAnimationEndAt = 0;
+        this.group.rotation.order = 'YXZ';
+
+        if (this.movementStyle === 'walkOnly') {
+            this.state = 'walk';
+            this.timer = 4 + Math.random() * 6;
+            this.targetAngle = this.angle + (Math.random() - 0.5) * 1.1;
+            this.targetSpeed = this.config.speed;
+            this.playAnimation(this.config.walkAnimation ? this.config.walkAnimation.toLowerCase() : 'walk');
+        }
+
+        const spawn = findSpawnPosition(spawnIndex, ANIMAL_CONFIGS.length, this.bounds, this.radius, this.obstacles, config.spawnArea);
+        this.pos.x = spawn.x;
+        this.pos.z = spawn.z;
+
+        const h = getTerrainHeight(this.pos.x, this.pos.z);
+        this.group.position.set(this.pos.x, h + this.baseYOffset, this.pos.z);
+        this.group.rotation.y = this.angle;
+        this.dynamicBox.setFromObject(this.group);
+        this.groundOffsetFromMin = this.group.position.y - this.dynamicBox.min.y;
+
+        this.shadow.position.set(this.pos.x, h + 0.055, this.pos.z);
+        scene.add(this.group);
+        scene.add(this.shadow);
+    }
+
+    getInfo() {
+        return { name: this.config.name, species: this.config.species, emoji: this.config.emoji, description: this.config.description };
+    }
+
+    async playSound() {
+        if (!this.sound) return;
+        if (!this.sound.paused) return;
+        try {
+            this.sound.currentTime = 0;
+            await this.sound.play();
+        } catch {
+            // Audio can fail if blocked or asset is missing; ignore to avoid gameplay interruption.
+        }
+    }
+
+    stopSound(reset = true) {
+        if (!this.sound) return;
+        this.sound.pause();
+        if (reset) {
+            this.sound.currentTime = 0;
+        }
+    }
+
+    scheduleNextAmbientSound(nowSeconds) {
+        const delay = AMBIENT_SOUND_MIN_INTERVAL + Math.random() * (AMBIENT_SOUND_MAX_INTERVAL - AMBIENT_SOUND_MIN_INTERVAL);
+        this.nextAmbientSoundAt = nowSeconds + delay;
+    }
+
+    maybePlayAmbientSound(nowSeconds, listenerPosition, soundEnabled) {
+        if (!soundEnabled || !listenerPosition || !this.group || !this.sound) return;
+
+        const dx = listenerPosition.x - this.group.position.x;
+        const dz = listenerPosition.z - this.group.position.z;
+        if ((dx * dx) + (dz * dz) > AMBIENT_SOUND_RADIUS_SQ) return;
+
+        if (nowSeconds < this.nextAmbientSoundAt) return;
+
+        this.playSound();
+        this.scheduleNextAmbientSound(nowSeconds);
+    }
+
+    playAnimation(name, options = {}) {
+        const actionKeys = Object.keys(this.actions);
+        if (actionKeys.length === 0) return;
+
+        let action = this.actions[name];
+        if (!action) {
+            const walkKeys = actionKeys.filter(k => k.includes('walk') || k.includes('trot') || k.includes('prowl') || k.includes('stalk'));
+            const runKeys = actionKeys.filter(k => k.includes('run') || k.includes('gallop') || k.includes('sprint') || k.includes('leap'));
+            const idleKeys = actionKeys.filter(k => (k.includes('run') || k.includes('walk') || k.includes('idle') || k.includes('stand') || k.includes('breathing') || k.includes('eating') || k.includes('eat') || k.includes('rest') || k.includes('sit')) && !k.includes('lie') && !k.includes('prone') && !k.includes('attack') && !k.includes('death'));
+
+            if (name === 'idle' && this.config.idleAnimation) {
+                const forcedIdleName = this.config.idleAnimation.toLowerCase();
+                const forcedIdle = actionKeys.find(k => k === forcedIdleName || k.includes(forcedIdleName));
+                if (forcedIdle) {
+                    action = this.actions[forcedIdle];
+                }
+            }
+
+            if (!action && name === 'walk' && walkKeys.length > 0) action = this.actions[walkKeys[0]];
+            else if (!action && name === 'run' && runKeys.length > 0) action = this.actions[runKeys[0]];
+            else if (!action && name === 'run' && walkKeys.length > 0) action = this.actions[walkKeys[0]];
+            else if (!action && name === 'idle' && idleKeys.length > 0) action = this.actions[idleKeys[0]];
+            else action = null;
+        }
+
+        if (action && action !== this.currentAction) {
+            if (this.currentAction) this.currentAction.fadeOut(this.transitionTime);
+            action.enabled = true;
+            const timeScale = Number.isFinite(options.timeScale) ? options.timeScale : 1;
+            action.setEffectiveTimeScale(timeScale);
+            action.setEffectiveWeight(1);
+            action.setLoop(options.loopOnce ? THREE.LoopOnce : THREE.LoopRepeat, options.loopOnce ? 1 : Infinity);
+            action.clampWhenFinished = !!options.loopOnce;
+            action.reset();
+            action.fadeIn(this.transitionTime);
+            action.play();
+            this.currentAction = action;
+        }
+    }
+
+    update(t, dt) {
+        if (this.mixer) this.mixer.update(dt);
+
+        if (this.movementStyle !== 'static') {
+            this.timer -= dt;
+            if (this.timer < 0) this.switchBehavior();
+        } else {
+            this.state = 'idle';
+            this.targetSpeed = 0;
+            this.currentSpeed = 0;
+
+            const specialName = this.config.specialAnimation;
+            const specialInterval = getRandomSpecialInterval(this.config);
+            if (specialName && specialInterval > 0) {
+                if (this.specialAnimationActive && t >= this.specialAnimationEndAt) {
+                    this.specialAnimationActive = false;
+                    this.playAnimation('idle');
+                }
+
+                if (!this.specialAnimationActive && t >= this.nextSpecialAnimationAt) {
+                    const specialChance = THREE.MathUtils.clamp(this.config.specialAnimationChance ?? 1, 0, 1);
+                    if (Math.random() > specialChance) {
+                        this.nextSpecialAnimationAt = t + specialInterval;
+                        this.playAnimation('idle');
+                        return;
+                    }
+
+                    const wantedName = specialName.toLowerCase();
+                    const specialActionKey = Object.keys(this.actions).find((k) => k === wantedName || k.includes(wantedName));
+                    const specialAction = specialActionKey ? this.actions[specialActionKey] : null;
+                    const specialTimeScale = this.config.specialAnimationTimeScale ?? 0.8;
+
+                    if (specialAction) {
+                        this.playAnimation(specialActionKey, { loopOnce: true, timeScale: specialTimeScale });
+                        const duration = Math.max(0.01, specialAction.getClip().duration / specialTimeScale);
+                        this.specialAnimationEndAt = t + duration;
+                        this.specialAnimationActive = true;
+                        this.nextSpecialAnimationAt = this.specialAnimationEndAt + specialInterval;
+                    } else {
+                        this.nextSpecialAnimationAt = t + specialInterval;
+                    }
+                }
+            }
+        }
+
+        if (this.movementStyle !== 'static') {
+            const angleDiff = ((this.targetAngle - this.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+            this.angle += angleDiff * this.turnSpeed;
+        }
+
+        if (this.movementStyle !== 'static') {
+            const speedLerp = 1 - Math.exp(-3 * dt);
+            this.currentSpeed += (this.targetSpeed - this.currentSpeed) * speedLerp;
+        }
+
+        if (this.movementStyle !== 'static' && (this.state === 'walk' || this.state === 'run')) {
+            let nextX = this.pos.x + Math.sin(this.angle) * this.currentSpeed;
+            let nextZ = this.pos.z + Math.cos(this.angle) * this.currentSpeed;
+            let hitObstacle = false;
+
+            // --- NEW: ANIMAL COLLISION DETECTION ---
+            if (this.obstacles && this.obstacles.length > 0) {
+                for (const obs of this.obstacles) {
+                    const dx = nextX - obs.x;
+                    const dz = nextZ - obs.z;
+                    if (dx * dx + dz * dz < Math.pow(this.radius + obs.radius, 2)) {
+                        hitObstacle = true;
+                        break;
+                    }
+                }
+            }
+
+            // If they hit an object or hit the world boundary, turn around.
+            if (hitObstacle || Math.abs(nextX) > this.bounds || Math.abs(nextZ) > this.bounds) {
+                this.targetAngle += Math.PI * 0.8 + Math.random() * Math.PI * 0.4;
+                this.currentSpeed *= 0.8;
+            } else {
+                this.pos.x = nextX;
+                this.pos.z = nextZ;
+            }
+        }
+
+        const h = getTerrainHeight(this.pos.x, this.pos.z);
+        this.group.position.set(this.pos.x, h + this.baseYOffset, this.pos.z);
+        const terrainNormal = getTerrainNormalAt(this.pos.x, this.pos.z);
+        const targetPitch = THREE.MathUtils.clamp(Math.atan2(-terrainNormal.z, terrainNormal.y), -0.28, 0.28);
+        const targetRoll = THREE.MathUtils.clamp(Math.atan2(terrainNormal.x, terrainNormal.y), -0.28, 0.28);
+        const slopeLerp = Math.min(1, dt * 6);
+        this.slopePitch += (targetPitch - this.slopePitch) * slopeLerp;
+        this.slopeRoll += (targetRoll - this.slopeRoll) * slopeLerp;
+        this.group.rotation.set(this.slopePitch, this.angle, this.slopeRoll, 'YXZ');
+
+        if (this.movementStyle === 'bigCat') {
+            const motionT = t + this.motionOffset;
+            if (this.state === 'idle') {
+                // Slow breathing and tiny body sway for natural resting posture.
+                this.group.position.y += Math.sin(motionT * 1.6) * 0.045;
+                this.group.rotation.z += Math.sin(motionT * 0.7) * 0.018;
+            } else if (this.state === 'walk') {
+                // Subtle shoulder bob while prowling.
+                this.group.position.y += Math.sin(motionT * 5.2) * 0.06;
+                this.group.rotation.z += Math.sin(motionT * 2.6) * 0.012;
+            } else {
+                this.group.position.y += Math.sin(motionT * 7.6) * 0.085;
+                this.group.rotation.z += 0;
+            }
+        } else if (this.movementStyle === 'static') {
+            const motionT = t + this.motionOffset;
+            this.group.position.y += Math.sin(motionT * 1.15) * 0.02;
+            this.group.rotation.y += Math.sin(motionT * 0.55) * 0.012;
+        } else {
+            this.group.rotation.z = this.slopeRoll;
+        }
+
+        // Ground by matching the animated bounding-box floor to terrain height + clearance.
+        const groundClearance = this.config.groundClearance ?? 0.01;
+        this.dynamicBox.setFromObject(this.group);
+        const desiredBoxMinY = h + groundClearance;
+        const rawGroundingDelta = desiredBoxMinY - this.dynamicBox.min.y;
+        const groundingDelta = rawGroundingDelta > 0
+            ? rawGroundingDelta
+            : THREE.MathUtils.clamp(rawGroundingDelta, -0.02, 0);
+        this.group.position.y += groundingDelta;
+        this.dynamicBox.setFromObject(this.group);
+        const desiredGroundY = this.dynamicBox.min.y;
+
+        if (this.shadow) {
+            const airHeight = Math.max(0, this.group.position.y - desiredGroundY);
+            this.shadow.position.set(this.pos.x, h + 0.055, this.pos.z);
+            this.shadow.material.opacity = THREE.MathUtils.clamp(0.23 - airHeight * 0.1, 0.09, 0.23);
+        }
+    }
+
+    switchBehavior() {
+        if (this.movementStyle === 'static') {
+            this.state = 'idle';
+            this.timer = 999;
+            this.targetSpeed = 0;
+            this.playAnimation('idle');
+            return;
+        }
+
+        if (this.movementStyle === 'walkOnly') {
+            this.state = 'walk';
+            this.timer = 4 + Math.random() * 6;
+            this.targetAngle = this.angle + (Math.random() - 0.5) * 1.3;
+            this.targetSpeed = this.config.speed * (0.92 + Math.random() * 0.16);
+            this.playAnimation(this.config.walkAnimation ? this.config.walkAnimation.toLowerCase() : 'walk');
+            return;
+        }
+
+        if (this.movementStyle === 'bigCat') {
+            const rand = Math.random();
+            if (rand < 0.56) {
+                this.state = 'idle';
+                this.timer = 6 + Math.random() * 8;
+                this.targetSpeed = 0;
+                this.targetAngle = this.angle + (Math.random() - 0.5) * 0.8;
+                this.playAnimation('idle');
+            } else if (rand < 0.92) {
+                this.state = 'walk';
+                this.timer = 7 + Math.random() * 10;
+                this.targetAngle = this.angle + (Math.random() - 0.5) * 1.6;
+                this.targetSpeed = this.config.speed * (0.9 + Math.random() * 0.25);
+                this.playAnimation('walk');
+            } else {
+                this.state = 'run';
+                this.timer = 2.3 + Math.random() * 2.2;
+                this.targetAngle = this.angle + (Math.random() - 0.5) * 1.15;
+                this.targetSpeed = this.config.runSpeed * (0.95 + Math.random() * 0.22);
+                this.playAnimation('run');
+            }
+            return;
+        }
+
+        const rand = Math.random();
+        if (rand < 0.45) {
+            this.state = 'idle';
+            this.timer = 5 + Math.random() * 7;
+            this.targetSpeed = 0;
+            this.playAnimation('idle');
+        } else if (rand < 0.85) {
+            this.state = 'walk';
+            this.timer = 6 + Math.random() * 9;
+            this.targetAngle = this.angle + (Math.random() - 0.5) * 2.2;
+            this.targetSpeed = this.config.speed;
+            this.playAnimation('walk');
+        } else {
+            this.state = 'run';
+            this.timer = 3 + Math.random() * 4;
+            this.targetAngle = this.angle + (Math.random() - 0.5) * 1.5;
+            this.targetSpeed = this.config.runSpeed;
+            this.playAnimation('run');
+        }
+    }
+
+    dispose() {
+        this.stopSound(true);
+        if (this.sound) {
+            this.sound.src = '';
+        }
+        if (this.mixer) {
+            this.mixer.stopAllAction();
+            this.mixer.uncacheRoot(this.group);
+        }
+        if (this.shadow) {
+            this.shadow.parent?.remove(this.shadow);
+            this.shadow.geometry?.dispose();
+            this.shadow.material?.dispose?.();
+            this.shadow = null;
+        }
+        this.group.traverse(child => {
+            if (child.isMesh) {
+                child.geometry?.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                    else child.material.dispose();
+                }
+            }
+        });
+    }
+}
+
+const modelCache = new Map();
+
+// Pass obstacles parameter here
+export async function loadGLTFAnimals(scene, obstacles) {
+    const animals = [];
+
+    const loadModel = (file) => {
+        if (modelCache.has(file)) return Promise.resolve(modelCache.get(file));
+        return new Promise((resolve) => {
+            const load = async () => {
+                const loader = new GLTFLoader();
+                const modelPath = `/models/animals/${file}`;
+                const modelUrl = await resolveAssetUrl(modelPath);
+                const resourcePath = modelPath.slice(0, modelPath.lastIndexOf('/') + 1);
+                loader.setResourcePath(resourcePath);
+                loader.load(
+                    modelUrl,
+                    (gltf) => { modelCache.set(file, gltf); resolve(gltf); },
+                    undefined,
+                    (error) => { console.warn(`Failed to load ${file}:`, error); resolve(null); }
+                );
+            };
+
+            load().catch(() => resolve(null));
+        });
+    };
+
+    let spawnIndex = 0;
+    for (const config of ANIMAL_CONFIGS) {
+        const gltf = await loadModel(config.file);
+        if (!gltf) continue;
+
+        for (let i = 0; i < config.count; i++) {
+            const model = cloneWithSkeleton(gltf.scene);
+            const clonedAnimations = gltf.animations.map(clip => clip.clone());
+            // Hand the obstacles to the animal instances
+            const animal = new GLTFAnimal(model, clonedAnimations, config, scene, spawnIndex, obstacles);
+            animals.push(animal);
+            spawnIndex++;
+        }
+    }
+
+    return animals;
+}

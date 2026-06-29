@@ -1,0 +1,11 @@
+Model Information:
+* title:	Rabbit
+* source:	https://sketchfab.com/3d-models/rabbit-caba07ca532947858ab66b65879cc105
+* author:	Tiko (https://sketchfab.com/tikoavp)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Rabbit" (https://sketchfab.com/3d-models/rabbit-caba07ca532947858ab66b65879cc105) by Tiko (https://sketchfab.com/tikoavp) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
