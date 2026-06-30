@@ -1,5 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { ActionButton, IconButton, ModalShell, SideSheet, SurfacePanel, cx } from './UIComponents.jsx';
 
@@ -7,7 +9,6 @@ const SETTINGS_KEY = 'minizoo_settings';
 const SETTINGS_CHANGE_EVENT = 'minizoo-settings-changed';
 const PLAYER_NAME_KEY = 'minizoo_player_name';
 const PLAYER_NAME_CHANGE_EVENT = 'minizoo-player-name-changed';
-const LOADING_DEER_GIF_PATH = '/icons/running-deer.gif';
 
 const SFX_FILES = {
     tap: '/audio/click.mp3',
@@ -66,24 +67,15 @@ function isUISoundEnabled() {
     }
 }
 
-async function preloadAudio(src, template) {
-    try {
-        const assetUrl = await resolveAssetUrl(src);
-        if (assetUrl) {
-            template.src = assetUrl;
-        }
-    } catch {
-        // Ignore asset fallback failures.
-    }
-}
-
 function getUIButtonAudioTemplate(kind = 'tap') {
     const src = SFX_FILES[kind] || SFX_FILES.tap;
     if (!uiAudioTemplates[src]) {
         const template = new Audio(src);
         template.preload = 'auto';
-        preloadAudio(src, template);
         uiAudioTemplates[src] = template;
+        resolveAssetUrl(src).then((url) => {
+            if (url) template.src = url;
+        }).catch(() => {});
     }
     return uiAudioTemplates[src];
 }
@@ -233,9 +225,10 @@ export function playGameButtonSfx(kind = 'tap') {
 
     try {
         const template = getUIButtonAudioTemplate(kind);
-        const clone = template.cloneNode(true);
-        clone.volume = kind === 'feed' || kind === 'task-complete' || kind === 'confirm' ? 1 : 0.9;
-        const playPromise = clone.play();
+        const src = template.currentSrc || template.src || SFX_FILES[kind] || SFX_FILES.tap;
+        const audio = new Audio(src);
+        audio.volume = kind === 'feed' || kind === 'task-complete' || kind === 'confirm' ? 1 : 0.9;
+        const playPromise = audio.play();
         if (playPromise && typeof playPromise.catch === 'function') {
             playPromise.catch(() => { });
         }
@@ -246,168 +239,455 @@ export function playGameButtonSfx(kind = 'tap') {
 
 export function LoadingScreen({ progress = 0 }) {
     const safeProgress = Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0;
-    const deerPosition = Math.max(4, Math.min(96, safeProgress));
-    const [gifUnavailable, setGifUnavailable] = useState(false);
+    const fillStyle = {
+        clipPath: `inset(${100 - safeProgress}% 0 0 0)`,
+    };
 
     return (
-        <div className="absolute inset-0 z-50 overflow-hidden">
-            <div className="relative z-10 flex h-full items-center justify-center px-4 py-5">
-                <div className="w-[min(26rem,94vw)]">
-                    <div className="relative h-20">
-                        <div
-                            className="loader-deer-runner"
-                            style={{ left: `calc(${deerPosition}% - 1.8rem)` }}
-                            aria-hidden="true"
-                        >
-                            {!gifUnavailable ? (
-                                <img
-                                    src={LOADING_DEER_GIF_PATH}
-                                    alt=""
-                                    className="loader-deer-gif"
-                                    draggable="false"
-                                    onError={() => setGifUnavailable(true)}
-                                />
-                            ) : (
-                                <span className="loader-deer-fallback">🦌</span>
-                            )}
-                        </div>
-                    </div>
+        <div className="absolute inset-0 z-50 overflow-hidden" style={{ backgroundImage: "url('/bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+            <div className="absolute inset-0 z-0" aria-hidden="true">
+                <div className="absolute right-[6%] top-1/2 -translate-y-1/2 opacity-15 max-sm:scale-75">
+                    <svg viewBox="0 0 70 70" width="90" height="90">
+                        <circle cx="20" cy="50" r="10" fill="none" stroke="black" strokeWidth="3.5" />
+                        <circle cx="50" cy="20" r="10" fill="none" stroke="black" strokeWidth="3.5" />
+                        <circle cx="20" cy="-10" r="10" fill="none" stroke="black" strokeWidth="3.5" />
+                        <circle cx="-10" cy="20" r="10" fill="none" stroke="black" strokeWidth="3.5" />
+                    </svg>
+                </div>
 
-                    <div className="relative h-3.5 w-full overflow-hidden rounded-full bg-emerald-100/80 shadow-[inset_0_1px_3px_rgba(5,46,22,0.16)]">
-                        <div
-                            className="relative h-full rounded-full bg-linear-to-r from-emerald-400 via-emerald-500 to-lime-400 transition-[width] duration-400 ease-out"
-                            style={{ width: `${safeProgress}%` }}
-                        >
-                            <span className="loader-progress-orb" aria-hidden="true" />
+                <div className="absolute bottom-[10%] left-[18%] opacity-15 max-sm:hidden">
+                    <svg viewBox="0 0 60 60" width="70" height="70">
+                        <circle cx="30" cy="30" r="27" fill="none" stroke="black" strokeWidth="3" />
+                        <circle cx="30" cy="30" r="12" fill="none" stroke="black" strokeWidth="3" />
+                        <circle cx="30" cy="30" r="3" fill="black" />
+                    </svg>
+                </div>
+
+                <div className="absolute bottom-[10%] right-[18%] opacity-15 max-sm:hidden">
+                    <svg viewBox="0 0 60 60" width="70" height="70">
+                        <circle cx="30" cy="30" r="27" fill="none" stroke="black" strokeWidth="3" />
+                        <circle cx="30" cy="30" r="12" fill="none" stroke="black" strokeWidth="3" />
+                        <circle cx="30" cy="30" r="3" fill="black" />
+                    </svg>
+                </div>
+
+                <div className="absolute top-[10%] left-[22%] opacity-15 max-sm:hidden">
+                    <svg viewBox="0 0 60 16" width="80" height="22">
+                        <rect x="0" y="0" width="60" height="16" rx="8" fill="none" stroke="black" strokeWidth="3" />
+                    </svg>
+                </div>
+
+                <div className="absolute top-[10%] right-[22%] opacity-15 max-sm:hidden">
+                    <svg viewBox="0 0 60 16" width="80" height="22">
+                        <rect x="0" y="0" width="60" height="16" rx="8" fill="none" stroke="black" strokeWidth="3" />
+                    </svg>
+                </div>
+            </div>
+
+            <div className="relative z-10 flex h-full items-center justify-center px-4 py-5">
+                <div className="flex items-center justify-center" aria-hidden="true">
+                    <div className="relative h-40 w-36">
+                        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 160 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <g stroke="black" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M55 85 C46 50 28 18 22 2 C20 0 32 0 38 8 C48 26 54 52 62 74" />
+                                <path d="M105 85 C114 50 132 18 138 2 C140 0 128 0 122 8 C112 26 106 52 98 74" />
+                                <path d="M50 78 C30 80 18 105 22 128 C26 150 52 156 80 156 C108 156 134 150 138 128 C142 105 130 80 110 78 C102 74 93 70 80 70 C67 70 58 74 50 78 Z" />
+                            </g>
+                        </svg>
+
+                        <div className="loader-deer-fill absolute inset-0 h-full w-full" style={fillStyle}>
+                            <svg className="h-full w-full" viewBox="0 0 160 180" xmlns="http://www.w3.org/2000/svg">
+                                <g fill="white" stroke="none">
+                                    <path d="M50 78 C30 80 18 105 22 128 C26 150 52 156 80 156 C108 156 134 150 138 128 C142 105 130 80 110 78 C102 74 93 70 80 70 C67 70 58 74 50 78 Z" />
+                                </g>
+                                <g stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none">
+                                    <path d="M55 85 C46 50 28 18 22 2 C20 0 32 0 38 8 C48 26 54 52 62 74" />
+                                    <path d="M105 85 C114 50 132 18 138 2 C140 0 128 0 122 8 C112 26 106 52 98 74" />
+                                </g>
+                            </svg>
                         </div>
                     </div>
-                    <span className="sr-only">Loading {Math.round(safeProgress)} percent</span>
                 </div>
             </div>
         </div>
     );
 }
 
-export function MainMenu({ onStart, isVisible, onPlayerNameSaved }) {
-    const isTouch = useIsTouchDevice();
-    const { isFullscreen, toggleFullscreen } = useFullscreen();
-    const [starting, setStarting] = useState(false);
-    const [settings, setSettings] = useState(() => readSettings());
-    const [howToPlayOpen, setHowToPlayOpen] = useState(false);
-    const [playerNameInput, setPlayerNameInput] = useState(() => readPlayerName());
-    const [nameModalOpen, setNameModalOpen] = useState(() => !readPlayerName());
+function Character3DPreview({ modelFile }) {
+    const containerRef = useRef(null);
 
-    const saveSettings = useCallback((updates) => {
-        const next = { ...settings, ...updates };
+    useEffect(() => {
+        if (!modelFile || !containerRef.current) return;
+
+        const container = containerRef.current;
+        let width = container.clientWidth || 300;
+        let height = container.clientHeight || 400;
+
+        const scene = new THREE.Scene();
+
+        const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
+        camera.position.set(3.2, 1.6, 4.5);
+        camera.lookAt(0, 0.6, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.setSize(width, height);
+        container.appendChild(renderer.domElement);
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambient);
+        const key = new THREE.DirectionalLight(0xffffff, 1.2);
+        key.position.set(3, 5, 4);
+        scene.add(key);
+        const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+        fill.position.set(-3, 1, -2);
+        scene.add(fill);
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                width = entry.contentBoxSize?.[0]?.inlineSize || entry.contentRect.width || width;
+                height = entry.contentBoxSize?.[0]?.blockSize || entry.contentRect.height || height;
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            }
+        });
+        resizeObserver.observe(container);
+
+        let modelGroup = null;
+        let animationId = null;
+
+        resolveAssetUrl(`/models/characters/${modelFile}`)
+            .then((url) => {
+                if (!url) return;
+                const loader = new GLTFLoader();
+                loader.load(url, (gltf) => {
+                    modelGroup = gltf.scene;
+
+                    const box = new THREE.Box3().setFromObject(modelGroup);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = maxDim > 0 ? 0.75 / maxDim : 1;
+                    modelGroup.scale.set(scale, scale, scale);
+                    modelGroup.position.set(
+                        -center.x * scale,
+                        -center.y * scale + 0.6,
+                        -center.z * scale
+                    );
+
+                    scene.add(modelGroup);
+
+                    const animate = () => {
+                        if (modelGroup) modelGroup.rotation.y += 0.012;
+                        renderer.render(scene, camera);
+                        animationId = requestAnimationFrame(animate);
+                    };
+                    animate();
+                });
+            })
+            .catch(() => {});
+
+        return () => {
+            if (animationId) cancelAnimationFrame(animationId);
+            resizeObserver.disconnect();
+            renderer.dispose();
+            if (container.contains(renderer.domElement)) {
+                container.removeChild(renderer.domElement);
+            }
+            if (modelGroup) scene.remove(modelGroup);
+        };
+    }, [modelFile]);
+
+    return (
+        <div
+            ref={containerRef}
+            className="h-full w-full"
+        />
+    );
+}
+
+function SettingsModal({ isOpen, onClose }) {
+    const [settings, setSettings] = useState(() => readSettings());
+    const [playerName, setPlayerName] = useState(() => readPlayerName());
+    const { isFullscreen, toggleFullscreen } = useFullscreen();
+
+    const toggle = useCallback((key) => {
+        const next = { ...settings, [key]: settings[key] === false };
         setSettings(next);
         persistSettings(next);
     }, [settings]);
 
+    const handleSaveName = useCallback(() => {
+        savePlayerName(playerName);
+    }, [playerName]);
+
+    if (!isOpen) return null;
+
+    return (
+        <ModalShell isOpen={isOpen} onClose={onClose} title="Settings" size="sm">
+            <div className="space-y-4">
+                {/* Player Name */}
+                <div>
+                    <label className="block text-xs font-black uppercase tracking-[0.12em] text-slate-500" htmlFor="settings-player-name">
+                        Player Name
+                    </label>
+                    <div className="mt-1 flex gap-2">
+                        <input
+                            id="settings-player-name"
+                            type="text"
+                            maxLength={24}
+                            value={playerName}
+                            onChange={(e) => setPlayerName(e.target.value)}
+                            onBlur={handleSaveName}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveName();
+                            }}
+                            className="block min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none ring-0 transition focus:border-emerald-400"
+                            placeholder="Your name"
+                        />
+                        <ActionButton variant="primary" size="sm" onClick={handleSaveName}>
+                            Save
+                        </ActionButton>
+                    </div>
+                </div>
+
+                <hr className="border-slate-200" />
+
+                <ToggleRow
+                    label="Music"
+                    description="Background soundtrack"
+                    enabled={settings.musicEnabled !== false}
+                    onToggle={() => toggle('musicEnabled')}
+                />
+                <ToggleRow
+                    label="Sound"
+                    description="Button and animal sounds"
+                    enabled={settings.soundEnabled !== false}
+                    onToggle={() => toggle('soundEnabled')}
+                />
+                {typeof toggleFullscreen === 'function' && (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <ActionButton variant="secondary" onClick={toggleFullscreen}>
+                            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                        </ActionButton>
+                    </div>
+                )}
+            </div>
+        </ModalShell>
+    );
+}
+
+function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedCharacterId, onSelect }) {
+    const [previewChar, setPreviewChar] = useState(() => {
+        if (!isOpen) return null;
+        return characterOptions.find((c) => c.id === selectedCharacterId) || characterOptions[0] || null;
+    });
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-120 flex items-center justify-center bg-sky-950/40 p-2 backdrop-blur-sm">
+            <div className="flex w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border-2 border-white/25 bg-gradient-to-b from-sky-50 to-indigo-50 shadow-[0_30px_60px_rgba(0,0,0,0.35)] sm:flex-row sm:max-h-[92dvh]">
+                {/* Left: Character list - bottom on mobile, left on desktop */}
+                <div className="order-2 flex shrink-0 flex-col sm:order-none sm:w-72 sm:border-r sm:border-white/20">
+                    <div className="p-4 pb-2 sm:p-5 sm:pb-3">
+                        <h2 className="text-base font-black text-slate-900 sm:text-lg">Explorers</h2>
+                        <p className="mt-0.5 text-xs font-bold text-slate-500">Pick your character</p>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 sm:px-3 sm:pb-5">
+                        <div className="flex flex-row gap-2 overflow-x-auto sm:flex-col sm:overflow-x-visible">
+                            {characterOptions.map((char) => {
+                                const isSelected = selectedCharacterId === char.id;
+                                return (
+                                    <button
+                                        key={char.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setPreviewChar(char);
+                                            onSelect(char);
+                                        }}
+                                        className={
+                                            `cursor-pointer whitespace-nowrap rounded-2xl border-2 px-4 py-2.5 text-left transition-all duration-150 shrink-0 ` +
+                                            `sm:w-full sm:whitespace-normal ` +
+                                            (isSelected
+                                                ? `border-emerald-400 bg-gradient-to-b from-emerald-200 to-emerald-300 shadow-[0_4px_12px_rgba(5,150,105,0.3)]`
+                                                : `border-slate-300/50 bg-white hover:border-amber-300 hover:bg-amber-50 hover:shadow-md active:scale-[0.97]`)
+                                        }
+                                    >
+                                        <span className="text-xs font-extrabold leading-tight text-slate-800 sm:text-sm">{char.label}</span>
+                                        {isSelected && (
+                                            <span className="ml-2 inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white sm:ml-0 sm:mt-1 sm:inline-block">SELECTED</span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <div className="p-4 pt-2 sm:p-5 sm:pt-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="w-full cursor-pointer rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 py-3 text-sm font-extrabold tracking-wide text-white shadow-[0_6px_0_0_#047857] transition-all duration-75 active:translate-y-[5px] active:shadow-[0_1px_0_0_#047857]"
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
+
+                {/* Right: Full 3D preview - top on mobile, right on desktop */}
+                <div className="order-first relative flex min-h-[35vh] flex-1 flex-col items-center justify-center bg-gradient-to-b from-sky-100 to-indigo-200 sm:order-none sm:min-h-0">
+                    {previewChar ? (
+                        <>
+                            <div className="absolute inset-0">
+                                <Character3DPreview modelFile={previewChar.file} />
+                            </div>
+                            <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/80 px-4 py-2 text-center shadow backdrop-blur-sm">
+                                <p className="text-sm font-extrabold text-slate-800">{previewChar.label}</p>
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-sm font-bold text-slate-400">Select a character</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCharacterId, onCharacterPicked }) {
+    const [starting, setStarting] = useState(false);
+    const [howToPlayOpen, setHowToPlayOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [charSelectOpen, setCharSelectOpen] = useState(false);
+    const [showExitConfirm, setShowExitConfirm] = useState(false);
+
     const handleStart = useCallback(() => {
+        if (!readPlayerName()) {
+            setSettingsOpen(true);
+            return;
+        }
         playGameButtonSfx('confirm');
         setStarting(true);
         window.setTimeout(onStart, 380);
     }, [onStart]);
 
-    const handleSavePlayerName = useCallback(() => {
-        const saved = savePlayerName(playerNameInput);
-        if (!saved) return;
-        onPlayerNameSaved?.(saved);
-        setPlayerNameInput(saved);
-        setNameModalOpen(false);
-    }, [playerNameInput, onPlayerNameSaved]);
-
-    const closeNameModal = useCallback(() => {
-        const existing = readPlayerName();
-        setNameModalOpen(!existing);
-    }, []);
-
-    const canStart = !starting && !!readPlayerName();
+    const selectedChar = characterOptions.find((c) => c.id === selectedCharacterId);
 
     if (!isVisible) return null;
 
     return (
-        <div className="absolute inset-0 z-40 overflow-hidden">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(16,185,129,0.16),rgba(16,185,129,0)_42%),radial-gradient(circle_at_86%_82%,rgba(163,230,53,0.18),rgba(163,230,53,0)_44%)]" />
-
-            <div className="relative z-10 flex h-full items-center justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:p-6">
-                <SurfacePanel className="w-full max-w-xl p-5 sm:p-7" data-ui-panel="true">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700/85">Bulusan, Calapan City, Oriental Mindoro</p>
-                    <h1 className="mt-3 text-4xl font-black leading-none tracking-[0.02em] text-emerald-950 sm:text-6xl">Bulusan Zootopia</h1>
-                    <p className="mt-2 text-sm font-bold tracking-wide text-emerald-900/75 sm:text-base">A calm wildlife adventure made for kids</p>
-
-                    <div className="mx-auto mt-6 w-full max-w-md space-y-3">
-                        <ActionButton
-                            variant="primary"
-                            size="lg"
-                            className="w-full"
-                            onClick={handleStart}
-                            disabled={!canStart}
-                        >
-                            {starting ? 'Starting...' : 'Start Adventure'}
-                        </ActionButton>
-
-                        <div className="grid gap-2 sm:grid-cols-2">
-                            <ToggleRow
-                                label="Music"
-                                description="Background soundtrack"
-                                enabled={settings.musicEnabled !== false}
-                                onToggle={() => saveSettings({ musicEnabled: settings.musicEnabled === false })}
-                            />
-                            <ToggleRow
-                                label="Sound"
-                                description="Button and animal sounds"
-                                enabled={settings.soundEnabled !== false}
-                                onToggle={() => saveSettings({ soundEnabled: settings.soundEnabled === false })}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            <ActionButton variant="secondary" onClick={() => setHowToPlayOpen(true)}>How To Play</ActionButton>
-                            <ActionButton variant="secondary" onClick={toggleFullscreen}>
-                                {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                            </ActionButton>
-                        </div>
-
-                        <p className="text-center text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-900/60">
-                            {isTouch ? 'Touch controls active' : 'Keyboard and mouse active'}
-                        </p>
-                    </div>
-                </SurfacePanel>
+        <div className="absolute inset-0 z-40 overflow-hidden bg-gradient-to-br from-sky-300 via-emerald-200 to-amber-200">
+            {/* Decorative floating shapes */}
+            <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+                <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/15" />
+                <div className="absolute -right-6 -bottom-6 h-52 w-52 rounded-full bg-amber-300/20" />
+                <div className="absolute left-1/4 top-1/3 h-20 w-20 rounded-full bg-emerald-300/20" />
+                <div className="absolute right-1/4 bottom-1/4 h-16 w-16 rounded-full bg-sky-300/25" />
+                <div className="absolute left-[8%] top-[15%] h-8 w-8 rounded-full bg-amber-200/30" />
+                <div className="absolute right-[12%] top-[10%] h-10 w-10 rounded-full bg-emerald-200/25" />
             </div>
 
-            <ModalShell isOpen={nameModalOpen} onClose={closeNameModal} title="Set Your Player Name" size="sm">
-                <p className="text-sm font-semibold text-slate-600">Enter your name to start exploring the zoo. This is saved on your device.</p>
+            <div className="relative z-10 flex h-full items-center justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:p-6">
+                <div className="w-full max-w-xs sm:max-w-sm">
+                    {/* Title */}
+                    <div className="mb-5 text-center sm:mb-6">
+                        <h1 className="text-3xl font-black leading-tight text-slate-800 drop-shadow-[0_2px_4px_rgba(255,255,255,0.5)] sm:text-5xl">
+                            Bulusan Zootopia
+                        </h1>
+                        <p className="mt-1 text-[11px] font-bold tracking-wide text-slate-700/80 sm:text-sm">
+                            A calm wildlife adventure for kids
+                        </p>
+                    </div>
 
-                <label className="mt-3 block text-left text-xs font-black uppercase tracking-[0.12em] text-slate-500" htmlFor="player-name-input">
-                    Player Name
-                </label>
-                <input
-                    id="player-name-input"
-                    type="text"
-                    maxLength={24}
-                    value={playerNameInput}
-                    autoFocus
-                    onChange={(e) => setPlayerNameInput(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            handleSavePlayerName();
-                        }
-                    }}
-                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none ring-0 transition focus:border-emerald-400"
-                    placeholder="Type your name"
-                />
+                    {/* Selected character indicator */}
+                    {selectedChar && (
+                        <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-white/70 px-3 py-2 text-center shadow-[0_4px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm">
+                            <span className="text-xs font-extrabold text-slate-700">Character: {selectedChar.label}</span>
+                        </div>
+                    )}
 
-                <div className="mt-4 flex justify-end">
-                    <ActionButton variant="primary" onClick={handleSavePlayerName} disabled={!playerNameInput.trim()}>
-                        Save Name
-                    </ActionButton>
+                    {/* Menu buttons */}
+                    <div className="space-y-2.5 sm:space-y-3">
+                        <button
+                            type="button"
+                            onClick={handleStart}
+                            disabled={starting}
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#047857] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#047857] disabled:pointer-events-none disabled:opacity-60 sm:py-3.5 sm:text-base"
+                        >
+                            {starting ? 'Starting...' : 'Start Adventure'}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setCharSelectOpen(true)}
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-violet-400 to-violet-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#6d28d9] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#6d28d9] sm:py-3.5 sm:text-base"
+                        >
+                            Characters
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setSettingsOpen(true)}
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-amber-400 to-amber-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#d97706] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#d97706] sm:py-3.5 sm:text-base"
+                        >
+                            Settings
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setHowToPlayOpen(true)}
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-pink-400 to-pink-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#db2777] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#db2777] sm:py-3.5 sm:text-base"
+                        >
+                            How to Play
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowExitConfirm(true)}
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-rose-400 to-rose-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#e11d48] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#e11d48] sm:py-3.5 sm:text-base"
+                        >
+                            Exit
+                        </button>
+                    </div>
+
+                    {/* Player name display */}
+                    {readPlayerName() && (
+                        <p className="mt-4 text-center text-xs font-bold text-slate-600/80">
+                            Player: {readPlayerName()}
+                        </p>
+                    )}
                 </div>
-            </ModalShell>
+            </div>
 
+            {/* How to Play modal */}
             <ModalShell isOpen={howToPlayOpen} onClose={() => setHowToPlayOpen(false)} title="How To Play" size="md">
                 <HowToPlayContent />
             </ModalShell>
+
+            {/* Settings modal */}
+            <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+            {/* Character Select modal */}
+            <CharacterSelectModal
+                isOpen={charSelectOpen}
+                onClose={() => setCharSelectOpen(false)}
+                characterOptions={characterOptions}
+                selectedCharacterId={selectedCharacterId}
+                onSelect={onCharacterPicked}
+            />
+
+            {/* Exit confirmation */}
+            <ConfirmModal
+                isOpen={showExitConfirm}
+                onConfirm={() => { setShowExitConfirm(false); }}
+                onCancel={() => setShowExitConfirm(false)}
+                title="Exit Game?"
+                message="Come back anytime to continue your zoo adventure!"
+                confirmLabel="OK"
+                confirmVariant="primary"
+            />
         </div>
     );
 }

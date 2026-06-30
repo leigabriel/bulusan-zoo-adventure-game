@@ -448,7 +448,6 @@ function MiniZooGame() {
     const [showQuitModal, setShowQuitModal] = useState(false);
     const [showResetTasksModal, setShowResetTasksModal] = useState(false);
     const [showWelcome, setShowWelcome] = useState(false);
-    const [showCharacterSelect, setShowCharacterSelect] = useState(false);
     const [selectedCharacterId, setSelectedCharacterId] = useState(() => getStoredCharacterId());
     const [cameraMode, setCameraMode] = useState('first');
     const [characterReady, setCharacterReady] = useState(false);
@@ -741,7 +740,6 @@ function MiniZooGame() {
             model.visible = cameraModeRef.current !== 'first';
             setSelectedCharacterId(characterOption.id);
             saveStoredCharacterId(characterOption.id);
-            setShowCharacterSelect(false);
             setCharacterReady(true);
             state.controlsEnabled = true;
 
@@ -1124,6 +1122,11 @@ function MiniZooGame() {
         }
     }, [checkNearbyAnimals, checkNearbyStaff, clearStatueMessageTimers, disposePlayerCharacter, playPlayerAction, showStatueEntryMessage]);
 
+    const handleCharacterPicked = useCallback((characterOption) => {
+        setSelectedCharacterId(characterOption.id);
+        saveStoredCharacterId(characterOption.id);
+    }, []);
+
     const handleStartGame = useCallback(() => {
         const state = gameStateRef.current;
         const session = getPlayerSession();
@@ -1135,11 +1138,11 @@ function MiniZooGame() {
         hasShownStatueEntryRef.current = false;
         gameStartedRef.current = true;
         soundEnabledRef.current = isSoundEnabled();
+        setPlayerName(getStoredPlayerName());
         setShowMenu(false);
         setGameStarted(true);
         setTasks(getTasks());
         setCameraMode(session.cameraMode);
-        setShowCharacterSelect(!storedCharacterOption);
         setSelectedCharacterId(storedCharacterOption?.id || null);
         setCharacterReady(false);
         setNearbyStaff(false);
@@ -1176,9 +1179,6 @@ function MiniZooGame() {
             characterId: getStoredCharacterId()
         });
     }, []);
-    const handlePlayerNameSaved = useCallback((name) => {
-        setPlayerName(String(name || '').trim());
-    }, []);
     const handleMenuClick = useCallback(() => setSettingsOpen(true), []);
     const handleTasksClick = useCallback(() => setTasksOpen(true), []);
     const handleResetTasks = useCallback(() => {
@@ -1208,7 +1208,6 @@ function MiniZooGame() {
         setNearbyAnimal(null);
         setIsCompactAnimalPopupDismissed(false);
         setShowWelcome(false);
-        setShowCharacterSelect(false);
         setSelectedCharacterId(null);
         setCharacterReady(false);
         setCameraMode('first');
@@ -1283,10 +1282,10 @@ function MiniZooGame() {
     const closeNpcDialogue = useCallback(() => {
         setShowNpcDialogue(false);
         const state = gameStateRef.current;
-        if (gameStarted && characterReady && !showCharacterSelect) {
+        if (gameStarted && characterReady) {
             state.controlsEnabled = true;
         }
-    }, [gameStarted, characterReady, showCharacterSelect]);
+    }, [gameStarted, characterReady]);
 
     const handleNpcChoice = useCallback((choice) => {
         if (!choice) return;
@@ -1350,9 +1349,6 @@ function MiniZooGame() {
                 cycleCameraMode();
             }
             if (key === 'escape') {
-                if (showCharacterSelect) {
-                    return;
-                }
                 if (showNpcDialogue) {
                     closeNpcDialogue();
                     return;
@@ -1371,7 +1367,7 @@ function MiniZooGame() {
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [nearbyAnimal, nearbyStaff, selectedAnimal, showNpcDialogue, gameStarted, settingsOpen, tasksOpen, animalModalPlacement, characterReady, showCharacterSelect, cycleCameraMode, openNpcDialogue, closeNpcDialogue]);
+    }, [nearbyAnimal, nearbyStaff, selectedAnimal, showNpcDialogue, gameStarted, settingsOpen, tasksOpen, animalModalPlacement, characterReady, cycleCameraMode, openNpcDialogue, closeNpcDialogue]);
 
     useEffect(() => {
         gameStartedRef.current = gameStarted;
@@ -1483,10 +1479,10 @@ function MiniZooGame() {
             return;
         }
 
-        if (gameStarted && characterReady && !showCharacterSelect) {
+        if (gameStarted && characterReady) {
             state.controlsEnabled = true;
         }
-    }, [showNpcDialogue, gameStarted, characterReady, showCharacterSelect]);
+    }, [showNpcDialogue, gameStarted, characterReady]);
 
     useEffect(() => {
         if (!gameStarted) return;
@@ -1573,8 +1569,7 @@ function MiniZooGame() {
     const canShowNpcPrompt = gameStarted
         && characterReady
         && nearbyStaff
-        && !showNpcDialogue
-        && !showCharacterSelect;
+        && !showNpcDialogue;
 
     return (
         <div className="relative h-dvh w-full overflow-hidden bg-linear-to-b from-sky-300 to-sky-100 touch-none overscroll-none">
@@ -1584,7 +1579,9 @@ function MiniZooGame() {
                 <MainMenu
                     onStart={handleStartGame}
                     isVisible={showMenu}
-                    onPlayerNameSaved={handlePlayerNameSaved}
+                    characterOptions={CHARACTER_OPTIONS}
+                    selectedCharacterId={selectedCharacterId}
+                    onCharacterPicked={handleCharacterPicked}
                 />
             )}
             {gameStarted && (
@@ -1647,45 +1644,6 @@ function MiniZooGame() {
                         onSelectChoice={handleNpcChoice}
                     />
                     <FeedingSuccessNotification visible={feedingSuccess.visible} animalName={feedingSuccess.animalName} onHide={handleHideFeedSuccess} />
-
-                    {showCharacterSelect && (
-                        <div
-                            data-ui-modal="true"
-                            className={`absolute inset-0 z-120 flex justify-center bg-slate-950/50 p-3 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)] backdrop-blur-sm sm:p-4 ${isTouchDevice ? 'items-stretch' : 'items-center'}`}
-                        >
-                            <div
-                                className={`w-[min(760px,96vw)] overflow-y-auto rounded-[20px] border-2 border-slate-700/12 bg-linear-to-b from-slate-50 to-indigo-50 p-4 shadow-[0_22px_58px_rgba(15,23,42,0.28)] ${isTouchDevice ? 'max-h-[calc(100dvh-20px)]' : 'max-h-[84dvh] p-5'}`}
-                            >
-                                <div className="mb-3.5 text-center">
-                                    <h3 className={`text-slate-900 ${isTouchDevice ? 'text-xl' : 'text-2xl'} font-black`}>Choose Your Character</h3>
-                                    <p className="mt-1.5 text-[13px] font-bold text-slate-700">Pick one to start exploring the zoo.</p>
-                                </div>
-
-                                <div
-                                    className={`grid gap-2.5 ${isTouchDevice ? 'grid-cols-2' : 'grid-cols-4'}`}
-                                >
-                                    {CHARACTER_OPTIONS.map((character) => {
-                                        const isSelected = selectedCharacterId === character.id;
-                                        return (
-                                            <button
-                                                key={character.id}
-                                                data-ui-button="true"
-                                                type="button"
-                                                onClick={() => handleSelectCharacter(character)}
-                                                className={`flex min-h-24.5 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 px-2 py-3 shadow-[0_6px_14px_rgba(15,23,42,0.1)] ${!isTouchDevice ? 'min-h-28.5' : ''} ${isSelected
-                                                    ? 'border-emerald-600 bg-linear-to-b from-emerald-100 to-emerald-200 shadow-[0_12px_24px_rgba(5,150,105,0.26)]'
-                                                    : 'border-slate-400/45 bg-linear-to-b from-white to-slate-50 hover:border-emerald-300'
-                                                    }`}
-                                            >
-                                                <span className="text-[30px] leading-none">{character.emoji}</span>
-                                                <span className="mt-2 text-center text-[13px] font-extrabold text-slate-900">{character.label}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </>
             )}
             <QuitModal isOpen={showQuitModal} onConfirm={handleConfirmQuit} onCancel={handleCancelQuit} />
