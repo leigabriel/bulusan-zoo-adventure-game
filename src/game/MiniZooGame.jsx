@@ -29,6 +29,7 @@ import {
     CertificateModal,
     NPCInteractionPrompt,
     NPCDialogueModal,
+    RotateDeviceOverlay,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
 
@@ -430,6 +431,7 @@ function MiniZooGame() {
     const gameStartedRef = useRef(false);
     const cameraModeRef = useRef('first');
     const showNpcDialogueRef = useRef(false);
+    const lastTapRef = useRef(0);
 
     const [isTouchDevice, setIsTouchDevice] = useState(() => {
         if (typeof window === 'undefined') return false;
@@ -512,6 +514,29 @@ function MiniZooGame() {
         // Seed IndexedDB with essential large assets on first visit.
         warmupAssetStore(ESSENTIAL_ASSET_PATHS).catch(() => { });
     }, []);
+
+    useEffect(() => {
+        if (!isTouchDevice) return;
+
+        const handleTouchStart = (e) => {
+            const now = performance.now();
+            const elapsed = now - lastTapRef.current;
+            if (elapsed < 300 && elapsed > 0) {
+                e.preventDefault();
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => { });
+                } else {
+                    document.exitFullscreen().catch(() => { });
+                }
+                lastTapRef.current = 0;
+            } else {
+                lastTapRef.current = now;
+            }
+        };
+
+        document.addEventListener('touchstart', handleTouchStart, { passive: false });
+        return () => document.removeEventListener('touchstart', handleTouchStart);
+    }, [isTouchDevice]);
 
     const checkNearbyAnimals = useCallback((playerPosition, animals) => {
         if (!playerPosition || !animals.length) return null;
@@ -1573,6 +1598,7 @@ function MiniZooGame() {
 
     return (
         <div className="relative h-dvh w-full overflow-hidden bg-linear-to-b from-sky-300 to-sky-100 touch-none overscroll-none">
+            <RotateDeviceOverlay />
             <div ref={containerRef} className="absolute inset-0" />
             {isLoading && <LoadingScreen progress={loadProgress} />}
             {!isLoading && showMenu && (

@@ -35,7 +35,6 @@ function savePlayerName(name) {
         localStorage.setItem(PLAYER_NAME_KEY, cleaned);
         window.dispatchEvent(new Event(PLAYER_NAME_CHANGE_EVENT));
     } catch {
-        // Ignore storage failures and continue.
     }
 
     return cleaned;
@@ -55,7 +54,6 @@ function persistSettings(updated) {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
         window.dispatchEvent(new Event(SETTINGS_CHANGE_EVENT));
     } catch {
-        // Keep gameplay running even if storage is unavailable.
     }
 }
 
@@ -75,7 +73,7 @@ function getUIButtonAudioTemplate(kind = 'tap') {
         uiAudioTemplates[src] = template;
         resolveAssetUrl(src).then((url) => {
             if (url) template.src = url;
-        }).catch(() => {});
+        }).catch(() => { });
     }
     return uiAudioTemplates[src];
 }
@@ -233,7 +231,6 @@ export function playGameButtonSfx(kind = 'tap') {
             playPromise.catch(() => { });
         }
     } catch {
-        // Ignore browser playback restrictions.
     }
 }
 
@@ -326,8 +323,8 @@ function Character3DPreview({ modelFile }) {
         const scene = new THREE.Scene();
 
         const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
-        camera.position.set(3.2, 1.6, 4.5);
-        camera.lookAt(0, 0.6, 0);
+        camera.position.set(2.4, 1.2, 3.2);
+        camera.lookAt(0, 0.4, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -369,7 +366,7 @@ function Character3DPreview({ modelFile }) {
                     const center = box.getCenter(new THREE.Vector3());
                     const size = box.getSize(new THREE.Vector3());
                     const maxDim = Math.max(size.x, size.y, size.z);
-                    const scale = maxDim > 0 ? 0.75 / maxDim : 1;
+                    const scale = maxDim > 0 ? 1.2 / maxDim : 1;
                     modelGroup.scale.set(scale, scale, scale);
                     modelGroup.position.set(
                         -center.x * scale,
@@ -387,7 +384,7 @@ function Character3DPreview({ modelFile }) {
                     animate();
                 });
             })
-            .catch(() => {});
+            .catch(() => { });
 
         return () => {
             if (animationId) cancelAnimationFrame(animationId);
@@ -428,7 +425,6 @@ function SettingsModal({ isOpen, onClose }) {
     return (
         <ModalShell isOpen={isOpen} onClose={onClose} title="Settings" size="sm">
             <div className="space-y-4">
-                {/* Player Name */}
                 <div>
                     <label className="block text-xs font-black uppercase tracking-[0.12em] text-slate-500" htmlFor="settings-player-name">
                         Player Name
@@ -480,78 +476,107 @@ function SettingsModal({ isOpen, onClose }) {
 }
 
 function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedCharacterId, onSelect }) {
-    const [previewChar, setPreviewChar] = useState(() => {
-        if (!isOpen) return null;
-        return characterOptions.find((c) => c.id === selectedCharacterId) || characterOptions[0] || null;
+    const [selectedIndex, setSelectedIndex] = useState(() => {
+        const index = characterOptions.findIndex((c) => c.id === selectedCharacterId);
+        return index !== -1 ? index : 0;
     });
+
+    useEffect(() => {
+        if (isOpen) {
+            const index = characterOptions.findIndex((c) => c.id === selectedCharacterId);
+            if (index !== -1) setSelectedIndex(index);
+        }
+    }, [isOpen, selectedCharacterId, characterOptions]);
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-120 flex items-center justify-center bg-sky-950/40 p-2 backdrop-blur-sm">
-            <div className="flex w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border-2 border-white/25 bg-gradient-to-b from-sky-50 to-indigo-50 shadow-[0_30px_60px_rgba(0,0,0,0.35)] sm:flex-row sm:max-h-[92dvh]">
-                {/* Left: Character list - bottom on mobile, left on desktop */}
-                <div className="order-2 flex shrink-0 flex-col sm:order-none sm:w-72 sm:border-r sm:border-white/20">
-                    <div className="p-4 pb-2 sm:p-5 sm:pb-3">
-                        <h2 className="text-base font-black text-slate-900 sm:text-lg">Explorers</h2>
-                        <p className="mt-0.5 text-xs font-bold text-slate-500">Pick your character</p>
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 sm:px-3 sm:pb-5">
-                        <div className="flex flex-row gap-2 overflow-x-auto sm:flex-col sm:overflow-x-visible">
-                            {characterOptions.map((char) => {
-                                const isSelected = selectedCharacterId === char.id;
-                                return (
-                                    <button
-                                        key={char.id}
-                                        type="button"
-                                        onClick={() => {
-                                            setPreviewChar(char);
-                                            onSelect(char);
-                                        }}
-                                        className={
-                                            `cursor-pointer whitespace-nowrap rounded-2xl border-2 px-4 py-2.5 text-left transition-all duration-150 shrink-0 ` +
-                                            `sm:w-full sm:whitespace-normal ` +
-                                            (isSelected
-                                                ? `border-emerald-400 bg-gradient-to-b from-emerald-200 to-emerald-300 shadow-[0_4px_12px_rgba(5,150,105,0.3)]`
-                                                : `border-slate-300/50 bg-white hover:border-amber-300 hover:bg-amber-50 hover:shadow-md active:scale-[0.97]`)
-                                        }
-                                    >
-                                        <span className="text-xs font-extrabold leading-tight text-slate-800 sm:text-sm">{char.label}</span>
-                                        {isSelected && (
-                                            <span className="ml-2 inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white sm:ml-0 sm:mt-1 sm:inline-block">SELECTED</span>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                    <div className="p-4 pt-2 sm:p-5 sm:pt-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="w-full cursor-pointer rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 py-3 text-sm font-extrabold tracking-wide text-white shadow-[0_6px_0_0_#047857] transition-all duration-75 active:translate-y-[5px] active:shadow-[0_1px_0_0_#047857]"
-                        >
-                            Done
-                        </button>
-                    </div>
-                </div>
+    const previewChar = characterOptions[selectedIndex];
 
-                {/* Right: Full 3D preview - top on mobile, right on desktop */}
-                <div className="order-first relative flex min-h-[35vh] flex-1 flex-col items-center justify-center bg-gradient-to-b from-sky-100 to-indigo-200 sm:order-none sm:min-h-0">
-                    {previewChar ? (
-                        <>
-                            <div className="absolute inset-0">
-                                <Character3DPreview modelFile={previewChar.file} />
-                            </div>
-                            <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/80 px-4 py-2 text-center shadow backdrop-blur-sm">
-                                <p className="text-sm font-extrabold text-slate-800">{previewChar.label}</p>
-                            </div>
-                        </>
-                    ) : (
-                        <p className="text-sm font-bold text-slate-400">Select a character</p>
-                    )}
+    const handleNext = () => {
+        setSelectedIndex((prev) => (prev + 1) % characterOptions.length);
+    };
+
+    const handlePrev = () => {
+        setSelectedIndex((prev) => (prev - 1 + characterOptions.length) % characterOptions.length);
+    };
+
+    const handleLaunch = () => {
+        onSelect(previewChar);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-120 flex flex-col bg-[#c6fe69]">
+
+            <div className="flex justify-between items-start p-6">
+                <div>
+                    <h1 className="text-4xl font-extrabold text-slate-900 uppercase tracking-wider">Character<br />Select</h1>
+                    <p className="text-slate-800 font-semibold mt-1">Select your character</p>
+                </div>
+                <div className="text-3xl font-extrabold text-slate-900">
+                    {selectedIndex + 1}/{characterOptions.length}
                 </div>
             </div>
+
+            <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+                <div className="flex items-center w-full max-w-7xl px-4 justify-between h-full relative z-10">
+
+                    <div className="hidden sm:flex flex-1 justify-end pr-12 opacity-40 hover:opacity-70 scale-90 transition-all">
+                        {characterOptions[(selectedIndex - 1 + characterOptions.length) % characterOptions.length] && (
+                            <div className="h-80 w-64 relative" onClick={handlePrev} style={{ cursor: 'pointer' }}>
+                                <Character3DPreview modelFile={characterOptions[(selectedIndex - 1 + characterOptions.length) % characterOptions.length].file} />
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="relative flex flex-col items-center shrink-0 w-full sm:w-auto px-4">
+
+                        <button onClick={handlePrev} className="absolute left-0 sm:-left-16 top-1/2 -translate-y-1/2 bg-white/50 p-2 sm:p-4 rounded-full shadow hover:bg-white active:scale-95 transition-transform z-30">
+                            <svg className="w-6 h-6 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7"></path></svg>
+                        </button>
+                        <button onClick={handleNext} className="absolute right-0 sm:-right-16 top-1/2 -translate-y-1/2 bg-white/50 p-2 sm:p-4 rounded-full shadow hover:bg-white active:scale-95 transition-transform z-30">
+                            <svg className="w-6 h-6 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7"></path></svg>
+                        </button>
+
+                        <div className="h-[50vh] sm:h-128 w-full max-w-[320px] sm:w-104 relative flex items-center justify-center">
+                            <div className="w-full h-full relative z-10 scale-125 sm:scale-150">
+                                {previewChar && <Character3DPreview modelFile={previewChar.file} />}
+                            </div>
+                        </div>
+
+                        <div className="mt-4 bg-white/80 shadow-md backdrop-blur rounded-2xl px-12 py-3">
+                            <h2 className="text-2xl font-bold text-slate-900 text-center">{previewChar?.label}</h2>
+                        </div>
+
+                    </div>
+
+                    <div className="hidden sm:flex flex-1 justify-start pl-12 opacity-40 hover:opacity-70 scale-90 transition-all">
+                        {characterOptions[(selectedIndex + 1) % characterOptions.length] && (
+                            <div className="h-80 w-64 relative" onClick={handleNext} style={{ cursor: 'pointer' }}>
+                                <Character3DPreview modelFile={characterOptions[(selectedIndex + 1) % characterOptions.length].file} />
+                            </div>
+                        )}
+                    </div>
+
+                </div>
+            </div>
+
+            <div className="p-6 flex justify-between items-end">
+                <button
+                    onClick={onClose}
+                    className="bg-white text-slate-900 font-extrabold text-xl sm:text-2xl py-3 px-8 sm:px-12 rounded-2xl shadow-[0_6px_0_0_#cbd5e1] active:translate-y-1 active:shadow-none transition-all"
+                >
+                    BACK
+                </button>
+
+                <button
+                    onClick={handleLaunch}
+                    className="bg-slate-900 text-white font-extrabold text-xl sm:text-2xl py-3 px-8 sm:px-12 rounded-2xl shadow-[0_6px_0_0_#0f172a] active:translate-y-1 active:shadow-none transition-all relative"
+                >
+                    LAUNCH
+                </button>
+            </div>
+
         </div>
     );
 }
@@ -578,8 +603,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
     if (!isVisible) return null;
 
     return (
-        <div className="absolute inset-0 z-40 overflow-hidden bg-gradient-to-br from-sky-300 via-emerald-200 to-amber-200">
-            {/* Decorative floating shapes */}
+        <div className="absolute inset-0 z-40 overflow-hidden bg-linear-to-brrom-sky-300 via-emerald-200 to-amber-200">
             <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
                 <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/15" />
                 <div className="absolute -right-6 -bottom-6 h-52 w-52 rounded-full bg-amber-300/20" />
@@ -591,7 +615,6 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
 
             <div className="relative z-10 flex h-full items-center justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:p-6">
                 <div className="w-full max-w-xs sm:max-w-sm">
-                    {/* Title */}
                     <div className="mb-5 text-center sm:mb-6">
                         <h1 className="text-3xl font-black leading-tight text-slate-800 drop-shadow-[0_2px_4px_rgba(255,255,255,0.5)] sm:text-5xl">
                             Bulusan Zootopia
@@ -601,20 +624,18 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                         </p>
                     </div>
 
-                    {/* Selected character indicator */}
                     {selectedChar && (
                         <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-white/70 px-3 py-2 text-center shadow-[0_4px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm">
                             <span className="text-xs font-extrabold text-slate-700">Character: {selectedChar.label}</span>
                         </div>
                     )}
 
-                    {/* Menu buttons */}
                     <div className="space-y-2.5 sm:space-y-3">
                         <button
                             type="button"
                             onClick={handleStart}
                             disabled={starting}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#047857] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#047857] disabled:pointer-events-none disabled:opacity-60 sm:py-3.5 sm:text-base"
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-emerald-400 to-emerald-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#047857] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#047857] disabled:pointer-events-none disabled:opacity-60 sm:py-3.5 sm:text-base"
                         >
                             {starting ? 'Starting...' : 'Start Adventure'}
                         </button>
@@ -622,7 +643,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                         <button
                             type="button"
                             onClick={() => setCharSelectOpen(true)}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-violet-400 to-violet-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#6d28d9] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#6d28d9] sm:py-3.5 sm:text-base"
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-violet-400 to-violet-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#6d28d9] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#6d28d9] sm:py-3.5 sm:text-base"
                         >
                             Characters
                         </button>
@@ -630,7 +651,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                         <button
                             type="button"
                             onClick={() => setSettingsOpen(true)}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-amber-400 to-amber-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#d97706] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#d97706] sm:py-3.5 sm:text-base"
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-amber-400 to-amber-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#d97706] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#d97706] sm:py-3.5 sm:text-base"
                         >
                             Settings
                         </button>
@@ -638,7 +659,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                         <button
                             type="button"
                             onClick={() => setHowToPlayOpen(true)}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-pink-400 to-pink-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#db2777] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#db2777] sm:py-3.5 sm:text-base"
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-pink-400 to-pink-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#db2777] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#db2777] sm:py-3.5 sm:text-base"
                         >
                             How to Play
                         </button>
@@ -646,13 +667,12 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                         <button
                             type="button"
                             onClick={() => setShowExitConfirm(true)}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-b from-rose-400 to-rose-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#e11d48] transition-all duration-75 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_0_#e11d48] sm:py-3.5 sm:text-base"
+                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-rose-400 to-rose-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#e11d48] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#e11d48] sm:py-3.5 sm:text-base"
                         >
                             Exit
                         </button>
                     </div>
 
-                    {/* Player name display */}
                     {readPlayerName() && (
                         <p className="mt-4 text-center text-xs font-bold text-slate-600/80">
                             Player: {readPlayerName()}
@@ -661,15 +681,12 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                 </div>
             </div>
 
-            {/* How to Play modal */}
             <ModalShell isOpen={howToPlayOpen} onClose={() => setHowToPlayOpen(false)} title="How To Play" size="md">
                 <HowToPlayContent />
             </ModalShell>
 
-            {/* Settings modal */}
             <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-            {/* Character Select modal */}
             <CharacterSelectModal
                 isOpen={charSelectOpen}
                 onClose={() => setCharSelectOpen(false)}
@@ -678,7 +695,6 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                 onSelect={onCharacterPicked}
             />
 
-            {/* Exit confirmation */}
             <ConfirmModal
                 isOpen={showExitConfirm}
                 onConfirm={() => { setShowExitConfirm(false); }}
@@ -937,7 +953,7 @@ export function AnimalInfoModal({
                 <SurfacePanel className="pointer-events-auto mx-auto max-w-lg p-3" data-ui-panel="true">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <h3 className="truncate text-sm font-black text-slate-900">{animal.emoji || '🐾'} {animal.name}</h3>
+                            <h3 className="truncate text-sm font-black text-slate-900">{animal.name}</h3>
                             <p className="mt-0.5 line-clamp-2 text-xs font-semibold leading-relaxed text-slate-600">{animal.description}</p>
                         </div>
                         <IconButton onClick={onClose} className="h-8 w-8">
@@ -1000,7 +1016,6 @@ export function AllAnimalsCelebration({ visible, onClose, onViewCertificate }) {
     return (
         <ModalShell isOpen={visible} onClose={onClose} title="All Animals Are Fed!" size="md">
             <div className="space-y-3 text-center">
-                <p className="text-4xl">🎉🐾🏆</p>
                 <p className="text-sm font-semibold text-slate-700">Great work, explorer. Every animal in Bulusan Zootopia Adventure has been cared for.</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                     <ActionButton variant="secondary" onClick={onClose}>Continue Exploring</ActionButton>
@@ -1161,5 +1176,91 @@ export function InteractPrompt({ visible }) {
             animalName="Animal"
             isTouchDevice={false}
         />
+    );
+}
+
+export function RotateDeviceOverlay() {
+    const [needsRotation, setNeedsRotation] = useState(() => {
+        try {
+            const ua = navigator.userAgent || '';
+            if (!/android|iphone|ipad|ipod/i.test(ua)) return false;
+            return window.matchMedia('(orientation: portrait)').matches;
+        } catch {
+            return false;
+        }
+    });
+
+    const isMobileRef = useRef(false);
+
+    useEffect(() => {
+        const ua = navigator.userAgent || '';
+        const isMobile = /android|iphone|ipad|ipod/i.test(ua);
+        isMobileRef.current = isMobile;
+
+        if (!isMobile) return;
+
+        const tryLockLandscape = async () => {
+            try {
+                if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                    await screen.orientation.lock('landscape');
+                    setNeedsRotation(false);
+                    return;
+                }
+            } catch {
+                // Orientation lock not supported
+            }
+            try {
+                const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+                setNeedsRotation(isPortrait);
+            } catch {
+                setNeedsRotation(false);
+            }
+        };
+        tryLockLandscape();
+
+        let mql;
+        const onOrientationChange = (e) => {
+            if (isMobileRef.current) {
+                setNeedsRotation(e.matches);
+            }
+        };
+
+        try {
+            mql = window.matchMedia('(orientation: portrait)');
+            if (mql.addEventListener) {
+                mql.addEventListener('change', onOrientationChange);
+            }
+        } catch {
+            // matchMedia not supported
+        }
+
+        return () => {
+            if (mql?.removeEventListener) {
+                mql.removeEventListener('change', onOrientationChange);
+            }
+        };
+    }, []);
+
+    if (!needsRotation) return null;
+
+    return (
+        <div className="fixed inset-0 z-9999 flex flex-col items-center justify-center bg-[#1a1a2e] text-white p-8">
+            <svg
+                className="w-20 h-20 mb-6 animate-rotate-phone"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            >
+                <rect x="5" y="1" width="14" height="22" rx="2" ry="2" />
+                <line x1="5" y1="17" x2="19" y2="17" />
+            </svg>
+            <h2 className="text-2xl font-black mb-2">Rotate Your Device</h2>
+            <p className="text-sm font-semibold text-slate-300 text-center max-w-xs">
+                Please rotate your device to landscape mode for the best experience.
+            </p>
+        </div>
     );
 }
