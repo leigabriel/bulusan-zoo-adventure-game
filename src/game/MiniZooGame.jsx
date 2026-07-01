@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import { createScene, createCamera, createRenderer, createLighting } from './components/Scene.jsx';
-import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight } from './components/Terrain.jsx';
+import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, createRiverWater } from './components/Terrain.jsx';
 import { loadGLTFAnimals } from './components/Animals.jsx';
 import {
     createMovementHandler,
@@ -856,6 +856,7 @@ function MiniZooGame() {
             state.controlsEnabled = false;
 
             createGrass(scene, isMobile ? 260 : 900);
+            createRiverWater(scene);
             setLoadProgress(55);
 
             // Pass the obstacles to the animals so they don't walk through them either!

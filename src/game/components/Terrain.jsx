@@ -9,11 +9,63 @@ const ROCK_MODELS = ['Rock1', 'Rock2', 'Rock3'];
 
 const modelCache = new Map();
 
+const RIVER_POINTS = [
+    { x: -280, z: -300 },
+    { x: -200, z: -180 },
+    { x: -120, z: -230 },
+    { x: -60, z: -100 },
+    { x: 20, z: -140 },
+    { x: 80, z: -30 },
+    { x: 150, z: -10 },
+    { x: 210, z: 40 },
+    { x: 290, z: 10 },
+    { x: 350, z: 130 },
+];
+const RIVER_WIDTH = 8;
+const RIVER_DEPTH = 2.5;
+const BANK_WIDTH = 5;
+const WATER_LEVEL = -1.8;
+
+function getRiverDistance(x, z) {
+    let minDist = Infinity;
+    for (let i = 0; i < RIVER_POINTS.length - 1; i++) {
+        const p1 = RIVER_POINTS[i];
+        const p2 = RIVER_POINTS[i + 1];
+        const dx = p2.x - p1.x;
+        const dz = p2.z - p1.z;
+        const lengthSq = dx * dx + dz * dz;
+        if (lengthSq === 0) continue;
+        let t = ((x - p1.x) * dx + (z - p1.z) * dz) / lengthSq;
+        t = Math.max(0, Math.min(1, t));
+        const projX = p1.x + t * dx;
+        const projZ = p1.z + t * dz;
+        const dist = Math.sqrt((x - projX) * (x - projX) + (z - projZ) * (z - projZ));
+        if (dist < minDist) minDist = dist;
+    }
+    return minDist;
+}
+
 export function getTerrainHeight(x, z) {
     const h1 = Math.sin(x * 0.015) * 3.5 + Math.cos(z * 0.015) * 3.5;
     const h2 = Math.sin(x * 0.006 + 1.2) * 6 + Math.cos(z * 0.008) * 4;
     const h3 = Math.sin(x * 0.03) * Math.cos(z * 0.03) * 1.5;
-    return h1 + h2 + h3;
+    const baseHeight = h1 + h2 + h3;
+
+    const dist = getRiverDistance(x, z);
+    const riverInfluence = RIVER_WIDTH / 2 + BANK_WIDTH;
+
+    if (dist < riverInfluence) {
+        if (dist < RIVER_WIDTH / 2) {
+            const riverbedHeight = WATER_LEVEL - RIVER_DEPTH;
+            const t = dist / (RIVER_WIDTH / 2);
+            return Math.min(baseHeight, riverbedHeight + (baseHeight - riverbedHeight) * t);
+        } else {
+            const bankT = (dist - RIVER_WIDTH / 2) / BANK_WIDTH;
+            return baseHeight * (1 - bankT * 0.3) + WATER_LEVEL * (bankT * 0.3);
+        }
+    }
+
+    return baseHeight;
 }
 
 export function createTerrain(scene) {
@@ -52,6 +104,16 @@ export function createTerrain(scene) {
             color.lerp(freshGrass, (combinedNoise - 0.25) * 0.8);
         } else if (combinedNoise < -0.2) {
             color.lerp(darkGreen, Math.min(1, (-combinedNoise - 0.2) * 1.0));
+        }
+
+        const distToRiver = getRiverDistance(x, -y);
+        const riverColor = new THREE.Color(0x2d7db8);
+        const bankColor = new THREE.Color(0x8B7355);
+        if (distToRiver < RIVER_WIDTH / 2) {
+            color.lerp(riverColor, 0.85);
+        } else if (distToRiver < RIVER_WIDTH / 2 + BANK_WIDTH) {
+            const bankT = (distToRiver - RIVER_WIDTH / 2) / BANK_WIDTH;
+            color.lerp(bankColor, 0.5 * (1 - bankT));
         }
 
         colors.push(color.r, color.g, color.b);
@@ -398,4 +460,62 @@ export function createClouds(scene, count = 18) {
     }
 
     return clouds;
+}
+
+export function createRiverWater(scene) {
+    const halfWidth = RIVER_WIDTH / 2;
+    const segments = [];
+
+    for (let i = 0; i < RIVER_POINTS.length; i++) {
+        let dirX, dirZ;
+        if (i === 0) {
+            dirX = RIVER_POINTS[1].x - RIVER_POINTS[0].x;
+            dirZ = RIVER_POINTS[1].z - RIVER_POINTS[0].z;
+        } else if (i === RIVER_POINTS.length - 1) {
+            dirX = RIVER_POINTS[i].x - RIVER_POINTS[i - 1].x;
+            dirZ = RIVER_POINTS[i].z - RIVER_POINTS[i - 1].z;
+        } else {
+            dirX = RIVER_POINTS[i + 1].x - RIVER_POINTS[i - 1].x;
+            dirZ = RIVER_POINTS[i + 1].z - RIVER_POINTS[i - 1].z;
+        }
+        const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
+        if (len < 0.001) continue;
+        const nx = -dirZ / len * halfWidth;
+        const nz = dirX / len * halfWidth;
+        segments.push({ cx: RIVER_POINTS[i].x, cz: RIVER_POINTS[i].z, nx, nz });
+    }
+
+    const positions = [];
+    const indices = [];
+
+    segments.forEach((s, i) => {
+        positions.push(s.cx + s.nx, WATER_LEVEL, s.cz + s.nz);
+        positions.push(s.cx - s.nx, WATER_LEVEL, s.cz - s.nz);
+        if (i < segments.length - 1) {
+            const a = i * 2;
+            const b = i * 2 + 1;
+            const c = (i + 1) * 2;
+            const d = (i + 1) * 2 + 1;
+            indices.push(a, c, b);
+            indices.push(b, c, d);
+        }
+    });
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshBasicMaterial({
+        color: 0x5ab0e0,
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+    });
+
+    const water = new THREE.Mesh(geo, mat);
+    water.renderOrder = 2;
+    scene.add(water);
+    return water;
 }

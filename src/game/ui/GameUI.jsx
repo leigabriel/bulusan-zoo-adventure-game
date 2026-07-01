@@ -581,6 +581,9 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
     );
 }
 
+// Replace your existing MainMenu component with this code.
+// Place MenuButton3D and WoodenTitle outside/below the MainMenu function.
+
 export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCharacterId, onCharacterPicked }) {
     const [starting, setStarting] = useState(false);
     const [howToPlayOpen, setHowToPlayOpen] = useState(false);
@@ -603,90 +606,93 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
     if (!isVisible) return null;
 
     return (
-        <div className="absolute inset-0 z-40 overflow-hidden bg-linear-to-brrom-sky-300 via-emerald-200 to-amber-200">
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-between overflow-hidden bg-[#5ee08e] font-['Qilka']">
+            {/* Jungle Background Elements */}
             <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-                <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/15" />
-                <div className="absolute -right-6 -bottom-6 h-52 w-52 rounded-full bg-amber-300/20" />
-                <div className="absolute left-1/4 top-1/3 h-20 w-20 rounded-full bg-emerald-300/20" />
-                <div className="absolute right-1/4 bottom-1/4 h-16 w-16 rounded-full bg-sky-300/25" />
-                <div className="absolute left-[8%] top-[15%] h-8 w-8 rounded-full bg-amber-200/30" />
-                <div className="absolute right-[12%] top-[10%] h-10 w-10 rounded-full bg-emerald-200/25" />
+                <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_50%_0%,#ffffff_0%,transparent_60%)]"></div>
+                <div className="absolute bottom-0 w-full h-[60%] bg-[#44c772] rounded-t-[100%] scale-[1.8] translate-y-1/3 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]"></div>
+                <div className="absolute bottom-0 w-full h-[40%] bg-[#2cb25d] rounded-t-[100%] scale-[1.5] translate-y-1/4 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]"></div>
+                <div className="absolute bottom-0 w-full h-[25%] bg-[#1ea04d] rounded-t-[100%] scale-[1.2] translate-y-1/4 shadow-[0_-10px_20px_rgba(0,0,0,0.2)]"></div>
             </div>
 
-            <div className="relative z-10 flex h-full items-center justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:p-6">
-                <div className="w-full max-w-xs sm:max-w-sm">
-                    <div className="mb-5 text-center sm:mb-6">
-                        <h1 className="text-3xl font-black leading-tight text-slate-800 drop-shadow-[0_2px_4px_rgba(255,255,255,0.5)] sm:text-5xl">
-                            Bulusan Zootopia
-                        </h1>
-                        <p className="mt-1 text-[11px] font-bold tracking-wide text-slate-700/80 sm:text-sm">
-                            A calm wildlife adventure for kids
-                        </p>
+            {/* Top / Wooden Title Area */}
+            <div className="relative mt-[8vh] sm:mt-[12vh] z-10 w-full flex flex-col items-center px-4">
+                <WoodenTitle titlePart1="Bulusan" titlePart2="Mini Zoo" />
+
+                {selectedChar && (
+                    <div className="mt-6 flex items-center justify-center rounded-2xl bg-white/90 px-4 py-2 text-center shadow-[0_8px_16px_rgba(0,0,0,0.2)] backdrop-blur-sm border-[3px] border-[#2cb25d]">
+                        <span className="text-sm font-extrabold text-[#1ea04d]">Character: {selectedChar.label}</span>
                     </div>
+                )}
+            </div>
 
-                    {selectedChar && (
-                        <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-white/70 px-3 py-2 text-center shadow-[0_4px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm">
-                            <span className="text-xs font-extrabold text-slate-700">Character: {selectedChar.label}</span>
-                        </div>
-                    )}
+            {/* Bottom / 3D Buttons Area */}
+            <div className="relative z-10 w-full mb-[6vh] sm:mb-[10vh] flex flex-row items-end justify-center gap-3 sm:gap-6 px-2 flex-wrap max-w-5xl">
 
-                    <div className="space-y-2.5 sm:space-y-3">
-                        <button
-                            type="button"
-                            onClick={handleStart}
-                            disabled={starting}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-emerald-400 to-emerald-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#047857] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#047857] disabled:pointer-events-none disabled:opacity-60 sm:py-3.5 sm:text-base"
-                        >
-                            {starting ? 'Starting...' : 'Start Adventure'}
-                        </button>
+                {/* Main Play Button */}
+                <MenuButton3D
+                    color="red"
+                    icon={
+                        <svg viewBox="0 0 24 24" fill="white" className="w-12 h-12 sm:w-16 sm:h-16 ml-2 drop-shadow-md">
+                            <path d="M6 4l14 8-14 8V4z" />
+                        </svg>
+                    }
+                    label="Play"
+                    onClick={handleStart}
+                    disabled={starting}
+                    isMain={true}
+                />
 
-                        <button
-                            type="button"
-                            onClick={() => setCharSelectOpen(true)}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-violet-400 to-violet-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#6d28d9] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#6d28d9] sm:py-3.5 sm:text-base"
-                        >
-                            Characters
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setSettingsOpen(true)}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-amber-400 to-amber-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#d97706] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#d97706] sm:py-3.5 sm:text-base"
-                        >
-                            Settings
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setHowToPlayOpen(true)}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-pink-400 to-pink-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#db2777] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#db2777] sm:py-3.5 sm:text-base"
-                        >
-                            How to Play
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setShowExitConfirm(true)}
-                            className="flex w-full cursor-pointer items-center justify-center rounded-2xl bg-linear-to-b from-rose-400 to-rose-600 py-3.5 text-sm font-extrabold tracking-wide text-white shadow-[0_7px_0_0_#e11d48] transition-all duration-75 hover:brightness-110 active:translate-y-1.25 active:shadow-[0_2px_0_0_#e11d48] sm:py-3.5 sm:text-base"
-                        >
-                            Exit
-                        </button>
-                    </div>
-
-                    {readPlayerName() && (
-                        <p className="mt-4 text-center text-xs font-bold text-slate-600/80">
-                            Player: {readPlayerName()}
-                        </p>
-                    )}
+                {/* Secondary Menu Buttons */}
+                <div className="flex gap-3 sm:gap-5 mb-2 sm:mb-4">
+                    <MenuButton3D
+                        color="blue"
+                        icon={
+                            <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-md">
+                                <path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 6 18.5 6s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                            </svg>
+                        }
+                        label="How to Play"
+                        onClick={() => setHowToPlayOpen(true)}
+                    />
+                    <MenuButton3D
+                        color="blue"
+                        icon={
+                            <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-md">
+                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                            </svg>
+                        }
+                        label="Characters"
+                        onClick={() => setCharSelectOpen(true)}
+                    />
+                    <MenuButton3D
+                        color="blue"
+                        icon={
+                            <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-md">
+                                <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
+                            </svg>
+                        }
+                        label="Settings"
+                        onClick={() => setSettingsOpen(true)}
+                    />
+                    <MenuButton3D
+                        color="blue"
+                        icon={
+                            <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-md">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                            </svg>
+                        }
+                        label="Quit"
+                        onClick={() => setShowExitConfirm(true)}
+                    />
                 </div>
             </div>
 
+            {/* Modals from original MainMenu */}
             <ModalShell isOpen={howToPlayOpen} onClose={() => setHowToPlayOpen(false)} title="How To Play" size="md">
                 <HowToPlayContent />
             </ModalShell>
-
             <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
-
             <CharacterSelectModal
                 isOpen={charSelectOpen}
                 onClose={() => setCharSelectOpen(false)}
@@ -694,10 +700,9 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                 selectedCharacterId={selectedCharacterId}
                 onSelect={onCharacterPicked}
             />
-
             <ConfirmModal
                 isOpen={showExitConfirm}
-                onConfirm={() => { setShowExitConfirm(false); }}
+                onConfirm={() => { setShowExitConfirm(false); /* Usually game logic handles quit */ }}
                 onCancel={() => setShowExitConfirm(false)}
                 title="Exit Game?"
                 message="Come back anytime to continue your zoo adventure!"
@@ -707,6 +712,88 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
         </div>
     );
 }
+
+// ==========================================
+// NEW HELPER COMPONENTS (Place below MainMenu)
+// ==========================================
+
+const MenuButton3D = ({ color = 'blue', onClick, icon, label, disabled, isMain = false }) => {
+    const baseClasses = "relative rounded-full flex items-center justify-center transition-transform active:scale-90 hover:scale-105 cursor-pointer shadow-[0_12px_24px_rgba(0,0,0,0.35)]";
+    const sizeClasses = isMain ? "w-28 h-28 sm:w-36 sm:h-36" : "w-16 h-16 sm:w-20 sm:h-20";
+
+    // Glossy 3D effects imitating the reference image
+    const colorClasses = color === 'red'
+        ? "bg-gradient-to-b from-[#ff6b8b] to-[#d90429] border-[6px] sm:border-[8px] border-[#ffb3c6]"
+        : "bg-gradient-to-b from-[#48cae4] to-[#0077b6] border-[4px] sm:border-[6px] border-[#90e0ef]";
+
+    const highlightClasses = "absolute top-1 left-[15%] w-[60%] h-[35%] bg-white/45 rounded-[100%] blur-[1px] rotate-[-15deg] pointer-events-none";
+    const innerShadowClasses = "absolute inset-0 rounded-full shadow-[inset_0_-10px_20px_rgba(0,0,0,0.4)] pointer-events-none";
+
+    return (
+        <div className="flex flex-col items-center gap-1">
+            {isMain && (
+                <div className="bg-[#00b4d8] text-white font-black text-xl px-5 py-1.5 rounded-2xl shadow-lg border-[3px] border-white relative mb-2 animate-bounce">
+                    {label}
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-10 border-l-transparent border-r-10 border-r-transparent border-t-10 border-t-[#00b4d8]"></div>
+                </div>
+            )}
+            <button onClick={onClick} disabled={disabled} className={`${baseClasses} ${sizeClasses} ${colorClasses} overflow-hidden group`}>
+                <div className={highlightClasses}></div>
+                <div className={innerShadowClasses}></div>
+                <div className="relative z-10 transition-transform group-hover:scale-110">
+                    {icon}
+                </div>
+            </button>
+            {!isMain && (
+                <span className="text-white text-xs sm:text-[15px] font-black drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] mt-1 tracking-wide">
+                    {label}
+                </span>
+            )}
+        </div>
+    );
+};
+
+const WoodenTitle = ({ titlePart1, titlePart2 }) => {
+    return (
+        <div className="relative flex flex-col items-center">
+            {/* Hanging Vines */}
+            <div className="absolute -top-30 left-[15%] w-4 h-37.5 bg-[#2d6a4f] rounded-full z-0 flex flex-col items-center justify-evenly shadow-md">
+                <div className="w-8 h-4 bg-[#2d6a4f] rounded-full rotate-45 translate-x-2"></div>
+                <div className="w-6 h-3 bg-[#2d6a4f] rounded-full -rotate-45 -translate-x-2"></div>
+            </div>
+            <div className="absolute -top-30 right-[15%] w-4 h-37.5 bg-[#2d6a4f] rounded-full z-0 flex flex-col items-center justify-evenly shadow-md">
+                <div className="w-6 h-3 bg-[#2d6a4f] rounded-full rotate-45 translate-x-2"></div>
+                <div className="w-8 h-4 bg-[#2d6a4f] rounded-full -rotate-45 -translate-x-2"></div>
+            </div>
+
+            {/* Wooden Board */}
+            <div className="relative z-10 bg-[#e07a5f] border-10 border-[#81b29a]/0 border-t-[#c6624a] border-b-[#a84c37] border-x-[#b95941] rounded-[2.5rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)] px-6 py-8 w-85 sm:w-125 text-center overflow-hidden">
+                {/* Wood texture lines */}
+                <div className="absolute top-[25%] left-0 w-full h-0.75 bg-[#8a3824]/30 rounded-full"></div>
+                <div className="absolute top-[50%] left-0 w-full h-0.75 bg-[#8a3824]/30 rounded-full"></div>
+                <div className="absolute top-[75%] left-0 w-full h-0.75 bg-[#8a3824]/30 rounded-full"></div>
+
+                {/* Text styling */}
+                <h1 className="relative z-20 flex flex-col gap-1 items-center justify-center filter drop-shadow-[0_8px_10px_rgba(0,0,0,0.5)]">
+                    <div className="text-[3.25rem] sm:text-[4.5rem] leading-none font-black text-[#f94144] tracking-wider" style={{ WebkitTextStroke: '3px white', textShadow: '0 5px 0 #900' }}>
+                        {titlePart1}
+                    </div>
+                    <div className="text-[2.5rem] sm:text-[3.5rem] leading-none font-black text-[#48cae4] tracking-wide transform -rotate-2 mt-2" style={{ WebkitTextStroke: '2px white', textShadow: '0 4px 0 #005090' }}>
+                        {titlePart2}
+                    </div>
+                </h1>
+
+                {/* Decorative Leaves */}
+                <div className="absolute -top-3 -left-3 text-[#2a9d8f] drop-shadow-lg rotate-120">
+                    <svg width="70" height="70" viewBox="0 0 24 24" fill="currentColor"><path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22L6.66 19.7C7.14 19.87 7.64 20 8 20C19 20 22 3 22 3C21 5 14 5.25 9 6.25C4 7.25 7.05 10.67 9.24 12.31C9.64 12.67 11.16 14.07 13.56 15.2C13.88 14 14.62 12.83 15.65 11.83C16.68 10.83 18 10 19.46 9.5C18.66 8.87 17.86 8.37 17 8Z" /></svg>
+                </div>
+                <div className="absolute -bottom-3 -right-3 text-[#2a9d8f] drop-shadow-lg -rotate-12">
+                    <svg width="70" height="70" viewBox="0 0 24 24" fill="currentColor"><path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22L6.66 19.7C7.14 19.87 7.64 20 8 20C19 20 22 3 22 3C21 5 14 5.25 9 6.25C4 7.25 7.05 10.67 9.24 12.31C9.64 12.67 11.16 14.07 13.56 15.2C13.88 14 14.62 12.83 15.65 11.83C16.68 10.83 18 10 19.46 9.5C18.66 8.87 17.86 8.37 17 8Z" /></svg>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export function GameHUD({ playerName, onMenuClick, onTasksClick, completedTasks, totalTasks, isTouchDevice = false }) {
     return (
