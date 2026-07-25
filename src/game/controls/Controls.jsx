@@ -201,10 +201,48 @@ export function setupKeyboardControls(state) {
 export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
     let joystickTouchId = null;
     let lookTouchId = null;
+    let jumpTouchId = null;
+    const JOYSTICK_PROXIMITY = 130;
+    const JUMP_PROXIMITY = 80;
 
     const isUIInteractionTarget = (target) => {
         if (!(target instanceof Element)) return false;
         return !!target.closest('[data-ui-scrollable="true"], [data-ui-modal="true"], [data-ui-panel="true"], button, a, input, textarea, select, [role="button"]');
+    };
+
+    const getJoystickCenter = () => {
+        if (!baseRef.current) return null;
+        const rect = baseRef.current.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
+    const getJumpCenter = () => {
+        if (!jumpBtnRef.current) return null;
+        const rect = jumpBtnRef.current.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
+    const isNearJoystick = (touch) => {
+        const center = getJoystickCenter();
+        if (!center) return false;
+        const dx = touch.clientX - center.x;
+        const dy = touch.clientY - center.y;
+        return (dx * dx + dy * dy) <= JOYSTICK_PROXIMITY * JOYSTICK_PROXIMITY;
+    };
+
+    const isNearJump = (touch) => {
+        const center = getJumpCenter();
+        if (!center) return false;
+        const dx = touch.clientX - center.x;
+        const dy = touch.clientY - center.y;
+        return (dx * dx + dy * dy) <= JUMP_PROXIMITY * JUMP_PROXIMITY;
+    };
+
+    const isInsideElement = (touch, element) => {
+        if (!element) return false;
+        const rect = element.getBoundingClientRect();
+        return touch.clientX >= rect.left && touch.clientX <= rect.right &&
+            touch.clientY >= rect.top && touch.clientY <= rect.bottom;
     };
 
     const updateJoystick = (touch) => {
@@ -247,33 +285,35 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
         lookTouchId = null;
     };
 
-    const isInsideElement = (touch, element) => {
-        if (!element) return false;
-        const rect = element.getBoundingClientRect();
-        return touch.clientX >= rect.left && touch.clientX <= rect.right &&
-            touch.clientY >= rect.top && touch.clientY <= rect.bottom;
-    };
-
     const handleTouchStart = (e) => {
         for (const touch of e.changedTouches) {
-            if (state.controlsEnabled === false) {
-                continue;
-            }
+            if (state.controlsEnabled === false) continue;
 
-            if (jumpBtnRef?.current && (touch.target === jumpBtnRef.current || jumpBtnRef.current.contains(touch.target) || isInsideElement(touch, jumpBtnRef.current))) {
+            const onJump = jumpBtnRef?.current && (
+                touch.target === jumpBtnRef.current ||
+                jumpBtnRef.current.contains(touch.target) ||
+                isInsideElement(touch, jumpBtnRef.current) ||
+                isNearJump(touch)
+            );
+            if (onJump && jumpTouchId === null) {
+                jumpTouchId = touch.identifier;
                 if (!state.isJumping && state.isGrounded) {
                     state.keys[" "] = true;
-                    setTimeout(() => state.keys[" "] = false, 100);
+                    setTimeout(() => { if (jumpTouchId === touch.identifier) state.keys[" "] = false; }, 100);
                 }
                 e.preventDefault();
                 continue;
             }
 
-            if (isUIInteractionTarget(touch.target)) {
-                continue;
-            }
+            if (isUIInteractionTarget(touch.target)) continue;
 
-            if (joystickTouchId === null && baseRef.current && (touch.target === baseRef.current || baseRef.current.contains(touch.target) || isInsideElement(touch, baseRef.current))) {
+            const onJoystick = baseRef.current && (
+                touch.target === baseRef.current ||
+                baseRef.current.contains(touch.target) ||
+                isInsideElement(touch, baseRef.current) ||
+                isNearJoystick(touch)
+            );
+            if (joystickTouchId === null && onJoystick) {
                 joystickTouchId = touch.identifier;
                 state.sActive = true;
                 updateJoystick(touch);
@@ -281,21 +321,20 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
                 continue;
             }
 
-            if (lookTouchId === null && joystickTouchId !== touch.identifier) {
+            if (lookTouchId === null && joystickTouchId !== touch.identifier && jumpTouchId !== touch.identifier) {
                 lookTouchId = touch.identifier;
                 state.lActive = true;
                 state.lx = touch.clientX;
                 state.ly = touch.clientY;
+                e.preventDefault();
             }
         }
     };
 
     const handleTouchMove = (e) => {
-        if (state.controlsEnabled === false) {
-            return;
-        }
-
+        if (state.controlsEnabled === false) return;
         let shouldPreventDefault = false;
+
         for (const touch of e.changedTouches) {
             if (touch.identifier === joystickTouchId && state.sActive) {
                 updateJoystick(touch);
@@ -315,13 +354,9 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
                 continue;
             }
 
-            if (isUIInteractionTarget(touch.target)) {
-                continue;
-            }
+            if (isUIInteractionTarget(touch.target)) continue;
         }
-        if (shouldPreventDefault) {
-            e.preventDefault();
-        }
+        if (shouldPreventDefault) e.preventDefault();
     };
 
     const handleTouchEnd = (e) => {
@@ -334,14 +369,17 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
                 resetLook();
                 continue;
             }
-            if (isUIInteractionTarget(touch.target)) {
+            if (touch.identifier === jumpTouchId) {
+                jumpTouchId = null;
                 continue;
             }
+            if (isUIInteractionTarget(touch.target)) continue;
         }
 
         if (lookTouchId === null && state.controlsEnabled !== false) {
             for (const activeTouch of e.touches) {
                 if (activeTouch.identifier === joystickTouchId) continue;
+                if (activeTouch.identifier === jumpTouchId) continue;
                 if (isUIInteractionTarget(activeTouch.target)) continue;
                 lookTouchId = activeTouch.identifier;
                 state.lActive = true;
@@ -352,15 +390,22 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
         }
     };
 
+    const handleTouchCancel = () => {
+        resetJoystick();
+        resetLook();
+        jumpTouchId = null;
+    };
+
     const handleViewportChange = () => {
         resetJoystick();
         resetLook();
+        jumpTouchId = null;
     };
 
     window.addEventListener("touchstart", handleTouchStart, { passive: false });
     window.addEventListener("touchmove", handleTouchMove, { passive: false });
-    window.addEventListener("touchend", handleTouchEnd);
-    window.addEventListener("touchcancel", handleTouchEnd);
+    window.addEventListener("touchend", handleTouchEnd, { passive: false });
+    window.addEventListener("touchcancel", handleTouchCancel, { passive: false });
     window.addEventListener("orientationchange", handleViewportChange);
     window.addEventListener("resize", handleViewportChange);
 
@@ -368,11 +413,12 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
         window.removeEventListener("touchstart", handleTouchStart);
         window.removeEventListener("touchmove", handleTouchMove);
         window.removeEventListener("touchend", handleTouchEnd);
-        window.removeEventListener("touchcancel", handleTouchEnd);
+        window.removeEventListener("touchcancel", handleTouchCancel);
         window.removeEventListener("orientationchange", handleViewportChange);
         window.removeEventListener("resize", handleViewportChange);
         resetJoystick();
         resetLook();
+        jumpTouchId = null;
     };
 }
 

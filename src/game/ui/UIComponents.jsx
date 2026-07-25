@@ -88,7 +88,7 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md' }) {
     return (
         <div
             data-ui-modal="true"
-            className="fixed inset-0 z-120 flex items-center justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)]"
+            className="fixed inset-0 z-120 flex items-center justify-center p-2 sm:p-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)]"
             role="dialog"
             aria-modal="true"
         >
@@ -105,9 +105,9 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md' }) {
                     maxWidth[size] || maxWidth.md,
                 )}
             >
-                <div className="max-h-[82dvh] overflow-y-auto p-4 sm:p-6" data-ui-scrollable="true">
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                        {title ? <h2 className="text-lg font-black text-slate-900 sm:text-xl">{title}</h2> : <span />}
+                <div className="max-h-[80dvh] overflow-y-auto p-3 sm:p-6" data-ui-scrollable="true">
+                    <div className="mb-3 sm:mb-4 flex items-center justify-between gap-3">
+                        {title ? <h2 className="text-base sm:text-lg font-black text-slate-900">{title}</h2> : <span />}
                         <IconButton onClick={onClose} aria-label="Close">
                             <span className="text-base leading-none">x</span>
                         </IconButton>
@@ -138,20 +138,20 @@ export function SideSheet({ isOpen, onClose, title, side = 'left', children }) {
             <aside
                 data-ui-panel="true"
                 className={cx(
-                    'fixed top-0 z-95 h-dvh w-[min(24rem,96vw)] border border-emerald-100 bg-white transition-transform duration-300',
+                    'fixed top-0 z-95 h-dvh w-[min(24rem,92vw)] border border-emerald-100 bg-white transition-transform duration-300',
                     'shadow-[0_22px_40px_-20px_rgba(5,46,22,0.65)]',
                     sidePosition,
                     isOpen ? 'translate-x-0' : hiddenPosition,
                 )}
             >
                 <div className="flex h-full flex-col">
-                    <div className="flex items-center justify-between border-b border-emerald-100/90 px-4 py-3">
-                        <h3 className="text-sm font-black uppercase tracking-[0.12em] text-emerald-900/80">{title}</h3>
+                    <div className="flex items-center justify-between border-b border-emerald-100/90 px-3 py-2.5 sm:px-4 sm:py-3">
+                        <h3 className="text-xs sm:text-sm font-black uppercase tracking-[0.12em] text-emerald-900/80">{title}</h3>
                         <IconButton onClick={onClose} aria-label="Close panel">
                             <span className="text-base leading-none">x</span>
                         </IconButton>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto p-4" data-ui-scrollable="true">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4" data-ui-scrollable="true">
                         {children}
                     </div>
                 </div>

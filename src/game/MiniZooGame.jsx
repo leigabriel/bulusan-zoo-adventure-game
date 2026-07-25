@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import { createScene, createCamera, createRenderer, createLighting } from './components/Scene.jsx';
-import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, createRiverWater } from './components/Terrain.jsx';
+import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight } from './components/Terrain.jsx';
 import { loadGLTFAnimals } from './components/Animals.jsx';
 import {
     createMovementHandler,
@@ -856,7 +856,6 @@ function MiniZooGame() {
             state.controlsEnabled = false;
 
             createGrass(scene, isMobile ? 260 : 900);
-            createRiverWater(scene);
             setLoadProgress(55);
 
             // Pass the obstacles to the animals so they don't walk through them either!
@@ -1620,12 +1619,12 @@ function MiniZooGame() {
                             data-ui-button="true"
                             type="button"
                             onClick={cycleCameraMode}
-                            className={`camera-toggle-btn absolute right-3 z-70 rounded-full border border-emerald-300/80 bg-linear-to-b from-white to-emerald-50 font-extrabold text-emerald-950 shadow-[0_10px_24px_-16px_rgba(5,46,22,0.5)] transition hover:to-emerald-100 active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 ${isTouchDevice
-                                ? 'top-[calc(env(safe-area-inset-top)+3.8rem)] px-2.5 py-1.5 text-[11px]'
+                            className={`camera-toggle-btn absolute right-1 sm:right-3 z-70 rounded-full border border-emerald-300/80 bg-linear-to-b from-white to-emerald-50 font-extrabold text-emerald-950 shadow-[0_10px_24px_-16px_rgba(5,46,22,0.5)] transition hover:to-emerald-100 active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 ${isTouchDevice
+                                ? 'top-[calc(env(safe-area-inset-top)+3.8rem)] px-2 py-1 text-[10px] sm:px-2.5 sm:py-1.5 sm:text-[11px]'
                                 : 'top-[calc(env(safe-area-inset-top)+3.45rem)] px-3 py-2 text-xs'}`}
                             title="Toggle camera view (V)"
                         >
-                            {cameraMode === 'first' ? 'First Person' : 'Third Person'}
+                            {cameraMode === 'first' ? '1st' : '3rd'}
                         </button>
                     )}
                     <GameHUD
@@ -1653,7 +1652,6 @@ function MiniZooGame() {
                         placement={animalModalPlacement}
                         preview={animalModalPlacement === 'bottom'}
                         onView={handleViewDetails}
-                        bottomOffset={isTouchDevice ? 'max(132px, env(safe-area-inset-bottom) + 96px)' : 'max(84px, env(safe-area-inset-bottom) + 48px)'}
                     />
                     <NPCInteractionPrompt
                         visible={canShowNpcPrompt}
