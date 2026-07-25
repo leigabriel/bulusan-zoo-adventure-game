@@ -322,9 +322,9 @@ function Character3DPreview({ modelFile }) {
 
         const scene = new THREE.Scene();
 
-        const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
-        camera.position.set(2.4, 1.2, 3.2);
-        camera.lookAt(0, 0.4, 0);
+        const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+        camera.position.set(2.4, 1.6, 3.2);
+        camera.lookAt(0, 1.0, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -353,6 +353,8 @@ function Character3DPreview({ modelFile }) {
         resizeObserver.observe(container);
 
         let modelGroup = null;
+        let mixer = null;
+        let idleAction = null;
         let animationId = null;
 
         resolveAssetUrl(`/models/characters/${modelFile}`)
@@ -366,18 +368,36 @@ function Character3DPreview({ modelFile }) {
                     const center = box.getCenter(new THREE.Vector3());
                     const size = box.getSize(new THREE.Vector3());
                     const maxDim = Math.max(size.x, size.y, size.z);
-                    const scale = maxDim > 0 ? 1.2 / maxDim : 1;
+                    const targetSize = 0.9;
+                    const scale = maxDim > 0 ? targetSize / maxDim : 1;
                     modelGroup.scale.set(scale, scale, scale);
                     modelGroup.position.set(
                         -center.x * scale,
-                        -center.y * scale + 0.6,
+                        -center.y * scale + targetSize * 0.5,
                         -center.z * scale
                     );
 
                     scene.add(modelGroup);
 
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        mixer = new THREE.AnimationMixer(modelGroup);
+                        const actions = {};
+                        gltf.animations.forEach((clip) => {
+                            actions[clip.name.toLowerCase()] = mixer.clipAction(clip);
+                        });
+                        const actionEntries = Object.entries(actions);
+                        idleAction = actionEntries.find(([name]) => /idle|stand|breath/.test(name))?.[1] || actionEntries[0]?.[1] || null;
+                        if (idleAction) {
+                            idleAction.enabled = true;
+                            idleAction.setEffectiveWeight(1);
+                            idleAction.play();
+                        }
+                    }
+
+                    const clock = new THREE.Clock();
                     const animate = () => {
-                        if (modelGroup) modelGroup.rotation.y += 0.012;
+                        if (modelGroup) modelGroup.rotation.y += 0.004;
+                        if (mixer && clock) mixer.update(clock.getDelta());
                         renderer.render(scene, camera);
                         animationId = requestAnimationFrame(animate);
                     };
@@ -388,6 +408,11 @@ function Character3DPreview({ modelFile }) {
 
         return () => {
             if (animationId) cancelAnimationFrame(animationId);
+            if (mixer) {
+                mixer.stopAllAction();
+                mixer = null;
+            }
+            idleAction = null;
             resizeObserver.disconnect();
             renderer.dispose();
             if (container.contains(renderer.domElement)) {
@@ -481,6 +506,13 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
         return index !== -1 ? index : 0;
     });
 
+    useEffect(() => {
+        if (isOpen) {
+            const index = characterOptions.findIndex((c) => c.id === selectedCharacterId);
+            if (index !== -1) setSelectedIndex(index);
+        }
+    }, [isOpen, selectedCharacterId, characterOptions]);
+
     if (!isOpen) return null;
 
     const previewChar = characterOptions[selectedIndex];
@@ -531,8 +563,8 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
                             <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7"></path></svg>
                         </button>
 
-                        <div className="h-[35vh] sm:h-128 w-full max-w-[280px] sm:max-w-[320px] sm:w-104 relative flex items-center justify-center">
-                            <div className="w-full h-full relative z-10 scale-110 sm:scale-150">
+                        <div className="h-[28vh] sm:h-[40vh] w-full max-w-56 sm:max-w-[280px] relative flex items-center justify-center">
+                            <div className="w-full h-full relative z-10">
                                 {previewChar && <Character3DPreview modelFile={previewChar.file} />}
                             </div>
                         </div>
@@ -599,7 +631,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
     if (!isVisible) return null;
 
     return (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-between overflow-hidden bg-[#5ee08e] font-['Qilka'] safe-area-inset">
+        <div className="absolute inset-0 z-40 flex flex-col overflow-hidden bg-[#5ee08e] font-['Qilka'] safe-area-inset">
             {/* Jungle Background Elements */}
             <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
                 <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_50%_0%,#ffffff_0%,transparent_60%)]"></div>
@@ -609,23 +641,22 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
             </div>
 
             {/* Top / Wooden Title Area */}
-            <div className="relative mt-[6vh] sm:mt-[12vh] z-10 w-full flex flex-col items-center px-2 sm:px-4">
+            <div className="relative z-10 w-full flex flex-col items-center px-4 pt-[5vh]">
                 <WoodenTitle titlePart1="Bulusan" titlePart2="Mini Zoo" />
 
                 {selectedChar && (
-                    <div className="mt-4 sm:mt-6 flex items-center justify-center rounded-2xl bg-white/90 px-3 py-1.5 sm:px-4 sm:py-2 text-center shadow-[0_8px_16px_rgba(0,0,0,0.2)] backdrop-blur-sm border-[3px] border-[#2cb25d]">
-                        <span className="text-[11px] sm:text-sm font-extrabold text-[#1ea04d]">Character: {selectedChar.label}</span>
+                    <div className="mt-3 flex items-center justify-center rounded-2xl bg-white/90 px-4 py-2 text-center shadow-[0_8px_16px_rgba(0,0,0,0.2)] backdrop-blur-sm border-[3px] border-[#2cb25d]">
+                        <span className="text-sm font-extrabold text-[#1ea04d]">Character: {selectedChar.label}</span>
                     </div>
                 )}
             </div>
 
-            {/* Bottom / 3D Buttons Area */}
-            <div className="relative z-10 w-full mb-[4vh] sm:mb-[10vh] flex flex-col items-center gap-3 sm:gap-6 px-2 max-w-5xl">
-                {/* Main Play Button */}
+            {/* Center: Single Large Pink Play Button */}
+            <div className="relative z-10 flex-1 flex items-center justify-center px-4">
                 <MenuButton3D
-                    color="red"
+                    color="pink"
                     icon={
-                        <svg viewBox="0 0 24 24" fill="white" className="w-10 h-10 sm:w-16 sm:h-16 ml-2 drop-shadow-md">
+                        <svg viewBox="0 0 24 24" fill="white" className="w-16 h-16 sm:w-20 sm:h-20 ml-2 drop-shadow-md">
                             <path d="M6 4l14 8-14 8V4z" />
                         </svg>
                     }
@@ -634,13 +665,15 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                     disabled={starting}
                     isMain={true}
                 />
+            </div>
 
-                {/* Secondary Menu Buttons */}
-                <div className="flex items-end justify-center gap-2 sm:gap-5 flex-wrap">
+            {/* Bottom Navigation Bar */}
+            <div className="relative z-10 w-full pb-[env(safe-area-inset-bottom)]">
+                <div className="flex items-center justify-evenly bg-white/15 backdrop-blur-md border-t border-white/30 px-2 py-3">
                     <MenuButton3D
                         color="blue"
                         icon={
-                            <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 sm:w-10 sm:h-10 drop-shadow-md">
+                            <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 sm:w-7 sm:h-7 drop-shadow-md">
                                 <path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 6 18.5 6s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
                             </svg>
                         }
@@ -650,7 +683,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                     <MenuButton3D
                         color="blue"
                         icon={
-                            <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 sm:w-10 sm:h-10 drop-shadow-md">
+                            <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 sm:w-7 sm:h-7 drop-shadow-md">
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                             </svg>
                         }
@@ -660,7 +693,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                     <MenuButton3D
                         color="blue"
                         icon={
-                            <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 sm:w-10 sm:h-10 drop-shadow-md">
+                            <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 sm:w-7 sm:h-7 drop-shadow-md">
                                 <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
                             </svg>
                         }
@@ -670,7 +703,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                     <MenuButton3D
                         color="blue"
                         icon={
-                            <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 sm:w-10 sm:h-10 drop-shadow-md">
+                            <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 sm:w-7 sm:h-7 drop-shadow-md">
                                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                             </svg>
                         }
@@ -710,11 +743,13 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
 // ==========================================
 
 const MenuButton3D = ({ color = 'blue', onClick, icon, label, disabled, isMain = false }) => {
-    const baseClasses = "relative rounded-full flex items-center justify-center transition-transform active:scale-90 hover:scale-105 cursor-pointer shadow-[0_12px_24px_rgba(0,0,0,0.35)] shrink-0";
+    const baseClasses = "relative rounded-full flex items-center justify-center transition-all active:translate-y-[4px] active:shadow-[0_2px_0_0_rgba(0,0,0,0.15)] hover:scale-105 cursor-pointer shadow-[0_6px_0_0_rgba(0,0,0,0.2),_0_12px_24px_rgba(0,0,0,0.35)] shrink-0";
     const sizeClasses = isMain ? "w-24 h-24 sm:w-36 sm:h-36" : "w-14 h-14 sm:w-20 sm:h-20";
 
     const colorClasses = color === 'red'
         ? "bg-gradient-to-b from-[#ff6b8b] to-[#d90429] border-[5px] sm:border-[8px] border-[#ffb3c6]"
+        : color === 'pink'
+        ? "bg-gradient-to-b from-[#ff85a2] to-[#e91e63] border-[5px] sm:border-[8px] border-[#ffb3c6]"
         : "bg-gradient-to-b from-[#48cae4] to-[#0077b6] border-[3px] sm:border-[6px] border-[#90e0ef]";
 
     const highlightClasses = "absolute top-1 left-[15%] w-[60%] h-[35%] bg-white/45 rounded-[100%] blur-[1px] rotate-[-15deg] pointer-events-none";
@@ -723,9 +758,9 @@ const MenuButton3D = ({ color = 'blue', onClick, icon, label, disabled, isMain =
     return (
         <div className="flex flex-col items-center gap-0.5 sm:gap-1">
             {isMain && (
-                <div className="bg-[#00b4d8] text-white font-black text-base sm:text-xl px-4 sm:px-5 py-1 sm:py-1.5 rounded-2xl shadow-lg border-[3px] border-white relative mb-1 sm:mb-2 animate-bounce">
+                <div className="bg-[#e91e63] text-white font-black text-base sm:text-xl px-4 sm:px-5 py-1 sm:py-1.5 rounded-2xl shadow-lg border-[3px] border-white relative mb-1 sm:mb-2 animate-bounce">
                     {label}
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 sm:border-l-10 border-l-transparent border-r-8 sm:border-r-10 border-r-transparent border-t-8 sm:border-t-10 border-t-[#00b4d8]"></div>
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 sm:border-l-10 border-l-transparent border-r-8 sm:border-r-10 border-r-transparent border-t-8 sm:border-t-10 border-t-[#e91e63]"></div>
                 </div>
             )}
             <button onClick={onClick} disabled={disabled} className={`${baseClasses} ${sizeClasses} ${colorClasses} overflow-hidden group`}>
@@ -758,7 +793,7 @@ const WoodenTitle = ({ titlePart1, titlePart2 }) => {
             </div>
 
             {/* Wooden Board */}
-            <div className="relative z-10 bg-[#e07a5f] border-6 sm:border-10 border-[#81b29a]/0 border-t-[#c6624a] border-b-[#a84c37] border-x-[#b95941] rounded-[1.5rem] sm:rounded-[2.5rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)] px-3 sm:px-6 py-4 sm:py-8 w-auto max-w-[85vw] sm:w-125 text-center overflow-hidden">
+            <div className="relative z-10 bg-[#e07a5f] border-6 sm:border-10 border-[#81b29a]/0 border-t-[#c6624a] border-b-[#a84c37] border-x-[#b95941] rounded-3xl sm:rounded-[2.5rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)] px-3 sm:px-6 py-4 sm:py-8 w-auto max-w-[85vw] sm:w-125 text-center overflow-hidden">
                 {/* Wood texture lines */}
                 <div className="absolute top-[25%] left-0 w-full h-0.5 sm:h-0.75 bg-[#8a3824]/30 rounded-full"></div>
                 <div className="absolute top-[50%] left-0 w-full h-0.5 sm:h-0.75 bg-[#8a3824]/30 rounded-full"></div>
@@ -1017,6 +1052,7 @@ export function AnimalInfoModal({
     placement = 'center',
     preview = false,
     onView,
+    bottomOffset,
 }) {
     if (!animal) return null;
 
@@ -1201,7 +1237,58 @@ export function JumpButton({ jumpRef, isTouchDevice }) {
     );
 }
 
+export function CameraSystem() {
+    return null;
+}
 
+export function BottomHotbar({ gameStarted, completedTasks, totalTasks, onMenuClick, onTasksClick }) {
+    if (!gameStarted) return null;
+
+    return (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-72 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] md:hidden">
+            <SurfacePanel className="pointer-events-auto p-2" data-ui-panel="true">
+                <div className="flex items-center gap-2">
+                    <ActionButton variant="secondary" size="sm" className="flex-1" onClick={onMenuClick}>Menu</ActionButton>
+                    <ActionButton variant="warning" size="sm" className="flex-1" onClick={onTasksClick}>Tasks</ActionButton>
+                    <ProgressChip completed={completedTasks} total={totalTasks} className="shrink-0" />
+                </div>
+            </SurfacePanel>
+        </div>
+    );
+}
+
+export function GameUI() {
+    return null;
+}
+
+export function BackButton() {
+    return null;
+}
+
+export function BackModal({ onConfirm, onCancel }) {
+    return <QuitModal isOpen={true} onConfirm={onConfirm} onCancel={onCancel} />;
+}
+
+export function PreGameScreen({ onStart }) {
+    return <MainMenu onStart={onStart} isVisible={true} />;
+}
+
+export function AnimalInfoPanel({ animal, onClose }) {
+    if (!animal) return null;
+    return <AnimalInfoModal animal={animal} onClose={onClose} onFeed={() => { }} isFed={false} />;
+}
+
+export function InteractPrompt({ visible }) {
+    return (
+        <InteractionPrompt
+            visible={visible}
+            onFeed={() => { }}
+            onViewDetails={() => { }}
+            animalName="Animal"
+            isTouchDevice={false}
+        />
+    );
+}
 
 export function RotateDeviceOverlay() {
     const [needsRotation, setNeedsRotation] = useState(() => {
@@ -1231,6 +1318,7 @@ export function RotateDeviceOverlay() {
                     return;
                 }
             } catch {
+                // Orientation lock not supported
             }
             try {
                 const isPortrait = window.matchMedia('(orientation: portrait)').matches;
@@ -1254,6 +1342,7 @@ export function RotateDeviceOverlay() {
                 mql.addEventListener('change', onOrientationChange);
             }
         } catch {
+            // matchMedia not supported
         }
 
         return () => {
