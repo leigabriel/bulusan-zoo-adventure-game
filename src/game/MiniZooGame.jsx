@@ -1103,6 +1103,7 @@ function MiniZooGame() {
             const cleanupMouse = setupMouseControls(state);
 
             state.cleanup = () => {
+                state.initialized = false;
                 if (state.animationId) cancelAnimationFrame(state.animationId);
                 window.removeEventListener('resize', handleResize);
                 cleanupKeyboard();

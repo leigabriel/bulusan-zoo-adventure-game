@@ -606,9 +606,6 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
     );
 }
 
-// Replace your existing MainMenu component with this code.
-// Place MenuButton3D and WoodenTitle outside/below the MainMenu function.
-
 export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCharacterId, onCharacterPicked }) {
     const [starting, setStarting] = useState(false);
     const [howToPlayOpen, setHowToPlayOpen] = useState(false);
@@ -1229,7 +1226,7 @@ export function JumpButton({ jumpRef, isTouchDevice }) {
                 ref={jumpRef}
                 type="button"
                 data-ui-button="true"
-                className="pointer-events-auto inline-flex h-16 w-16 items-center justify-center rounded-full border border-white/45 bg-amber-400/95 text-sm font-black uppercase tracking-[0.08em] text-slate-900 shadow-lg active:scale-95 sm:h-16 sm:w-16 sm:text-sm"
+                className="pointer-events-auto inline-flex h-16 w-16 items-center justify-center rounded-full border border-white/45 bg-amber-400/95 text-sm font-black uppercase tracking-[0.08em] text-slate-900 shadow-lg active:scale-95 sm:h-16 sm:w-16 sm:text-sm touch-manipulation"
             >
                 Jump
             </button>
