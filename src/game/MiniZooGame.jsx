@@ -1211,6 +1211,16 @@ function MiniZooGame() {
                     handleSelectCharacter(storedCharacterOption);
                 }
             }, 0);
+        } else {
+            // Auto-select the first character as default so controls get enabled
+            const defaultOption = CHARACTER_OPTIONS[0];
+            if (defaultOption) {
+                setTimeout(() => {
+                    if (gameStartedRef.current) {
+                        handleSelectCharacter(defaultOption);
+                    }
+                }, 0);
+            }
         }
 
         playAmbience();
