@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-import { createScene, createCamera, createRenderer, createLighting } from './components/Scene.jsx';
+import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
 import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight } from './components/Terrain.jsx';
 import { loadGLTFAnimals } from './components/Animals.jsx';
 import {
@@ -42,7 +42,8 @@ import {
     getTotalTasks,
     resetAllFeedingTasks,
     getPlayerSession,
-    savePlayerSession
+    savePlayerSession,
+    getSettings
 } from './utils/storage.js';
 import {
     ESSENTIAL_ASSET_PATHS,
@@ -432,6 +433,8 @@ function MiniZooGame() {
     const cameraModeRef = useRef('first');
     const showNpcDialogueRef = useRef(false);
     const lastTapRef = useRef(0);
+    const graphicsQualityRef = useRef((getSettings().graphicsQuality || 'medium'));
+    const fpsLimitRef = useRef((getSettings().fpsLimit || 60));
 
     const [isTouchDevice, setIsTouchDevice] = useState(() => {
         if (typeof window === 'undefined') return false;
@@ -559,29 +562,40 @@ function MiniZooGame() {
         return distSq <= (staffNpc.interactionRadius * staffNpc.interactionRadius);
     }, []);
 
+    const ambienceLoadingRef = useRef(false);
+
     const getAmbience = useCallback(() => {
         if (!ambienceRef.current) {
-            const fallbackPath = '/audio/ambience.mp3';
-            const audio = new Audio(fallbackPath);
+            const audio = new Audio();
             audio.loop = true;
             audio.preload = 'auto';
-            audio.volume = 1.42;
+            audio.volume = 1.0;
             audio.setAttribute('playsinline', 'true');
-            resolveAssetUrl(fallbackPath)
+            ambienceRef.current = audio;
+            ambienceLoadingRef.current = true;
+
+            resolveAssetUrl('/audio/ambience.mp3')
                 .then((assetUrl) => {
-                    if (assetUrl) {
-                        audio.src = assetUrl;
+                    if (ambienceRef.current === audio) {
+                        audio.src = assetUrl || '/audio/ambience.mp3';
+                        ambienceLoadingRef.current = false;
                     }
                 })
-                .catch(() => { });
-            ambienceRef.current = audio;
+                .catch(() => {
+                    if (ambienceRef.current === audio) {
+                        audio.src = '/audio/ambience.mp3';
+                        ambienceLoadingRef.current = false;
+                    }
+                });
         }
         return ambienceRef.current;
     }, []);
 
     const playAmbience = useCallback(async () => {
         if (!isMusicEnabled()) return;
+        if (ambienceLoadingRef.current) return;
         const audio = getAmbience();
+        if (!audio || !audio.src) return;
         if (!audio.paused) return;
         try {
             await audio.play();
@@ -790,9 +804,13 @@ function MiniZooGame() {
         const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
         try {
-            const scene = createScene(); state.scene = scene;
+            const settings = getSettings();
+            const quality = settings.graphicsQuality || 'medium';
+            graphicsQualityRef.current = quality;
+
+            const scene = createScene(quality); state.scene = scene;
             const camera = createCamera(); state.camera = camera;
-            const renderer = createRenderer(containerRef.current); state.renderer = renderer;
+            const renderer = createRenderer(containerRef.current, quality); state.renderer = renderer;
 
             createLighting(scene);
             createTerrain(scene);
@@ -869,7 +887,7 @@ function MiniZooGame() {
             const desiredCameraPosition = new THREE.Vector3();
             const lookTarget = new THREE.Vector3();
 
-            let lastTime = performance.now();
+            let lastRenderTime = performance.now();
             let nearbyTimer = 0;
             let ambientSoundTimer = 0;
             let statueCheckTimer = 0;
@@ -879,8 +897,17 @@ function MiniZooGame() {
             const animate = () => {
                 state.animationId = requestAnimationFrame(animate);
                 const now = performance.now();
-                const dt = Math.min((now - lastTime) * 0.001, 0.1);
-                lastTime = now;
+
+                // FPS limiting
+                const fpsLimit = fpsLimitRef.current || 60;
+                const fpsInterval = 1000 / fpsLimit;
+                const timeSinceLastRender = now - lastRenderTime;
+                if (timeSinceLastRender < fpsInterval) {
+                    return;
+                }
+
+                const dt = Math.min(timeSinceLastRender * 0.001, 0.1);
+                lastRenderTime = now - (timeSinceLastRender % fpsInterval);
 
                 // Reduce CPU usage while hidden.
                 if (document.hidden) {
@@ -1450,20 +1477,47 @@ function MiniZooGame() {
             soundEnabledRef.current = isSoundEnabled();
         };
 
+        const syncGraphicsAndFps = () => {
+            const settings = getSettings();
+            const newQuality = settings.graphicsQuality || 'medium';
+            const newFpsLimit = settings.fpsLimit || 60;
+
+            const prevQuality = graphicsQualityRef.current;
+            graphicsQualityRef.current = newQuality;
+            fpsLimitRef.current = newFpsLimit;
+
+            if (newQuality !== prevQuality) {
+                const state = gameStateRef.current;
+                if (state.renderer) {
+                    applyRendererQuality(state.renderer, newQuality);
+                }
+                if (state.scene) {
+                    applySceneQuality(state.scene, newQuality);
+                }
+            }
+        };
+
         syncSoundEnabled();
+        syncGraphicsAndFps();
 
         const onStorage = (e) => {
             if (!e || e.key === 'minizoo_settings' || e.key === null) {
                 syncSoundEnabled();
+                syncGraphicsAndFps();
             }
         };
 
+        const onSettingsChanged = () => {
+            syncSoundEnabled();
+            syncGraphicsAndFps();
+        };
+
         window.addEventListener('storage', onStorage);
-        window.addEventListener(SETTINGS_CHANGE_EVENT, syncSoundEnabled);
+        window.addEventListener(SETTINGS_CHANGE_EVENT, onSettingsChanged);
 
         return () => {
             window.removeEventListener('storage', onStorage);
-            window.removeEventListener(SETTINGS_CHANGE_EVENT, syncSoundEnabled);
+            window.removeEventListener(SETTINGS_CHANGE_EVENT, onSettingsChanged);
         };
     }, []);
 

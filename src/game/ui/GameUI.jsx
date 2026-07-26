@@ -40,12 +40,19 @@ function savePlayerName(name) {
     return cleaned;
 }
 
+const UI_DEFAULT_SETTINGS = {
+    musicEnabled: true,
+    soundEnabled: true,
+    graphicsQuality: 'medium',
+    fpsLimit: 60
+};
+
 function readSettings() {
     try {
         const raw = localStorage.getItem(SETTINGS_KEY);
-        return raw ? JSON.parse(raw) : { musicEnabled: true, soundEnabled: true };
+        return raw ? { ...UI_DEFAULT_SETTINGS, ...JSON.parse(raw) } : { ...UI_DEFAULT_SETTINGS };
     } catch {
-        return { musicEnabled: true, soundEnabled: true };
+        return { ...UI_DEFAULT_SETTINGS };
     }
 }
 
@@ -162,6 +169,39 @@ function ToggleRow({ label, description, enabled, onToggle }) {
                 />
             </span>
         </button>
+    );
+}
+
+function SelectRow({ label, description, options = [], value, onChange }) {
+    return (
+        <div className="flex min-h-11 w-full items-center justify-between rounded-2xl border border-emerald-200/80 bg-white px-4 py-3 shadow-[0_10px_24px_-20px_rgba(5,150,105,0.7)]">
+            <span className="min-w-0">
+                <span className="block truncate text-sm font-black tracking-wide text-emerald-950">{label}</span>
+                <span className="mt-0.5 block text-xs font-semibold text-emerald-700/80">{description}</span>
+            </span>
+            <div className="flex shrink-0 gap-1" role="radiogroup">
+                {options.map((opt) => {
+                    const isSelected = value === opt.value;
+                    return (
+                        <button
+                            key={opt.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            onClick={() => onChange(opt.value)}
+                            className={cx(
+                                'rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition',
+                                isSelected
+                                    ? 'bg-emerald-500 text-white shadow-sm'
+                                    : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            )}
+                        >
+                            {opt.label}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
     );
 }
 
@@ -476,6 +516,39 @@ function SettingsModal({ isOpen, onClose }) {
 
                 <hr className="border-slate-200" />
 
+                <SelectRow
+                    label="Graphics Quality"
+                    description="Visual fidelity and performance"
+                    options={[
+                        { label: 'Low', value: 'low' },
+                        { label: 'Medium', value: 'medium' },
+                        { label: 'High', value: 'high' }
+                    ]}
+                    value={settings.graphicsQuality || 'medium'}
+                    onChange={(val) => {
+                        const next = { ...settings, graphicsQuality: val };
+                        setSettings(next);
+                        persistSettings(next);
+                    }}
+                />
+                <SelectRow
+                    label="FPS Limit"
+                    description="Maximum frame rate"
+                    options={[
+                        { label: '24', value: 24 },
+                        { label: '30', value: 30 },
+                        { label: '60', value: 60 }
+                    ]}
+                    value={settings.fpsLimit ?? 60}
+                    onChange={(val) => {
+                        const next = { ...settings, fpsLimit: val };
+                        setSettings(next);
+                        persistSettings(next);
+                    }}
+                />
+
+                <hr className="border-slate-200" />
+
                 <ToggleRow
                     label="Music"
                     description="Background soundtrack"
@@ -563,7 +636,7 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
                             <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7"></path></svg>
                         </button>
 
-                        <div className="h-[28vh] sm:h-[40vh] w-full max-w-56 sm:max-w-[280px] relative flex items-center justify-center">
+                        <div className="h-[28vh] sm:h-[40vh] w-full max-w-56 sm:max-w-70 relative flex items-center justify-center">
                             <div className="w-full h-full relative z-10">
                                 {previewChar && <Character3DPreview modelFile={previewChar.file} />}
                             </div>
@@ -606,6 +679,10 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
     );
 }
 
+/* ==========================================================================
+   REDESIGNED MAIN MENU - REAL 3D BUTTONS & AESTHETIC BUSHES
+   ========================================================================== */
+
 export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCharacterId, onCharacterPicked }) {
     const [starting, setStarting] = useState(false);
     const [howToPlayOpen, setHowToPlayOpen] = useState(false);
@@ -628,57 +705,96 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
     if (!isVisible) return null;
 
     return (
-        <div className="absolute inset-0 z-40 flex flex-col overflow-hidden bg-[#5ee08e] font-['Qilka'] safe-area-inset">
-            {/* Jungle Background Elements */}
+        <div className="fixed inset-0 z-40 flex flex-col justify-between overflow-hidden bg-linear-to-b from-[#70e0ff] via-[#a2d2ff] to-[#c6fe69] font-['Qilka',sans-serif] select-none touch-none safe-area-inset p-2 sm:p-4">
+
+            {/* ---------------- BACKGROUND JUNGLE SCENE & AESTHETIC BUSHES ---------------- */}
             <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-                <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_50%_0%,#ffffff_0%,transparent_60%)]"></div>
-                <div className="absolute bottom-0 w-full h-[60%] bg-[#44c772] rounded-t-[100%] scale-[1.8] translate-y-1/3 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]"></div>
-                <div className="absolute bottom-0 w-full h-[40%] bg-[#2cb25d] rounded-t-[100%] scale-[1.5] translate-y-1/4 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]"></div>
-                <div className="absolute bottom-0 w-full h-[25%] bg-[#1ea04d] rounded-t-[100%] scale-[1.2] translate-y-1/4 shadow-[0_-10px_20px_rgba(0,0,0,0.2)]"></div>
+                {/* Soft Radial Sunburst Glow */}
+                <div className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0)_70%)] animate-pulse" />
+
+                {/* Animated Clouds */}
+                <div className="absolute top-[5%] left-[6%] w-20 sm:w-36 h-6 sm:h-10 bg-white/70 rounded-full blur-[0.5px] animate-[kids-float_6s_ease-in-out_infinite]" />
+                <div className="absolute top-[9%] right-[8%] w-28 sm:w-48 h-8 sm:h-12 bg-white/60 rounded-full blur-[0.5px] animate-[kids-float_8s_ease-in-out_infinite_1s]" />
+
+                {/* Layered Background Hills */}
+                <div className="absolute bottom-0 w-full h-[52%] bg-[#c6fe69] rounded-t-[100%] scale-[1.7] translate-y-1/3 shadow-[0_-12px_24px_rgba(0,0,0,0.06)]" />
+                <div className="absolute bottom-0 w-full h-[36%] bg-[#70e000] rounded-t-[100%] scale-[1.4] translate-y-1/4 shadow-[0_-10px_20px_rgba(0,0,0,0.1)]" />
+                <div className="absolute bottom-0 w-full h-[20%] bg-[#38b000] rounded-t-[100%] scale-[1.2] translate-y-1/4 shadow-[0_-8px_16px_rgba(0,0,0,0.12)]" />
+
+                {/* --- AESTHETIC BUSHES & TROPICAL SHRUBS --- */}
+                {/* Left Side Bush Cluster */}
+                <div className="absolute bottom-[18%] -left-8 sm:-left-12 flex items-end opacity-95">
+                    <div className="w-16 h-16 sm:w-28 sm:h-28 rounded-full bg-[#1b4332] -mr-6 -mb-2 shadow-inner" />
+                    <div className="w-24 h-24 sm:w-40 sm:h-40 rounded-full bg-[#2d6a4f] -mr-8 border-t-4 border-[#c6fe69]/40 shadow-lg" />
+                    <div className="w-18 h-18 sm:w-32 sm:h-32 rounded-full bg-[#52b788] border-t-4 border-white/40" />
+                </div>
+
+                {/* Right Side Bush Cluster */}
+                <div className="absolute bottom-[18%] -right-8 sm:-right-12 flex items-end opacity-95">
+                    <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full bg-[#52b788] -mr-6 border-t-4 border-white/40" />
+                    <div className="w-28 h-28 sm:w-44 sm:h-44 rounded-full bg-[#2d6a4f] -mr-8 border-t-4 border-[#c6fe69]/40 shadow-lg" />
+                    <div className="w-16 h-16 sm:w-28 sm:h-28 rounded-full bg-[#1b4332] -mb-2 shadow-inner" />
+                </div>
+
+                {/* Center Ridge Bush Accents */}
+                <div className="absolute bottom-[14%] left-[22%] w-12 sm:w-20 h-10 sm:h-16 rounded-full bg-[#38b000] border-t-2 border-[#c6fe69] opacity-80" />
+                <div className="absolute bottom-[15%] right-[24%] w-14 sm:w-22 h-11 sm:h-18 rounded-full bg-[#2d6a4f] border-t-2 border-[#52b788] opacity-80" />
             </div>
 
-            {/* Top / Wooden Title Area */}
-            <div className="relative z-10 w-full flex flex-col items-center px-4 pt-[5vh]">
+            {/* ---------------- TOP / WOODEN TITLE BANNER ---------------- */}
+            <div className="relative z-10 w-full flex flex-col items-center shrink-0 pt-1 sm:pt-2">
                 <WoodenTitle titlePart1="Bulusan" titlePart2="Mini Zoo" />
 
-                {selectedChar && (
-                    <div className="mt-3 flex items-center justify-center rounded-2xl bg-white/90 px-4 py-2 text-center shadow-[0_8px_16px_rgba(0,0,0,0.2)] backdrop-blur-sm border-[3px] border-[#2cb25d]">
-                        <span className="text-sm font-extrabold text-[#1ea04d]">Character: {selectedChar.label}</span>
-                    </div>
-                )}
+                {/* Character Selection Badge */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        playGameButtonSfx('tap');
+                        setCharSelectOpen(true);
+                    }}
+                    className="mt-1 sm:mt-2 group flex items-center gap-1.5 sm:gap-2 rounded-full bg-[#c6fe69] px-3.5 py-1 sm:px-5 sm:py-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.18)] border-2 sm:border-3 border-white transition-transform hover:scale-105 active:scale-95"
+                >
+                    <span className="text-sm sm:text-base">🤠</span>
+                    <span className="text-[11px] sm:text-xs font-black tracking-wide text-[#081c15]">
+                        Character: <span className="text-[#1b4332]">{selectedChar ? selectedChar.label : 'Select'}</span>
+                    </span>
+                    <span className="ml-1 rounded-full bg-[#1b4332] px-2 py-0.5 text-[9px] sm:text-[10px] font-black uppercase text-[#c6fe69] shadow-sm group-hover:bg-[#081c15]">
+                        Change
+                    </span>
+                </button>
             </div>
 
-            {/* Center: Single Large Pink Play Button */}
-            <div className="relative z-10 flex-1 flex items-center justify-center px-4">
+            {/* ---------------- CENTER / CIRCULAR 3D PLAY CTA BUTTON ---------------- */}
+            <div className="relative z-10 flex-1 flex items-center justify-center min-h-0 my-1 sm:my-2">
                 <MenuButton3D
                     color="pink"
                     icon={
-                        <svg viewBox="0 0 24 24" fill="white" className="w-16 h-16 sm:w-20 sm:h-20 ml-2 drop-shadow-md">
-                            <path d="M6 4l14 8-14 8V4z" />
+                        <svg viewBox="0 0 24 24" fill="white" className="w-12 h-12 sm:w-18 sm:h-18 ml-1.5 drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)]">
+                            <path d="M8 5v14l11-7z" />
                         </svg>
                     }
-                    label="Play"
                     onClick={handleStart}
                     disabled={starting}
                     isMain={true}
                 />
             </div>
 
-            {/* Bottom Navigation Bar */}
-            <div className="relative z-10 w-full pb-[env(safe-area-inset-bottom)]">
-                <div className="flex items-center justify-evenly bg-white/15 backdrop-blur-md border-t border-white/30 px-2 py-3">
+            {/* ---------------- BOTTOM / NAVIGATION DOCK ---------------- */}
+            <div className="relative z-10 w-full shrink-0 pb-[env(safe-area-inset-bottom,0px)]">
+                <div className="mx-auto max-w-xl flex items-center justify-around bg-[#081c15]/40 backdrop-blur-md border border-white/30 rounded-2xl sm:rounded-3xl px-2 py-2 sm:px-4 sm:py-3 shadow-[0_10px_28px_rgba(0,0,0,0.3)]">
                     <MenuButton3D
-                        color="blue"
+                        color="amber"
                         icon={
                             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 sm:w-7 sm:h-7 drop-shadow-md">
-                                <path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 6 18.5 6s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z" />
                             </svg>
                         }
                         label="How to Play"
                         onClick={() => setHowToPlayOpen(true)}
                     />
+
                     <MenuButton3D
-                        color="blue"
+                        color="cyan"
                         icon={
                             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 sm:w-7 sm:h-7 drop-shadow-md">
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
@@ -687,21 +803,23 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                         label="Characters"
                         onClick={() => setCharSelectOpen(true)}
                     />
+
                     <MenuButton3D
-                        color="blue"
+                        color="lime"
                         icon={
                             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 sm:w-7 sm:h-7 drop-shadow-md">
-                                <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
+                                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.3-.06.63-.06.95s.02.64.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.49-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
                             </svg>
                         }
                         label="Settings"
                         onClick={() => setSettingsOpen(true)}
                     />
+
                     <MenuButton3D
-                        color="blue"
+                        color="rose"
                         icon={
                             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 sm:w-7 sm:h-7 drop-shadow-md">
-                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                                <path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
                             </svg>
                         }
                         label="Quit"
@@ -710,11 +828,13 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                 </div>
             </div>
 
-            {/* Modals from original MainMenu */}
+            {/* ---------------- MODALS & OVERLAYS ---------------- */}
             <ModalShell isOpen={howToPlayOpen} onClose={() => setHowToPlayOpen(false)} title="How To Play" size="md">
                 <HowToPlayContent />
             </ModalShell>
+
             <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
             <CharacterSelectModal
                 isOpen={charSelectOpen}
                 onClose={() => setCharSelectOpen(false)}
@@ -722,53 +842,102 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                 selectedCharacterId={selectedCharacterId}
                 onSelect={onCharacterPicked}
             />
+
             <ConfirmModal
                 isOpen={showExitConfirm}
-                onConfirm={() => { setShowExitConfirm(false); /* Usually game logic handles quit */ }}
+                onConfirm={() => {
+                    setShowExitConfirm(false);
+                    if (typeof window !== 'undefined' && window.history.length > 1) {
+                        window.history.back();
+                    }
+                }}
                 onCancel={() => setShowExitConfirm(false)}
                 title="Exit Game?"
-                message="Come back anytime to continue your zoo adventure!"
-                confirmLabel="OK"
-                confirmVariant="primary"
+                message="Are you sure you want to exit? Your progress will be safely saved!"
+                confirmLabel="Exit"
+                confirmVariant="danger"
             />
         </div>
     );
 }
 
-// ==========================================
-// NEW HELPER COMPONENTS (Place below MainMenu)
-// ==========================================
+/* ==========================================================================
+   REAL 3D EXTRUDED BUTTON COMPONENT
+   ========================================================================== */
 
-const MenuButton3D = ({ color = 'blue', onClick, icon, label, disabled, isMain = false }) => {
-    const baseClasses = "relative rounded-full flex items-center justify-center transition-all active:translate-y-[4px] active:shadow-[0_2px_0_0_rgba(0,0,0,0.15)] hover:scale-105 cursor-pointer shadow-[0_6px_0_0_rgba(0,0,0,0.2),_0_12px_24px_rgba(0,0,0,0.35)] shrink-0";
-    const sizeClasses = isMain ? "w-24 h-24 sm:w-36 sm:h-36" : "w-14 h-14 sm:w-20 sm:h-20";
+const MenuButton3D = ({ color = 'pink', onClick, icon, label, disabled, isMain = false }) => {
+    const handlePress = (e) => {
+        if (disabled) return;
+        playGameButtonSfx(isMain ? 'confirm' : 'tap');
+        if (onClick) onClick(e);
+    };
 
-    const colorClasses = color === 'red'
-        ? "bg-gradient-to-b from-[#ff6b8b] to-[#d90429] border-[5px] sm:border-[8px] border-[#ffb3c6]"
-        : color === 'pink'
-        ? "bg-gradient-to-b from-[#ff85a2] to-[#e91e63] border-[5px] sm:border-[8px] border-[#ffb3c6]"
-        : "bg-gradient-to-b from-[#48cae4] to-[#0077b6] border-[3px] sm:border-[6px] border-[#90e0ef]";
+    // Circular dimensions for buttons
+    const sizeClasses = isMain
+        ? 'w-24 h-24 sm:w-36 sm:h-36'
+        : 'w-11 h-11 sm:w-16 sm:h-16';
 
-    const highlightClasses = "absolute top-1 left-[15%] w-[60%] h-[35%] bg-white/45 rounded-[100%] blur-[1px] rotate-[-15deg] pointer-events-none";
-    const innerShadowClasses = "absolute inset-0 rounded-full shadow-[inset_0_-10px_20px_rgba(0,0,0,0.4)] pointer-events-none";
+    const colorVariants = {
+        pink: {
+            top: 'from-[#ff758f] via-[#e63946] to-[#a4133c]',
+            base: 'bg-[#590d22]',
+            border: 'border-white',
+        },
+        amber: {
+            top: 'from-[#ffc300] via-[#ff924c] to-[#d97706]',
+            base: 'bg-[#78350f]',
+            border: 'border-white',
+        },
+        cyan: {
+            top: 'from-[#70d6ff] via-[#3a86ff] to-[#1d3557]',
+            base: 'bg-[#0f172a]',
+            border: 'border-white',
+        },
+        lime: {
+            top: 'from-[#d8ff7a] via-[#c6fe69] to-[#38b000]',
+            base: 'bg-[#1b4332]',
+            border: 'border-white',
+        },
+        rose: {
+            top: 'from-[#ff8fa3] via-[#d90429] to-[#800f2f]',
+            base: 'bg-[#38040e]',
+            border: 'border-white',
+        },
+    };
+
+    const variant = colorVariants[color] || colorVariants.pink;
 
     return (
-        <div className="flex flex-col items-center gap-0.5 sm:gap-1">
-            {isMain && (
-                <div className="bg-[#e91e63] text-white font-black text-base sm:text-xl px-4 sm:px-5 py-1 sm:py-1.5 rounded-2xl shadow-lg border-[3px] border-white relative mb-1 sm:mb-2 animate-bounce">
-                    {label}
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 sm:border-l-10 border-l-transparent border-r-8 sm:border-r-10 border-r-transparent border-t-8 sm:border-t-10 border-t-[#e91e63]"></div>
-                </div>
-            )}
-            <button onClick={onClick} disabled={disabled} className={`${baseClasses} ${sizeClasses} ${colorClasses} overflow-hidden group`}>
-                <div className={highlightClasses}></div>
-                <div className={innerShadowClasses}></div>
-                <div className="relative z-10 transition-transform group-hover:scale-110">
-                    {icon}
+        <div className="flex flex-col items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Real 3D Button Container with Extruded Base + Cap */}
+            <button
+                type="button"
+                onClick={handlePress}
+                disabled={disabled}
+                className={`relative group shrink-0 rounded-full cursor-pointer transition-transform duration-100 ease-out active:translate-y-1.5 sm:active:translate-y-2 hover:scale-105 disabled:opacity-50 ${sizeClasses}`}
+            >
+                {/* Extruded 3D Base Body (Depth Layer) */}
+                <div
+                    className={`absolute inset-0 translate-y-1.5 sm:translate-y-2 rounded-full border-b-2 border-black/40 ${variant.base}`}
+                />
+
+                {/* Beveled Top Cap Face */}
+                <div
+                    className={`relative w-full h-full rounded-full bg-linear-to-b border-[3px] sm:border-4 p-2 flex items-center justify-center shadow-[inset_0_3px_6px_rgba(255,255,255,0.7),inset_0_-8px_14px_rgba(0,0,0,0.4)] ${variant.top} ${variant.border}`}
+                >
+                    {/* Top Crescent Glass Highlight */}
+                    <div className="absolute top-1 left-1/2 -translate-x-1/2 w-[70%] h-[35%] bg-linear-to-b from-white/50 to-transparent rounded-full blur-[0.5px] pointer-events-none" />
+
+                    {/* Vector Icon */}
+                    <div className="relative z-10 transition-transform group-hover:scale-110">
+                        {icon}
+                    </div>
                 </div>
             </button>
-            {!isMain && (
-                <span className="text-white text-[10px] sm:text-[15px] font-black drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] mt-0.5 sm:mt-1 tracking-wide whitespace-nowrap">
+
+            {/* Button Text Label */}
+            {!isMain && label && (
+                <span className="text-white/95 text-[9px] sm:text-xs font-extrabold tracking-wide drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.9)] whitespace-nowrap">
                     {label}
                 </span>
             )}
@@ -776,42 +945,61 @@ const MenuButton3D = ({ color = 'blue', onClick, icon, label, disabled, isMain =
     );
 };
 
+/* ==========================================================================
+   CARVED WOODEN BANNER TITLE
+   ========================================================================== */
+
 const WoodenTitle = ({ titlePart1, titlePart2 }) => {
     return (
-        <div className="relative flex flex-col items-center max-w-[95vw] sm:max-w-none">
-            {/* Hanging Vines */}
-            <div className="absolute -top-24 sm:-top-30 left-[12%] sm:left-[15%] w-3 sm:w-4 h-28 sm:h-37.5 bg-[#2d6a4f] rounded-full z-0 flex flex-col items-center justify-evenly shadow-md">
-                <div className="w-5 sm:w-8 h-2.5 sm:h-4 bg-[#2d6a4f] rounded-full rotate-45 translate-x-1.5 sm:translate-x-2"></div>
-                <div className="w-4 sm:w-6 h-2 sm:h-3 bg-[#2d6a4f] rounded-full -rotate-45 -translate-x-1.5 sm:-translate-x-2"></div>
+        <div className="relative flex flex-col items-center max-w-[85vw] sm:max-w-none">
+            {/* Hanging Jungle Vines */}
+            <div className="absolute -top-12 sm:-top-20 left-[15%] w-2.5 sm:w-3.5 h-14 sm:h-24 bg-[#1b4332] rounded-full z-0 flex flex-col items-center justify-between shadow-md">
+                <div className="w-4 sm:w-6 h-2 sm:h-3 bg-[#c6fe69] rounded-full rotate-45 translate-x-1.5" />
+                <div className="w-3 sm:w-5 h-1.5 sm:h-2.5 bg-[#c6fe69] rounded-full -rotate-45 -translate-x-1.5" />
             </div>
-            <div className="absolute -top-24 sm:-top-30 right-[12%] sm:right-[15%] w-3 sm:w-4 h-28 sm:h-37.5 bg-[#2d6a4f] rounded-full z-0 flex flex-col items-center justify-evenly shadow-md">
-                <div className="w-4 sm:w-6 h-2 sm:h-3 bg-[#2d6a4f] rounded-full rotate-45 translate-x-1.5 sm:translate-x-2"></div>
-                <div className="w-5 sm:w-8 h-2.5 sm:h-4 bg-[#2d6a4f] rounded-full -rotate-45 -translate-x-1.5 sm:-translate-x-2"></div>
+            <div className="absolute -top-12 sm:-top-20 right-[15%] w-2.5 sm:w-3.5 h-14 sm:h-24 bg-[#1b4332] rounded-full z-0 flex flex-col items-center justify-between shadow-md">
+                <div className="w-3 sm:w-5 h-1.5 sm:h-2.5 bg-[#c6fe69] rounded-full rotate-45 translate-x-1.5" />
+                <div className="w-4 sm:w-6 h-2 sm:h-3 bg-[#c6fe69] rounded-full -rotate-45 -translate-x-1.5" />
             </div>
 
-            {/* Wooden Board */}
-            <div className="relative z-10 bg-[#e07a5f] border-6 sm:border-10 border-[#81b29a]/0 border-t-[#c6624a] border-b-[#a84c37] border-x-[#b95941] rounded-3xl sm:rounded-[2.5rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)] px-3 sm:px-6 py-4 sm:py-8 w-auto max-w-[85vw] sm:w-125 text-center overflow-hidden">
-                {/* Wood texture lines */}
-                <div className="absolute top-[25%] left-0 w-full h-0.5 sm:h-0.75 bg-[#8a3824]/30 rounded-full"></div>
-                <div className="absolute top-[50%] left-0 w-full h-0.5 sm:h-0.75 bg-[#8a3824]/30 rounded-full"></div>
-                <div className="absolute top-[75%] left-0 w-full h-0.5 sm:h-0.75 bg-[#8a3824]/30 rounded-full"></div>
+            {/* Cedar Wooden Board */}
+            <div className="relative z-10 bg-[#7f4f24] border-4 sm:border-[6px] border-t-[#a66a38] border-b-[#582f0e] border-x-[#6c3a11] rounded-xl sm:rounded-3xl shadow-[0_10px_24px_rgba(0,0,0,0.3)] px-4 py-1.5 sm:px-10 sm:py-4 text-center overflow-hidden">
+                {/* Wood Grain Lines */}
+                <div className="absolute top-[30%] left-0 w-full h-0.5 bg-[#3d2314]/30 rounded-full" />
+                <div className="absolute top-[60%] left-0 w-full h-0.5 bg-[#3d2314]/30 rounded-full" />
 
-                {/* Text styling */}
-                <h1 className="relative z-20 flex flex-col gap-0.5 sm:gap-1 items-center justify-center filter drop-shadow-[0_8px_10px_rgba(0,0,0,0.5)]">
-                    <div className="text-[2rem] sm:text-[4.5rem] leading-none font-black text-[#f94144] tracking-wider" style={{ WebkitTextStroke: '2px white', textShadow: '0 3px 0 #900' }}>
+                {/* Title Text */}
+                <h1 className="relative z-20 flex flex-col items-center justify-center filter drop-shadow-[0_3px_5px_rgba(0,0,0,0.4)]">
+                    <span
+                        className="text-[1.6rem] sm:text-[3.2rem] leading-none font-black text-[#ffd166] tracking-wider"
+                        style={{
+                            WebkitTextStroke: '1px #ffffff',
+                            textShadow: '0 2px 0 #9e2a2b, 0 4px 8px rgba(0,0,0,0.4)',
+                        }}
+                    >
                         {titlePart1}
-                    </div>
-                    <div className="text-[1.5rem] sm:text-[3.5rem] leading-none font-black text-[#48cae4] tracking-wide transform -rotate-2 mt-1 sm:mt-2" style={{ WebkitTextStroke: '1.5px white', textShadow: '0 2px 0 #005090' }}>
+                    </span>
+                    <span
+                        className="text-[1.2rem] sm:text-[2.4rem] leading-none font-black text-[#90e0ef] tracking-wide transform -rotate-2 mt-0.5 sm:mt-1"
+                        style={{
+                            WebkitTextStroke: '1px #ffffff',
+                            textShadow: '0 2px 0 #1d3557, 0 3px 6px rgba(0,0,0,0.4)',
+                        }}
+                    >
                         {titlePart2}
-                    </div>
+                    </span>
                 </h1>
 
-                {/* Decorative Leaves */}
-                <div className="absolute -top-2 sm:-top-3 -left-2 sm:-left-3 text-[#2a9d8f] drop-shadow-lg rotate-120 scale-50 sm:scale-100">
-                    <svg width="70" height="70" viewBox="0 0 24 24" fill="currentColor"><path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22L6.66 19.7C7.14 19.87 7.64 20 8 20C19 20 22 3 22 3C21 5 14 5.25 9 6.25C4 7.25 7.05 10.67 9.24 12.31C9.64 12.67 11.16 14.07 13.56 15.2C13.88 14 14.62 12.83 15.65 11.83C16.68 10.83 18 10 19.46 9.5C18.66 8.87 17.86 8.37 17 8Z" /></svg>
+                {/* Leaves in Accent #c6fe69 */}
+                <div className="absolute -top-1.5 -left-1.5 text-[#c6fe69] drop-shadow-md rotate-45 scale-65 sm:scale-100">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22L6.66 19.7C7.14 19.87 7.64 20 8 20C19 20 22 3 22 3C21 5 14 5.25 9 6.25C4 7.25 7.05 10.67 9.24 12.31C9.64 12.67 11.16 14.07 13.56 15.2C13.88 14 14.62 12.83 15.65 11.83C16.68 10.83 18 10 19.46 9.5C18.66 8.87 17.86 8.37 17 8Z" />
+                    </svg>
                 </div>
-                <div className="absolute -bottom-2 sm:-bottom-3 -right-2 sm:-right-3 text-[#2a9d8f] drop-shadow-lg -rotate-12 scale-50 sm:scale-100">
-                    <svg width="70" height="70" viewBox="0 0 24 24" fill="currentColor"><path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22L6.66 19.7C7.14 19.87 7.64 20 8 20C19 20 22 3 22 3C21 5 14 5.25 9 6.25C4 7.25 7.05 10.67 9.24 12.31C9.64 12.67 11.16 14.07 13.56 15.2C13.88 14 14.62 12.83 15.65 11.83C16.68 10.83 18 10 19.46 9.5C18.66 8.87 17.86 8.37 17 8Z" /></svg>
+                <div className="absolute -bottom-1.5 -right-1.5 text-[#c6fe69] drop-shadow-md -rotate-45 scale-65 sm:scale-100">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22L6.66 19.7C7.14 19.87 7.64 20 8 20C19 20 22 3 22 3C21 5 14 5.25 9 6.25C4 7.25 7.05 10.67 9.24 12.31C9.64 12.67 11.16 14.07 13.56 15.2C13.88 14 14.62 12.83 15.65 11.83C16.68 10.83 18 10 19.46 9.5C18.66 8.87 17.86 8.37 17 8Z" />
+                    </svg>
                 </div>
             </div>
         </div>
@@ -883,6 +1071,31 @@ export function SettingsPanel({ isOpen, onClose, onQuit, onResetTasks }) {
         <>
             <ModalShell isOpen={isOpen} onClose={onClose} title="Game Menu" size="sm">
                 <div className="space-y-3">
+                    <SelectRow
+                        label="Graphics Quality"
+                        description="Visual fidelity and performance"
+                        options={[
+                            { label: 'Low', value: 'low' },
+                            { label: 'Medium', value: 'medium' },
+                            { label: 'High', value: 'high' }
+                        ]}
+                        value={settings.graphicsQuality || 'medium'}
+                        onChange={(val) => update({ graphicsQuality: val })}
+                    />
+                    <SelectRow
+                        label="FPS Limit"
+                        description="Maximum frame rate"
+                        options={[
+                            { label: '24', value: 24 },
+                            { label: '30', value: 30 },
+                            { label: '60', value: 60 }
+                        ]}
+                        value={settings.fpsLimit ?? 60}
+                        onChange={(val) => update({ fpsLimit: val })}
+                    />
+
+                    <hr className="border-slate-200" />
+
                     <ToggleRow
                         label="Music"
                         description="Enable background soundtrack"

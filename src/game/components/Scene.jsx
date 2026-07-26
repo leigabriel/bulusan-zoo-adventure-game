@@ -1,10 +1,20 @@
 import * as THREE from 'three';
 
-export function createScene() {
+export function createScene(graphicsQuality) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.Fog(0xc8e4f0, 100, 450);
+    applySceneQuality(scene, graphicsQuality || 'medium');
     return scene;
+}
+
+export function applySceneQuality(scene, quality) {
+    const fogSettings = {
+        low: { near: 60, far: 280 },
+        medium: { near: 100, far: 450 },
+        high: { near: 120, far: 600 }
+    };
+    const f = fogSettings[quality] || fogSettings.medium;
+    scene.fog = new THREE.Fog(0xc8e4f0, f.near, f.far);
 }
 
 export function createCamera() {
@@ -18,12 +28,37 @@ export function createCamera() {
     return camera;
 }
 
-export function createRenderer(container) {
+function getQualityConfig(quality) {
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    const pixelRatio = isMobile ? Math.min(window.devicePixelRatio, 1.0) : Math.min(window.devicePixelRatio, 1.25);
+    const dpr = window.devicePixelRatio;
+    const configs = {
+        low: {
+            pixelRatio: Math.min(dpr, 0.75),
+            antialias: false,
+            shadows: false,
+            toneMappingExposure: 1.0,
+        },
+        medium: {
+            pixelRatio: isMobile ? Math.min(dpr, 1.0) : Math.min(dpr, 1.25),
+            antialias: !isMobile && dpr <= 1.5,
+            shadows: false,
+            toneMappingExposure: 1.0,
+        },
+        high: {
+            pixelRatio: Math.min(dpr, 2.0),
+            antialias: true,
+            shadows: false,
+            toneMappingExposure: 1.1,
+        },
+    };
+    return configs[quality] || configs.medium;
+}
+
+export function createRenderer(container, graphicsQuality) {
+    const config = getQualityConfig(graphicsQuality || 'medium');
 
     const renderer = new THREE.WebGLRenderer({
-        antialias: !isMobile && window.devicePixelRatio <= 1.5,
+        antialias: config.antialias,
         powerPreference: 'default',
         stencil: false,
         depth: true,
@@ -31,12 +66,12 @@ export function createRenderer(container) {
         preserveDrawingBuffer: false,
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(pixelRatio);
+    renderer.setPixelRatio(config.pixelRatio);
 
-    renderer.shadowMap.enabled = false;
+    renderer.shadowMap.enabled = config.shadows;
 
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0; // Restored to default balanced exposure
+    renderer.toneMappingExposure = config.toneMappingExposure;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     if (container) {
@@ -44,6 +79,14 @@ export function createRenderer(container) {
     }
 
     return renderer;
+}
+
+export function applyRendererQuality(renderer, quality) {
+    if (!renderer) return;
+    const config = getQualityConfig(quality || 'medium');
+    renderer.setPixelRatio(config.pixelRatio);
+    renderer.shadowMap.enabled = config.shadows;
+    renderer.toneMappingExposure = config.toneMappingExposure;
 }
 
 export function createLighting(scene) {

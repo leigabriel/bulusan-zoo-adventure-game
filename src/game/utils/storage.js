@@ -12,7 +12,9 @@ const STORAGE_KEYS = {
 // Default values
 const DEFAULT_SETTINGS = {
     musicEnabled: true,
-    soundEnabled: true
+    soundEnabled: true,
+    graphicsQuality: 'medium',
+    fpsLimit: 60
 };
 
 const DEFAULT_PROGRESS = {
@@ -75,6 +77,17 @@ export function toggleMusic() {
 export function toggleSound() {
     const settings = getSettings();
     return saveSettings({ soundEnabled: !settings.soundEnabled });
+}
+
+export function setGraphicsQuality(quality) {
+    if (!['low', 'medium', 'high'].includes(quality)) return getSettings();
+    return saveSettings({ graphicsQuality: quality });
+}
+
+export function setFpsLimit(fps) {
+    const valid = [24, 30, 60];
+    if (!valid.includes(fps)) return getSettings();
+    return saveSettings({ fpsLimit: fps });
 }
 
 /**
