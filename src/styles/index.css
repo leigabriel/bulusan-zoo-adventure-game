@@ -219,11 +219,6 @@ canvas {
     animation: glow-pulse 2s ease-in-out infinite;
 }
 
-.loader-deer-fill {
-    transition: clip-path 320ms cubic-bezier(.16, 1, .3, 1);
-    will-change: clip-path;
-}
-
 .welcome-fade {
     animation: welcome-fade 3s ease both;
 }
@@ -252,14 +247,6 @@ canvas {
 
     .camera-toggle-btn {
         top: calc(env(safe-area-inset-top) + 3.2rem) !important;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .loader-deer-runner,
-    .loader-deer-gif,
-    .loader-progress-orb {
-        animation: none;
     }
 }
 

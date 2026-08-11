@@ -13,7 +13,6 @@ import {
 } from './controls/Controls.jsx';
 
 import {
-    LoadingScreen,
     MainMenu,
     GameHUD,
     SettingsPanel,
@@ -32,6 +31,7 @@ import {
     RotateDeviceOverlay,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
+import { LoadingScreen } from '../components/loading-screen.jsx';
 
 import {
     getTasks,
@@ -444,7 +444,7 @@ function MiniZooGame() {
     });
 
     const [isLoading, setIsLoading] = useState(true);
-    const [loadProgress, setLoadProgress] = useState(0);
+    const [_loadProgress, setLoadProgress] = useState(0);
     const [gameStarted, setGameStarted] = useState(false);
     const [showMenu, setShowMenu] = useState(true);
 
@@ -1665,7 +1665,7 @@ function MiniZooGame() {
         <div className="relative h-dvh w-full overflow-hidden bg-linear-to-b from-sky-300 to-sky-100 touch-none overscroll-none">
             <RotateDeviceOverlay />
             <div ref={containerRef} className="absolute inset-0" />
-            {isLoading && <LoadingScreen progress={loadProgress} />}
+            {isLoading && <LoadingScreen />}
             {!isLoading && showMenu && (
                 <MainMenu
                     onStart={handleStartGame}
