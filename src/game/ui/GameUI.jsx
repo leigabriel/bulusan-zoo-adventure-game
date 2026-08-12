@@ -931,10 +931,24 @@ const WoodenTitle = ({ titlePart1, titlePart2 }) => {
 };
 
 export function GameHUD({ playerName, onMenuClick, onTasksClick, completedTasks, totalTasks, isTouchDevice = false }) {
+    const menuIcon = 'https://cdn-icons-png.flaticon.com/128/10486/10486773.png';
+    const taskIcon = 'https://cdn-icons-png.flaticon.com/128/9741/9741134.png';
+
     return (
         <div className="hud-top-layout pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+0.55rem)] z-65 px-1 sm:px-4">
-            <div className="mx-auto grid w-full max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-3">
-                <div className="pointer-events-auto justify-self-start min-w-0">
+            <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-1 sm:gap-3">
+                <div className="pointer-events-auto flex min-w-0 items-center gap-1 sm:gap-2">
+                    <ActionButton
+                        variant="primary"
+                        size={isTouchDevice ? 'md' : 'sm'}
+                        className="shrink-0 px-0! w-11!"
+                        onClick={onMenuClick}
+                        aria-label="Menu"
+                        title="Menu"
+                    >
+                        <img src={menuIcon} alt="" draggable={false} className="h-5 w-5 sm:h-6 sm:w-6" />
+                    </ActionButton>
+
                     <div className="hud-player-pill min-w-0 rounded-full border border-emerald-200/90 bg-white px-2 py-1 sm:px-3 sm:py-1.5 shadow-[0_8px_18px_-14px_rgba(5,46,22,0.55)]">
                         <p className="max-w-24 sm:max-w-52 truncate text-[11px] sm:text-sm font-black text-emerald-950">
                             {playerName || 'Explorer'}
@@ -942,23 +956,16 @@ export function GameHUD({ playerName, onMenuClick, onTasksClick, completedTasks,
                     </div>
                 </div>
 
-                <ActionButton
-                    variant="primary"
-                    size={isTouchDevice ? 'md' : 'sm'}
-                    className="pointer-events-auto min-w-16 sm:min-w-20"
-                    onClick={onMenuClick}
-                >
-                    Menu
-                </ActionButton>
-
-                <div className="pointer-events-auto justify-self-end">
+                <div className="pointer-events-auto">
                     <ActionButton
                         variant="secondary"
                         size={isTouchDevice ? 'md' : 'sm'}
-                        className="min-w-20 sm:min-w-24 gap-1 sm:gap-1.5"
+                        className="gap-1 sm:gap-1.5"
                         onClick={onTasksClick}
+                        aria-label="Tasks"
+                        title="Tasks"
                     >
-                        <span className="text-[11px] sm:text-sm">Tasks</span>
+                        <img src={taskIcon} alt="" draggable={false} className="h-5 w-5 sm:h-6 sm:w-6" />
                         <span className="rounded-full bg-emerald-100 px-1 sm:px-1.5 py-0.5 text-[9px] sm:text-[10px] font-black text-emerald-900">
                             {completedTasks}/{Math.max(1, totalTasks)}
                         </span>
