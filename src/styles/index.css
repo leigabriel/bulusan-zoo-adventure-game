@@ -31,6 +31,7 @@ body,
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    background-color: #70e0ff; /* Fallback to match menu sky color */
 }
 
 body {
@@ -193,6 +194,19 @@ canvas {
         opacity: 0;
         transform: translateY(-6px) scale(0.98);
     }
+}
+
+@keyframes bounce-subtle {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+.animate-bounce-subtle {
+    animation: bounce-subtle 2.5s ease-in-out infinite;
 }
 
 .kids-float {

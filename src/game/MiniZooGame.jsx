@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
 import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight } from './components/Terrain.jsx';
@@ -1259,12 +1261,15 @@ function MiniZooGame() {
     const handleCancelResetTasks = useCallback(() => setShowResetTasksModal(false), []);
     const handleQuitRequest = useCallback(() => { setSettingsOpen(false); setShowQuitModal(true); }, []);
     const handleConfirmQuit = useCallback(() => {
+        // Stop sounds
+        stopGameplaySounds(false);
+
+        // State cleanup - This will return the user to the Main Menu
         gameStartedRef.current = false;
         soundEnabledRef.current = false;
         hasShownStatueEntryRef.current = false;
         setShowQuitModal(false);
         setShowResetTasksModal(false);
-        stopGameplaySounds(false);
         setSettingsOpen(false);
         setTasksOpen(false);
         setSelectedAnimal(null);

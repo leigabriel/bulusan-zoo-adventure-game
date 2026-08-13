@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bulusan Zootopia Adventure Game</string>
+    <string name="title_activity_main">Bulusan Zootopia Adventure Game</string>
+    <string name="package_name">com.bulusanzootopiaadventure.app</string>
+    <string name="custom_url_scheme">com.bulusanzootopiaadventure.app</string>
+</resources>

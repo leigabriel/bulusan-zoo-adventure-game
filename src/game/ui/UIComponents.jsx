@@ -5,6 +5,9 @@ export function cx(...tokens) {
     return tokens.filter(Boolean).join(' ');
 }
 
+/**
+ * ActionButton: Standard game-style button with 3D chunky shadow
+ */
 export function ActionButton({
     children,
     className = '',
@@ -13,17 +16,17 @@ export function ActionButton({
     ...props
 }) {
     const variantClasses = {
-        primary: 'bg-linear-to-b from-emerald-500 to-emerald-600 text-white ring-1 ring-emerald-700/30 hover:from-emerald-400 hover:to-emerald-500',
-        secondary: 'bg-linear-to-b from-white to-emerald-50 text-emerald-950 ring-1 ring-emerald-200 hover:to-emerald-100',
-        danger: 'bg-linear-to-b from-rose-500 to-rose-600 text-white ring-1 ring-rose-700/30 hover:from-rose-400 hover:to-rose-500',
-        warning: 'bg-linear-to-b from-lime-300 to-emerald-300 text-emerald-950 ring-1 ring-emerald-400/40 hover:from-lime-200 hover:to-emerald-200',
-        ghost: 'bg-emerald-950/70 text-white ring-1 ring-white/20 hover:bg-emerald-950/80',
+        primary: 'bg-emerald-500 text-white shadow-[0_4px_0_0_#065f46]',
+        secondary: 'bg-white text-slate-900 shadow-[0_4px_0_0_#cbd5e1]',
+        danger: 'bg-rose-500 text-white shadow-[0_4px_0_0_#9f1239]',
+        warning: 'bg-amber-400 text-amber-950 shadow-[0_4px_0_0_#92400e]',
+        ghost: 'bg-emerald-950/70 text-white shadow-[0_4px_0_0_rgba(0,0,0,0.3)]',
     };
 
     const sizeClasses = {
-        sm: 'h-11 px-3 text-xs',
-        md: 'h-11 px-4 text-sm',
-        lg: 'h-12 px-5 text-base',
+        sm: 'h-9 px-3 text-xs rounded-xl',
+        md: 'h-11 px-5 text-sm rounded-xl',
+        lg: 'h-13 px-8 text-base rounded-2xl',
     };
 
     return (
@@ -31,9 +34,7 @@ export function ActionButton({
             type="button"
             data-ui-button="true"
             className={cx(
-                'inline-flex items-center justify-center gap-2 rounded-2xl font-extrabold tracking-wide transition-[transform,box-shadow,background-color,border-color] duration-150',
-                'active:translate-y-px active:shadow-[0_2px_8px_-6px_rgba(5,46,22,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50',
-                'shadow-[0_10px_24px_-16px_rgba(5,46,22,0.5)]',
+                'inline-flex items-center justify-center gap-2 font-black uppercase tracking-wider transition-all active:translate-y-1 active:shadow-none focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
                 variantClasses[variant] || variantClasses.primary,
                 sizeClasses[size] || sizeClasses.md,
                 className,
@@ -45,14 +46,61 @@ export function ActionButton({
     );
 }
 
+/**
+ * IconButton: Circular game-style icon button
+ */
 export function IconButton({ children, className = '', ...props }) {
     return (
         <button
             type="button"
             data-ui-button="true"
             className={cx(
-                'inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-b from-white to-emerald-50 text-emerald-950 ring-1 ring-emerald-200 shadow-[0_10px_24px_-16px_rgba(5,46,22,0.5)] transition duration-150 hover:to-emerald-100 active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 focus-visible:ring-offset-1',
+                'inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-900 shadow-[0_4px_0_0_#cbd5e1] transition-all active:translate-y-1 active:shadow-none focus-visible:outline-none',
                 className,
+            )}
+            {...props}
+        >
+            {children}
+        </button>
+    );
+}
+
+/**
+ * GameButton: Specialized large button for menus
+ */
+export function GameButton({
+    children,
+    className = '',
+    color = 'slate',
+    size = 'md',
+    ...props
+}) {
+    const colorClasses = {
+        slate: 'bg-white text-slate-900 shadow-[0_6px_0_0_#cbd5e1]',
+        dark: 'bg-slate-900 text-white shadow-[0_6px_0_0_#0f172a]',
+        emerald: 'bg-emerald-500 text-white shadow-[0_6px_0_0_#065f46]',
+        rose: 'bg-rose-500 text-white shadow-[0_6px_0_0_#9f1239]',
+        amber: 'bg-amber-500 text-white shadow-[0_6px_0_0_#92400e]',
+        sky: 'bg-sky-500 text-white shadow-[0_6px_0_0_#075985]',
+    };
+
+    const sizeClasses = {
+        sm: 'py-2 px-4 text-sm rounded-xl',
+        md: 'py-2.5 px-8 text-base sm:text-lg rounded-2xl',
+        lg: 'py-3 px-12 text-lg sm:text-2xl rounded-3xl',
+    };
+
+    const colorStyle = colorClasses[color] || colorClasses.slate;
+    const sizeStyle = sizeClasses[size] || sizeClasses.md;
+
+    return (
+        <button
+            type="button"
+            className={cx(
+                'font-black uppercase tracking-wider transition-all active:translate-y-1 active:shadow-none focus-visible:outline-none',
+                colorStyle,
+                sizeStyle,
+                className
             )}
             {...props}
         >
@@ -65,7 +113,7 @@ export function SurfacePanel({ children, className = '', ...props }) {
     return (
         <div
             className={cx(
-                'rounded-[1.35rem] border border-emerald-100 bg-white shadow-[0_18px_32px_-24px_rgba(5,46,22,0.7)]',
+                'rounded-[1.5rem] border-2 border-emerald-100 bg-white shadow-[0_12px_0_0_rgba(5,46,22,0.1)]',
                 className,
             )}
             {...props}
@@ -88,7 +136,7 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md' }) {
     return (
         <div
             data-ui-modal="true"
-            className="fixed inset-0 z-120 flex items-center justify-center p-2 sm:p-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)]"
+            className="fixed inset-0 z-120 flex items-center justify-center p-2 sm:p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)]"
             role="dialog"
             aria-modal="true"
         >
@@ -96,7 +144,7 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md' }) {
                 type="button"
                 aria-label="Close modal"
                 onClick={onClose}
-                className="absolute inset-0 bg-emerald-950/30 backdrop-blur-[2px]"
+                className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[4px]"
             />
 
             <SurfacePanel
@@ -105,11 +153,11 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md' }) {
                     maxWidth[size] || maxWidth.md,
                 )}
             >
-                <div className="max-h-[80dvh] overflow-y-auto p-3 sm:p-6" data-ui-scrollable="true">
-                    <div className="mb-3 sm:mb-4 flex items-center justify-between gap-3">
-                        {title ? <h2 className="text-base sm:text-lg font-black text-slate-900">{title}</h2> : <span />}
+                <div className="max-h-[85dvh] overflow-y-auto p-4 sm:p-8" data-ui-scrollable="true">
+                    <div className="mb-4 sm:mb-6 flex items-center justify-between gap-3">
+                        {title ? <h2 className="text-xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">{title}</h2> : <span />}
                         <IconButton onClick={onClose} aria-label="Close">
-                            <span className="text-base leading-none">x</span>
+                            <span className="text-xl font-bold leading-none">&times;</span>
                         </IconButton>
                     </div>
                     {children}
@@ -130,7 +178,7 @@ export function SideSheet({ isOpen, onClose, title, side = 'left', children }) {
                 aria-label="Close panel"
                 onClick={onClose}
                 className={cx(
-                    'fixed inset-0 z-90 bg-emerald-950/30 backdrop-blur-[2px] transition-opacity',
+                    'fixed inset-0 z-90 bg-emerald-950/40 backdrop-blur-[4px] transition-opacity',
                     isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
                 )}
             />
@@ -138,20 +186,20 @@ export function SideSheet({ isOpen, onClose, title, side = 'left', children }) {
             <aside
                 data-ui-panel="true"
                 className={cx(
-                    'fixed top-0 z-95 h-dvh w-[min(24rem,92vw)] border border-emerald-100 bg-white transition-transform duration-300',
-                    'shadow-[0_22px_40px_-20px_rgba(5,46,22,0.65)]',
+                    'fixed top-0 z-95 h-dvh w-[min(28rem,92vw)] border-r border-emerald-100 bg-white transition-transform duration-300',
+                    'shadow-[12px_0_0_0_rgba(5,46,22,0.05)]',
                     sidePosition,
                     isOpen ? 'translate-x-0' : hiddenPosition,
                 )}
             >
                 <div className="flex h-full flex-col">
-                    <div className="flex items-center justify-between border-b border-emerald-100/90 px-3 py-2.5 sm:px-4 sm:py-3">
-                        <h3 className="text-xs sm:text-sm font-black uppercase tracking-[0.12em] text-emerald-900/80">{title}</h3>
+                    <div className="flex items-center justify-between border-b-2 border-emerald-50 px-4 py-3 sm:px-6 sm:py-5">
+                        <h3 className="text-sm sm:text-base font-black uppercase tracking-[0.12em] text-emerald-900">{title}</h3>
                         <IconButton onClick={onClose} aria-label="Close panel">
-                            <span className="text-base leading-none">x</span>
+                            <span className="text-xl font-bold leading-none">&times;</span>
                         </IconButton>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4" data-ui-scrollable="true">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6" data-ui-scrollable="true">
                         {children}
                     </div>
                 </div>

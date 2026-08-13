@@ -124,9 +124,17 @@ export function createMovementHandler(camera, state) {
 
         // Jump - physics-based
         if ((state.keys[" "] || state.keys["space"]) && !state.isJumping && state.isGrounded) {
-            state.velocityY = JUMP_FORCE;
-            state.isJumping = true;
-            state.isGrounded = false;
+            const now = performance.now();
+            // Add a small cooldown (300ms) to prevent accidental double-jumps or physics jitter
+            if (!state.lastJumpTime || now - state.lastJumpTime > 300) {
+                state.velocityY = JUMP_FORCE;
+                state.isJumping = true;
+                state.isGrounded = false;
+                state.lastJumpTime = now;
+                // Consume the jump input immediately
+                state.keys[" "] = false;
+                state.keys["space"] = false;
+            }
         }
 
         // Gravity with frame-rate independence
@@ -169,6 +177,7 @@ export function createMovementHandler(camera, state) {
 
 export function setupKeyboardControls(state) {
     const handleKeyDown = (e) => {
+        if (e.repeat) return;
         const key = e.key.toLowerCase();
         state.keys[key] = true;
 
@@ -301,7 +310,11 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
                 jumpTouchId = touch.identifier;
                 if (!state.isJumping && state.isGrounded) {
                     state.keys[" "] = true;
-                    setTimeout(() => { if (jumpTouchId === touch.identifier) state.keys[" "] = false; }, 100);
+                    // Reset jump key after a short delay to prevent repeat jumping if landing quickly
+                    setTimeout(() => {
+                        state.keys[" "] = false;
+                        state.keys["space"] = false;
+                    }, 50);
                 }
                 e.preventDefault();
                 handled = true;
@@ -374,6 +387,8 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
                 continue;
             }
             if (touch.identifier === jumpTouchId) {
+                state.keys[" "] = false;
+                state.keys["space"] = false;
                 jumpTouchId = null;
                 continue;
             }
