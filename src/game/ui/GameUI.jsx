@@ -46,7 +46,8 @@ const UI_DEFAULT_SETTINGS = {
     musicEnabled: true,
     soundEnabled: true,
     graphicsQuality: 'medium',
-    fpsLimit: 60
+    fpsLimit: 60,
+    sensitivity: 1.0
 };
 
 function readSettings() {
@@ -148,40 +149,40 @@ function ToggleRow({ label, description, enabled, onToggle }) {
     return (
         <button
             type="button"
-            data-ui-button="true"
             onClick={onToggle}
-            className="flex min-h-11 w-full items-center justify-between rounded-2xl border border-emerald-200/80 bg-white px-4 py-3 text-left shadow-[0_10px_24px_-20px_rgba(5,150,105,0.7)] transition hover:border-emerald-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 focus-visible:ring-offset-1"
+            className={cx(
+                "flex w-full items-center justify-between rounded-2xl border-2 px-4 py-3 transition-all active:translate-y-1 active:shadow-none",
+                enabled
+                    ? "border-emerald-100 bg-emerald-50 shadow-[0_4px_0_0_#d1fae5]"
+                    : "border-slate-100 bg-slate-50 shadow-[0_4px_0_0_#f1f5f9]"
+            )}
         >
-            <span className="min-w-0">
-                <span className="block truncate text-sm font-black tracking-wide text-emerald-950">{label}</span>
-                <span className="mt-0.5 block text-xs font-semibold text-emerald-700/80">{description}</span>
-            </span>
-
-            <span
-                className={cx(
-                    'relative h-6 w-11 rounded-full transition',
-                    enabled ? 'bg-emerald-500' : 'bg-emerald-200',
-                )}
-            >
-                <span
-                    className={cx(
-                        'absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_2px_8px_rgba(15,23,42,0.22)] transition-transform',
-                        enabled ? 'translate-x-5' : 'translate-x-0',
-                    )}
-                />
-            </span>
+            <div className="text-left">
+                <span className={cx("block text-sm font-black uppercase tracking-wider", enabled ? "text-emerald-800" : "text-slate-500")}>
+                    {label}
+                </span>
+                {description && <span className="block text-[10px] font-semibold text-slate-400">{description}</span>}
+            </div>
+            <div className={cx(
+                "h-6 w-11 rounded-full p-1 transition-colors",
+                enabled ? "bg-emerald-500" : "bg-slate-300"
+            )}>
+                <div className={cx(
+                    "h-4 w-4 rounded-full bg-white transition-transform",
+                    enabled ? "translate-x-5" : "translate-x-0"
+                )} />
+            </div>
         </button>
     );
 }
 
-function SelectRow({ label, description, options = [], value, onChange }) {
+function SelectRow({ label, options = [], value, onChange }) {
     return (
-        <div className="flex min-h-11 w-full items-center justify-between rounded-2xl border border-emerald-200/80 bg-white px-4 py-3 shadow-[0_10px_24px_-20px_rgba(5,150,105,0.7)]">
-            <span className="min-w-0">
-                <span className="block truncate text-sm font-black tracking-wide text-emerald-950">{label}</span>
-                <span className="mt-0.5 block text-xs font-semibold text-emerald-700/80">{description}</span>
+        <div className="flex w-full flex-col gap-2 rounded-2xl border-2 border-slate-100 bg-white p-3 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-1">
+                {label}
             </span>
-            <div className="flex shrink-0 gap-1" role="radiogroup">
+            <div className="flex gap-2" role="radiogroup">
                 {options.map((opt) => {
                     const isSelected = value === opt.value;
                     return (
@@ -192,10 +193,10 @@ function SelectRow({ label, description, options = [], value, onChange }) {
                             aria-checked={isSelected}
                             onClick={() => onChange(opt.value)}
                             className={cx(
-                                'rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition',
+                                'flex-1 rounded-xl py-2 text-xs font-black uppercase tracking-wider transition-all',
                                 isSelected
-                                    ? 'bg-emerald-500 text-white shadow-sm'
-                                    : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                    ? 'bg-emerald-500 text-white shadow-[0_4px_0_0_#065f46]'
+                                    : 'bg-emerald-50 text-emerald-700 shadow-[0_4px_0_0_#d1fae5] hover:bg-emerald-100'
                             )}
                         >
                             {opt.label}
@@ -217,24 +218,38 @@ function ProgressChip({ completed, total, className = '' }) {
 
 function HowToPlayContent() {
     return (
-        <div className="space-y-3 text-sm text-slate-700">
-            <p className="font-semibold">Explore Bulusan Zootopia Adventure, feed each animal, and complete all tasks to unlock your certificate.</p>
+        <div className="space-y-4 text-sm text-slate-700">
+            <p className="font-semibold text-center italic">Explore Bulusan Zootopia Adventure, feed the animals, and complete your zoo mission!</p>
 
-            <div className="grid gap-2 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Movement</p>
-                    <p className="mt-1 font-semibold">Desktop: W A S D, Mouse look, Space jump</p>
-                    <p className="mt-1 font-semibold">Mobile: Joystick + Jump button</p>
+            <div className="grid gap-3">
+                <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-600 mb-2">How to Move</p>
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0">🕹️</div>
+                        <p className="font-bold text-slate-800 leading-tight">Use the Joystick on the left to walk around the zoo.</p>
+                    </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Interactions</p>
-                    <p className="mt-1 font-semibold">E = animal info, F = feed animal, T = talk to Ranger Lino, V = switch camera</p>
+
+                <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-600 mb-2">How to Jump</p>
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">🦘</div>
+                        <p className="font-bold text-slate-800 leading-tight">Tap the Jump button on the right to leap over obstacles.</p>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-sky-600 mb-2">Interactions</p>
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center shrink-0">🍎</div>
+                        <p className="font-bold text-slate-800 leading-tight">Walk near an animal to see the Feed and Info buttons.</p>
+                    </div>
                 </div>
             </div>
 
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                <p className="font-black text-emerald-800">Goal</p>
-                <p className="mt-1 font-semibold text-emerald-900">Feed every animal listed in Tasks, then claim your completion certificate.</p>
+            <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 text-center">
+                <p className="font-black text-emerald-800 uppercase tracking-widest text-xs">Your Goal</p>
+                <p className="mt-1 font-bold text-emerald-900 leading-snug">Feed every animal to unlock your completion certificate!</p>
             </div>
         </div>
     );
@@ -423,9 +438,7 @@ function Character3DPreview({ modelFile }) {
 function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = true }) {
     const [settings, setSettings] = useState(() => readSettings());
     const [playerName, setPlayerName] = useState(() => readPlayerName());
-    const { isFullscreen, toggleFullscreen } = useFullscreen();
     const [howToPlayOpen, setHowToPlayOpen] = useState(false);
-    const [orientationFeedback, setOrientationFeedback] = useState('');
 
     const toggle = useCallback((key) => {
         const next = { ...settings, [key]: settings[key] === false };
@@ -437,74 +450,78 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = 
         savePlayerName(playerName);
     }, [playerName]);
 
-    const handleLandscapeMode = useCallback(async () => {
-        const locked = await requestLandscapeOrientation();
-        setOrientationFeedback(
-            locked
-                ? 'Landscape mode enabled.'
-                : 'Landscape lock is not available on this browser/device.'
-        );
-    }, []);
-
     if (!isOpen) return null;
 
     return (
         <>
             <ModalShell isOpen={isOpen} onClose={onClose} title="Game Settings" size="sm">
-                <div className="space-y-5">
+                <div className="space-y-6">
                     {showNameInput && (
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-[0.12em] text-slate-500" htmlFor="settings-player-name">
+                        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
+                            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2" htmlFor="settings-player-name">
                                 Player Name
                             </label>
-                            <div className="mt-2 flex gap-2">
-                                <input
-                                    id="settings-player-name"
-                                    type="text"
-                                    maxLength={24}
-                                    value={playerName}
-                                    onChange={(e) => setPlayerName(e.target.value)}
-                                    onBlur={handleSaveName}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveName();
-                                    }}
-                                    className="block min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 outline-none ring-0 transition focus:border-emerald-500"
-                                    placeholder="Your name"
-                                />
-                            </div>
+                            <input
+                                id="settings-player-name"
+                                type="text"
+                                maxLength={24}
+                                value={playerName}
+                                onChange={(e) => setPlayerName(e.target.value)}
+                                onBlur={handleSaveName}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveName();
+                                }}
+                                className="block w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-base font-black text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white"
+                                placeholder="Your name"
+                            />
                         </div>
                     )}
 
-                    <SelectRow
-                        label="Graphics"
-                        description="Visual quality"
-                        options={[
-                            { label: 'Low', value: 'low' },
-                            { label: 'Med', value: 'medium' },
-                            { label: 'High', value: 'high' }
-                        ]}
-                        value={settings.graphicsQuality || 'medium'}
-                        onChange={(val) => {
-                            const next = { ...settings, graphicsQuality: val };
-                            setSettings(next);
-                            persistSettings(next);
-                        }}
-                    />
+                    <div className="space-y-3">
+                        <SelectRow
+                            label="Graphics"
+                            options={[
+                                { label: 'Low', value: 'low' },
+                                { label: 'Med', value: 'medium' },
+                                { label: 'High', value: 'high' }
+                            ]}
+                            value={settings.graphicsQuality || 'medium'}
+                            onChange={(val) => {
+                                const next = { ...settings, graphicsQuality: val };
+                                setSettings(next);
+                                persistSettings(next);
+                            }}
+                        />
 
-                    <SelectRow
-                        label="FPS Limit"
-                        description="Frame rate"
-                        options={[
-                            { label: '30', value: 30 },
-                            { label: '60', value: 60 }
-                        ]}
-                        value={settings.fpsLimit ?? 60}
-                        onChange={(val) => {
-                            const next = { ...settings, fpsLimit: val };
-                            setSettings(next);
-                            persistSettings(next);
-                        }}
-                    />
+                        <SelectRow
+                            label="FPS Limit"
+                            options={[
+                                { label: '30', value: 30 },
+                                { label: '60', value: 60 }
+                            ]}
+                            value={settings.fpsLimit ?? 60}
+                            onChange={(val) => {
+                                const next = { ...settings, fpsLimit: val };
+                                setSettings(next);
+                                persistSettings(next);
+                            }}
+                        />
+
+                        <SelectRow
+                            label="Look Sensitivity"
+                            options={[
+                                { label: 'Slow', value: 0.5 },
+                                { label: 'Normal', value: 1.0 },
+                                { label: 'Fast', value: 1.8 }
+                            ]}
+                            value={settings.sensitivity ?? 1.0}
+                            onChange={(val) => {
+                                const next = { ...settings, sensitivity: val };
+                                setSettings(next);
+                                persistSettings(next);
+                            }}
+                        />
+                    </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <ToggleRow
@@ -519,35 +536,20 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = 
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <ActionButton variant="secondary" onClick={toggleFullscreen} className="text-[10px]">
-                            {isFullscreen ? 'Exit Full' : 'Fullscreen'}
-                        </ActionButton>
-                        <ActionButton variant="secondary" onClick={handleLandscapeMode} className="text-[10px]">
-                            Landscape
-                        </ActionButton>
+                    <div className="pt-4 space-y-3 border-t-2 border-slate-50">
+                        {onResetTasks && (
+                            <ActionButton variant="warning" className="w-full h-14 text-base" onClick={onResetTasks}>
+                                Reset Progress
+                            </ActionButton>
+                        )}
+
+                            {onQuit && (
+                            <ActionButton variant="danger" className="w-full h-14 text-base" onClick={onQuit}>
+                                Quit Game
+                            </ActionButton>
+                        )}
                     </div>
-
-                    {onResetTasks && (
-                        <ActionButton variant="warning" className="w-full" onClick={onResetTasks}>
-                            Reset Tasks
-                        </ActionButton>
-                    )}
-
-                    {onQuit && (
-                        <ActionButton variant="danger" className="w-full" onClick={onQuit}>
-                            Quit Game
-                        </ActionButton>
-                    )}
-
-                    {orientationFeedback ? (
-                        <p className="text-center text-[10px] font-semibold text-slate-400 italic">{orientationFeedback}</p>
-                    ) : null}
                 </div>
-            </ModalShell>
-
-            <ModalShell isOpen={howToPlayOpen} onClose={() => setHowToPlayOpen(false)} title="How To Play" size="md">
-                <HowToPlayContent />
             </ModalShell>
         </>
     );
@@ -710,67 +712,60 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
             <div className="relative z-30 flex h-full w-full flex-col items-center justify-between p-3 sm:p-6 safe-area-inset">
 
                 {/* --- TOP SECTION: TITLE --- */}
-                <div className="w-full flex flex-col items-center pt-0 shrink-0 scale-[0.5] sm:scale-90 md:scale-110 origin-top -mb-4 sm:mb-0">
+                <div className="w-full flex flex-col items-center pt-0 shrink-0 scale-[0.4] sm:scale-90 md:scale-110 origin-top mb-2 sm:mb-4">
                     <WoodenTitle titlePart1="Bulusan" titlePart2="Zoo Adventure" />
                 </div>
 
                 {/* --- SPACER / CENTER AREA --- */}
-                <div className="flex-1 min-h-0 flex items-center justify-center">
+                <div className="flex-1 min-h-0 flex items-center justify-center py-1">
                     {/* PRIMARY PLAY BUTTON */}
-                    <GameButton
-                        color="rose"
-                        size="lg"
+                    <button
                         onClick={handleStart}
                         disabled={starting}
-                        className="w-full max-w-[200px] sm:max-w-md animate-bounce-subtle py-1! sm:py-3! shadow-[0_5px_0_0_#9f1239] sm:shadow-[0_8px_0_0_#9f1239] active:translate-y-1 active:shadow-none rounded-full!"
+                        className="group relative w-full max-w-[100px] sm:max-w-[120px] transition-all active:scale-95 disabled:opacity-50"
                     >
-                        <div className="flex items-center justify-center gap-2 sm:gap-3">
-                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 sm:w-10 sm:h-10">
-                                <path d="M8 5v14l11-7z" />
-                            </svg>
-                            <span className="text-xs sm:text-3xl font-black">PLAY NOW</span>
-                        </div>
-                    </GameButton>
+                        <img
+                            src="/ui-buttons/play-button.png"
+                            alt="PLAY NOW"
+                            className="w-full h-auto drop-shadow-xl group-hover:scale-105 transition-transform animate-bounce-subtle"
+                        />
+                    </button>
                 </div>
 
                 {/* --- BOTTOM SECTION: NAVIGATION --- */}
-                <div className="w-full max-w-xl shrink-0 pb-2 sm:pb-4">
-                    <div className="flex items-center justify-center gap-3 sm:gap-6">
-                        <GameButton
-                            color="amber"
+                <div className="w-full max-w-2xl shrink-0 pb-1 sm:pb-4">
+                    <div className="flex items-center justify-center gap-3 sm:gap-6 px-2">
+                        <button
                             onClick={() => setHowToPlayOpen(true)}
-                            className="w-12 h-12 sm:w-16 sm:h-16 rounded-full! p-0! flex items-center justify-center shadow-[0_4px_0_0_#92400e]"
+                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
                             title="Guide"
                         >
-                            <img src="https://cdn-icons-png.flaticon.com/128/19010/19010567.png" alt="" className="w-6 h-6 sm:w-8 sm:h-8" />
-                        </GameButton>
+                            <img src="/ui-buttons/how-to-play-button.png" alt="Guide" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
+                        </button>
 
-                        <GameButton
-                            color="emerald"
+                        <button
                             onClick={() => setCharSelectOpen(true)}
-                            className="w-12 h-12 sm:w-16 sm:h-16 rounded-full! p-0! flex items-center justify-center shadow-[0_4px_0_0_#065f46]"
+                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
                             title="Characters"
                         >
-                            <img src="https://cdn-icons-png.flaticon.com/128/19020/19020408.png" alt="" className="w-6 h-6 sm:w-8 sm:h-8" />
-                        </GameButton>
+                            <img src="/ui-buttons/character-button.png" alt="Characters" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
+                        </button>
 
-                        <GameButton
-                            color="sky"
+                        <button
                             onClick={() => setSettingsOpen(true)}
-                            className="w-12 h-12 sm:w-16 sm:h-16 rounded-full! p-0! flex items-center justify-center shadow-[0_4px_0_0_#075985]"
+                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
                             title="Settings"
                         >
-                            <img src="https://cdn-icons-png.flaticon.com/128/17586/17586900.png" alt="" className="w-6 h-6 sm:w-8 sm:h-8" />
-                        </GameButton>
+                            <img src="/ui-buttons/settings-button.png" alt="Settings" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
+                        </button>
 
-                        <GameButton
-                            color="slate"
+                        <button
                             onClick={() => setShowExitConfirm(true)}
-                            className="w-12 h-12 sm:w-16 sm:h-16 rounded-full! p-0! flex items-center justify-center shadow-[0_4px_0_0_#cbd5e1]"
+                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
                             title="Quit"
                         >
-                            <img src="https://cdn-icons-png.flaticon.com/128/10489/10489588.png" alt="" className="w-6 h-6 sm:w-8 sm:h-8" />
-                        </GameButton>
+                            <img src="/ui-buttons/quit-button.png" alt="Quit" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
+                        </button>
                     </div>
                 </div>
             </div>
@@ -859,8 +854,8 @@ const WoodenTitle = ({ titlePart1, titlePart2, className = '' }) => {
 };
 
 export function GameHUD({ playerName, onMenuClick, onTasksClick, completedTasks, totalTasks, isTouchDevice = false }) {
-    const menuIcon = 'https://cdn-icons-png.flaticon.com/128/17586/17586900.png';
-    const taskIcon = 'https://cdn-icons-png.flaticon.com/128/19010/19010567.png';
+    const menuIcon = '/ui-buttons/settings-button.png';
+    const taskIcon = '/ui-buttons/task-list-button.png';
 
     return (
         <div className="hud-top-layout pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+0.55rem)] z-65 px-1 sm:px-4 select-none">
@@ -870,10 +865,10 @@ export function GameHUD({ playerName, onMenuClick, onTasksClick, completedTasks,
                 <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 sm:gap-3">
                     <button
                         onClick={onMenuClick}
-                        className="group flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-2xl bg-white text-emerald-950 shadow-[0_4px_0_0_#cbd5e1] active:translate-y-1 active:shadow-none transition-all"
+                        className="group flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center transition-all active:scale-95"
                         aria-label="Menu"
                     >
-                        <img src={menuIcon} alt="" className="h-6 w-6 sm:h-8 sm:w-8 group-hover:scale-110 transition-transform" />
+                        <img src={menuIcon} alt="" className="h-full w-full object-contain group-hover:scale-110 transition-transform" />
                     </button>
 
                     <div className="hud-player-pill flex min-w-0 items-center gap-2 rounded-2xl border-2 border-white/50 bg-emerald-950/80 px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-md shadow-xl">
@@ -888,16 +883,10 @@ export function GameHUD({ playerName, onMenuClick, onTasksClick, completedTasks,
                 <div className="pointer-events-auto">
                     <button
                         onClick={onTasksClick}
-                        className="group flex items-center gap-2 rounded-2xl bg-amber-400 px-3 py-1.5 sm:px-4 sm:py-2 text-amber-950 shadow-[0_4px_0_0_#92400e] active:translate-y-1 active:shadow-none transition-all"
+                        className="group flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center transition-all active:scale-95"
                         aria-label="Tasks"
                     >
-                        <img src={taskIcon} alt="" className="h-5 w-5 sm:h-7 sm:w-7 group-hover:rotate-12 transition-transform" />
-                        <div className="flex flex-col items-start leading-none">
-                            <span className="text-[8px] sm:text-[10px] font-black uppercase opacity-70">Tasks</span>
-                            <span className="text-xs sm:text-sm font-black">
-                                {completedTasks} / {totalTasks}
-                            </span>
-                        </div>
+                        <img src={taskIcon} alt="" className="h-full w-full object-contain group-hover:scale-110 transition-transform" />
                     </button>
                 </div>
             </div>
@@ -1245,8 +1234,12 @@ export function BottomHotbar({ gameStarted, completedTasks, totalTasks, onMenuCl
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-72 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] md:hidden">
             <SurfacePanel className="pointer-events-auto p-2" data-ui-panel="true">
                 <div className="flex items-center gap-2">
-                    <ActionButton variant="secondary" size="sm" className="flex-1" onClick={onMenuClick}>Menu</ActionButton>
-                    <ActionButton variant="warning" size="sm" className="flex-1" onClick={onTasksClick}>Tasks</ActionButton>
+                    <button onClick={onMenuClick} className="flex-1 h-10 transition-all active:scale-95">
+                        <img src="/ui-buttons/settings-button.png" alt="Menu" className="h-full w-full object-contain" />
+                    </button>
+                    <button onClick={onTasksClick} className="flex-1 h-10 transition-all active:scale-95">
+                        <img src="/ui-buttons/task-list-button.png" alt="Tasks" className="h-full w-full object-contain" />
+                    </button>
                     <ProgressChip completed={completedTasks} total={totalTasks} className="shrink-0" />
                 </div>
             </SurfacePanel>

@@ -58,9 +58,23 @@ const AUDIO_ASSETS = [
   '/audio/wolf.mp3',
 ];
 
+const STRUCTURE_ASSETS = [
+  '/models/watch-tower/wooden watch tower2.obj',
+  '/models/watch-tower/wooden watch tower2.mtl',
+  '/models/watch-tower/textures/Wood_Tower_Col.jpg',
+  '/models/watch-tower/textures/Wood_Tower_Nor.jpg',
+  '/models/low_poly_home_2/scene.gltf',
+  '/models/low_poly_home_2/scene.bin',
+  '/models/low_poly_home_2/textures/Material_baseColor.jpeg',
+  '/models/low_poly_medieval_house/scene.gltf',
+  '/models/low_poly_medieval_house/scene.bin',
+  '/models/low_poly_medieval_house/textures/material-env-project_baseColor.png',
+];
+
 export const ESSENTIAL_ASSET_PATHS = [
   '/models/bulusanstatue.glb',
   ...AUDIO_ASSETS,
+  ...STRUCTURE_ASSETS,
   ...CHARACTER_MODELS.map((file) => `/models/characters/${file}`),
   ...ANIMAL_MODELS.map((file) => `/models/animals/${file}`),
   ...ANIMAL_MODEL_DEPENDENCIES,

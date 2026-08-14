@@ -97,6 +97,22 @@ export function createMovementHandler(camera, state) {
         const resolveObstacles = (list) => {
             if (!list || list.length === 0) return;
             for (const obs of list) {
+                // If it's a tower, allow the player to enter the "stair" zone
+                if (obs.isTower) {
+                    const dx = nextX - obs.x;
+                    const dz = nextZ - obs.z;
+                    const distSq = dx * dx + dz * dz;
+                    // Only collide with the very center base of the tower
+                    const towerBaseRadius = obs.radius * 0.4;
+                    if (distSq < towerBaseRadius * towerBaseRadius) {
+                        const dist = Math.sqrt(distSq) || 0.1;
+                        const overlap = towerBaseRadius - dist;
+                        nextX += (dx / dist) * overlap;
+                        nextZ += (dz / dist) * overlap;
+                    }
+                    continue;
+                }
+
                 const dx = nextX - obs.x;
                 const dz = nextZ - obs.z;
                 const distSq = dx * dx + dz * dz;
@@ -143,9 +159,31 @@ export function createMovementHandler(camera, state) {
             camera.position.y += state.velocityY * dt;
         }
 
-        // Terrain following
+        // Terrain and Platform following
         const playerHeight = state.playerHeight ?? PLAYER_HEIGHT;
-        const groundLevel = getTerrainHeight(camera.position.x, camera.position.z) + playerHeight;
+        const terrainHeight = getTerrainHeight(camera.position.x, camera.position.z);
+        let groundLevel = terrainHeight + playerHeight;
+
+        // --- NEW: TOWER CLIMBING LOGIC ---
+        if (state.towers && state.towers.length > 0) {
+            for (const tower of state.towers) {
+                const dx = camera.position.x - tower.x;
+                const dz = camera.position.z - tower.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+
+                // If on top of the tower platform
+                if (dist < tower.platformRadius) {
+                    groundLevel = Math.max(groundLevel, tower.platformY + playerHeight);
+                }
+                // If on the stairs (ascending/descending)
+                else if (dist < tower.platformRadius * 2.2) {
+                    const stairProgress = 1 - ((dist - tower.platformRadius) / (tower.platformRadius * 1.2));
+                    const stairHeight = terrainHeight + (tower.platformY - terrainHeight) * Math.max(0, stairProgress);
+                    groundLevel = Math.max(groundLevel, stairHeight + playerHeight);
+                }
+            }
+        }
+
         if (state.isGrounded) {
             camera.position.y = groundLevel;
         } else if (camera.position.y <= groundLevel) {
@@ -362,8 +400,9 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
             if (touch.identifier === lookTouchId && state.lActive) {
                 const dx = touch.clientX - state.lx;
                 const dy = touch.clientY - state.ly;
-                state.yaw -= dx * 0.004;
-                state.pitch -= dy * 0.004;
+                const sens = state.sensitivity || 1.0;
+                state.yaw -= dx * 0.004 * sens;
+                state.pitch -= dy * 0.004 * sens;
                 state.pitch = Math.max(-1.2, Math.min(1.2, state.pitch));
                 state.lx = touch.clientX;
                 state.ly = touch.clientY;
@@ -459,8 +498,9 @@ export function setupMouseControls(state) {
         }
 
         if (!('ontouchstart' in window) && e.buttons === 1) {
-            state.yaw -= e.movementX * 0.003;
-            state.pitch -= e.movementY * 0.003;
+            const sens = state.sensitivity || 1.0;
+            state.yaw -= e.movementX * 0.003 * sens;
+            state.pitch -= e.movementY * 0.003 * sens;
             state.pitch = Math.max(-1.4, Math.min(1.4, state.pitch));
         }
     };

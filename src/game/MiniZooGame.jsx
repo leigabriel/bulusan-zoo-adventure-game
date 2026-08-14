@@ -7,6 +7,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
 import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight } from './components/Terrain.jsx';
 import { loadGLTFAnimals } from './components/Animals.jsx';
+import { loadMultipleTowers, loadNewHouses } from './components/Structures.jsx';
 import {
     createMovementHandler,
     setupKeyboardControls,
@@ -480,6 +481,7 @@ function MiniZooGame() {
         keys: {}, yaw: 0, pitch: 0,
         mX: 0, mY: 0, sActive: false, lActive: false, lx: 0, ly: 0,
         velocityY: 0, isJumping: false, isGrounded: true,
+        sensitivity: getSettings().sensitivity || 1.0,
         playerHeight: PLAYER_HEIGHT,
         playerMoveSpeed: 0,
         playerIsMoving: false,
@@ -821,6 +823,8 @@ function MiniZooGame() {
 
             const statuePromise = loadCenterStatue(scene, isMobile);
             const staffPromise = loadStaffNpc(scene, isMobile);
+            const watchTowersPromise = loadMultipleTowers(scene);
+            const housesPromise = loadNewHouses(scene);
 
             const { loadPromise: treesP } = loadTrees(scene, isMobile ? 50 : 80);
             const { loadPromise: bushesP } = loadBushes(scene, isMobile ? 40 : 70);
@@ -828,13 +832,44 @@ function MiniZooGame() {
 
             setLoadProgress(30);
             // Wait for all objects to load, and extract the resulting arrays!
-            const [loadedTrees, loadedBushes, loadedRocks, statueResult, staffResult] = await Promise.all([treesP, bushesP, rocksP, statuePromise, staffPromise]);
+            const [loadedTrees, loadedBushes, loadedRocks, statueResult, staffResult, towersResult, housesResult] = await Promise.all([
+                treesP,
+                bushesP,
+                rocksP,
+                statuePromise,
+                staffPromise,
+                watchTowersPromise,
+                housesPromise
+            ]);
 
             // Create collision obstacles based on the loaded meshes
             state.obstacles = [];
             loadedTrees.forEach(t => state.obstacles.push({ x: t.position.x, z: t.position.z, radius: t.scale.x * 0.8 }));
             loadedRocks.forEach(r => state.obstacles.push({ x: r.position.x, z: r.position.z, radius: r.scale.x * 1.1 }));
             loadedBushes.forEach(b => state.obstacles.push({ x: b.position.x, z: b.position.z, radius: b.scale.x * 0.6 }));
+
+            if (towersResult) {
+                state.towers = towersResult;
+                towersResult.forEach(tower => {
+                    state.obstacles.push({
+                        x: tower.x,
+                        z: tower.z,
+                        radius: tower.radius,
+                        isTower: true
+                    });
+                });
+            }
+
+            if (housesResult) {
+                housesResult.forEach(house => {
+                    state.obstacles.push({
+                        x: house.x,
+                        z: house.z,
+                        radius: house.radius
+                    });
+                });
+            }
+
             if (statueResult) {
                 state.obstacles.push({
                     x: STATUE_CENTER.x,
@@ -1512,19 +1547,29 @@ function MiniZooGame() {
             }
         };
 
+        const syncSensitivity = () => {
+            const settings = getSettings();
+            if (gameStateRef.current) {
+                gameStateRef.current.sensitivity = settings.sensitivity || 1.0;
+            }
+        };
+
         syncSoundEnabled();
         syncGraphicsAndFps();
+        syncSensitivity();
 
         const onStorage = (e) => {
             if (!e || e.key === 'minizoo_settings' || e.key === null) {
                 syncSoundEnabled();
                 syncGraphicsAndFps();
+                syncSensitivity();
             }
         };
 
         const onSettingsChanged = () => {
             syncSoundEnabled();
             syncGraphicsAndFps();
+            syncSensitivity();
         };
 
         window.addEventListener('storage', onStorage);
