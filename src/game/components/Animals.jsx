@@ -254,13 +254,13 @@ function createContactShadow(size, opacity) {
     return mesh;
 }
 
-function createAnimalSound(soundFile) {
+function createAnimalSound(soundFile, initialVolume = 0.75) {
     if (!soundFile || typeof Audio === 'undefined') return null;
     const normalized = String(soundFile).replace(/^\/+/, '');
     const fallbackPath = `/audio/${normalized}`;
     const audio = new Audio(fallbackPath);
     audio.preload = 'auto';
-    audio.volume = 0.75;
+    audio.volume = initialVolume;
     audio.setAttribute('playsinline', 'true');
 
     resolveAssetUrl(fallbackPath)
@@ -348,11 +348,12 @@ function getRandomSpecialInterval(config) {
 }
 
 class GLTFAnimal {
-    // Added 'obstacles' to the constructor
-    constructor(model, animations, config, scene, spawnIndex, obstacles) {
+    // Added 'obstacles' and 'initialVolume' to the constructor
+    constructor(model, animations, config, scene, spawnIndex, obstacles, initialVolume = 0.75) {
         this.group = model;
         this.config = config;
         this.obstacles = obstacles; // Store obstacles for AI logic
+        this.soundVolume = initialVolume;
         this.dynamicBox = new THREE.Box3();
         this.mixer = null;
         this.actions = {};
@@ -436,7 +437,7 @@ class GLTFAnimal {
         this.movementStyle = config.movementStyle ?? 'default';
         this.currentSpeed = 0;
         this.targetSpeed = 0;
-        this.sound = createAnimalSound(config.soundFile);
+        this.sound = createAnimalSound(config.soundFile, this.soundVolume);
         this.nextAmbientSoundAt = Math.random() * 3;
         this.motionOffset = Math.random() * Math.PI * 2;
         this.shadow = createContactShadow(this.radius * 2.35, 0.23);
@@ -474,10 +475,19 @@ class GLTFAnimal {
         return { name: this.config.name, species: this.config.species, emoji: this.config.emoji, description: this.config.description };
     }
 
+    updateVolume(volume) {
+        const nextVol = THREE.MathUtils.clamp(volume, 0, 1);
+        this.soundVolume = nextVol;
+        if (this.sound) {
+            this.sound.volume = nextVol;
+        }
+    }
+
     async playSound() {
         if (!this.sound) return;
         if (!this.sound.paused) return;
         try {
+            this.sound.volume = this.soundVolume;
             this.sound.currentTime = 0;
             await this.sound.play();
         } catch {
@@ -776,8 +786,8 @@ class GLTFAnimal {
 
 const modelCache = new Map();
 
-// Pass obstacles parameter here
-export async function loadGLTFAnimals(scene, obstacles) {
+// Pass obstacles and initialVolume parameter here
+export async function loadGLTFAnimals(scene, obstacles, initialVolume) {
     const animals = [];
 
     const loadModel = (file) => {
@@ -809,8 +819,8 @@ export async function loadGLTFAnimals(scene, obstacles) {
         for (let i = 0; i < config.count; i++) {
             const model = cloneWithSkeleton(gltf.scene);
             const clonedAnimations = gltf.animations.map(clip => clip.clone());
-            // Hand the obstacles to the animal instances
-            const animal = new GLTFAnimal(model, clonedAnimations, config, scene, spawnIndex, obstacles);
+            // Hand the obstacles and volume to the animal instances
+            const animal = new GLTFAnimal(model, clonedAnimations, config, scene, spawnIndex, obstacles, initialVolume);
             animals.push(animal);
             spawnIndex++;
         }

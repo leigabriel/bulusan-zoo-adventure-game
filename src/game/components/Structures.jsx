@@ -18,20 +18,41 @@ function fixMaterial(child) {
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         const newMaterials = materials.map(mat => {
             // Check if material is too dark or pure black
-            const color = mat.color;
-            const isBlack = color.r === 0 && color.g === 0 && color.b === 0;
+            const color = mat.color || new THREE.Color(0xffffff);
+            const isTooDark = color.r < 0.1 && color.g < 0.1 && color.b < 0.1;
 
-            // Create a standard material that responds better to lighting
+            // If we have a texture map, we usually want the base color to be white
+            // so the texture appears with its natural colors.
+            let finalColor = color;
+            if (mat.map) {
+                finalColor = new THREE.Color(0xffffff);
+            } else if (isTooDark) {
+                finalColor = new THREE.Color(0x8b5e3c); // Fallback wood brown
+            }
+
             const newMat = new THREE.MeshStandardMaterial({
-                color: isBlack ? new THREE.Color(0x8b5e3c) : color, // Use wood brown if black
+                color: finalColor,
                 map: mat.map,
                 normalMap: mat.normalMap,
-                roughness: 0.8,
-                metalness: 0.1,
+                roughness: mat.map ? 1.0 : 0.8, // More roughness for wood texture
+                metalness: 0.0,
                 side: THREE.DoubleSide
             });
 
-            if (newMat.map) newMat.map.colorSpace = THREE.SRGBColorSpace;
+            if (newMat.map) {
+                newMat.map.colorSpace = THREE.SRGBColorSpace;
+                newMat.map.needsUpdate = true;
+            }
+
+            // Subtle emissive only if there's NO map and it was too dark
+            if (isTooDark && !mat.map) {
+                newMat.emissive = new THREE.Color(0x221100);
+                newMat.emissiveIntensity = 0.05;
+            }
+
+            newMat.transparent = mat.transparent || false;
+            newMat.opacity = mat.opacity ?? 1;
+
             return newMat;
         });
 
@@ -49,12 +70,17 @@ export async function loadWatchTower(scene, x = 45, z = 45, scale = 2.5) {
 
         return new Promise((resolve) => {
             const mtlLoader = new MTLLoader();
-            mtlLoader.load(mtlUrl, (materials) => {
+            // setPath is for the .mtl file itself, setResourcePath is for textures/images
+            mtlLoader.setPath(basePath);
+            mtlLoader.setResourcePath(basePath);
+
+            mtlLoader.load(`${modelName}.mtl`, (materials) => {
                 materials.preload();
 
                 const objLoader = new OBJLoader();
                 objLoader.setMaterials(materials);
-                objLoader.load(objUrl, (object) => {
+                objLoader.setPath(basePath);
+                objLoader.load(`${modelName}.obj`, (object) => {
                     object.traverse(fixMaterial);
 
                     const terrainY = getTerrainHeight(x, z);

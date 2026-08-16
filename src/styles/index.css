@@ -285,3 +285,428 @@ canvas {
 .animate-rotate-phone {
     animation: rotate-phone 2s ease-in-out infinite;
 }
+
+/* ==========================================================================
+   SKETCHBOOK - PAGE-FLIP BOOK OVERLAY
+   ========================================================================== */
+/* ==========================================================================
+   SKETCHBOOK - PAGE-FLIP BOOK OVERLAY (EXACT X-BOOK TRANSLATION)
+   ========================================================================== */
+.sketchbook-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-content: center;
+  gap: 20px;
+  background: rgba(0, 0, 0, 0.75); /* Dark scrim to see the game behind */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+.sketchbook-overlay h1 {
+  margin: 0;
+  text-align: center;
+  font: 500 2.4rem Georgia, serif;
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.sketchbook-overlay .stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.sketchbook-overlay .caption {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: #a0a4b0;
+  min-height: 1.2em;
+}
+
+.sketchbook-overlay .arrow {
+  border: 0;
+  background: none;
+  font-size: 48px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.sketchbook-overlay .arrow:hover {
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.sketchbook-overlay .book {
+  position: relative;
+  width: min(720px, 80vw);
+  aspect-ratio: 16 / 9;
+  perspective: 2600px;
+  cursor: pointer;
+  z-index: 10;
+}
+
+/* Match x-book shadow exactly */
+.sketchbook-overlay .book::before {
+  content: "";
+  position: absolute;
+  inset: 9% 19% 3% 21%;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, .25);
+  filter: blur(28px);
+}
+
+.sketchbook-overlay .book * {
+  pointer-events: none;
+}
+
+.sketchbook-overlay .page,
+.sketchbook-overlay .turn {
+  display: contents;
+}
+
+.sketchbook-overlay .half,
+.sketchbook-overlay .face {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  background: transparent; /* Remove white bg as requested */
+}
+
+.sketchbook-overlay .half {
+  width: 50%;
+}
+
+.sketchbook-overlay .half.right {
+  left: 50%;
+}
+
+.sketchbook-overlay .half img,
+.sketchbook-overlay .face img {
+  display: block;
+  width: 200% !important; /* Force 200% width of the half-container */
+  max-width: none !important; /* Override Tailwind/global max-width: 100% */
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+.sketchbook-overlay img.right {
+  margin-left: -100% !important;
+}
+
+.sketchbook-overlay .flap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.sketchbook-overlay .flap.next {
+  left: 50%;
+}
+
+.sketchbook-overlay .face {
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+}
+
+.sketchbook-overlay .face.back {
+  transform: rotateY(180deg);
+}
+
+.sketchbook-overlay .book.blur-light img {
+  filter: url(#motion-blur-light);
+}
+
+.sketchbook-overlay .book.blur-heavy img {
+  filter: url(#motion-blur-heavy);
+}
+
+.sketchbook-close-btn {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #fff;
+  cursor: pointer;
+  z-index: 1010;
+  transition: background 0.2s;
+}
+
+.sketchbook-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+
+
+
+.book-page-footer {
+    margin-top: auto;
+    padding-top: 10px;
+    font-size: clamp(8px, 1.8vw, 11px);
+    font-weight: 800;
+    color: #95a5a6;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.book-page-animal-card {
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 12px;
+    padding: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    margin-bottom: 12px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+}
+
+.book-page-animal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.book-page-animal-emoji {
+    font-size: 1.6em;
+}
+
+.book-page-animal-name {
+    font-weight: 900;
+    color: #2d3436;
+}
+
+.book-page-animal-desc {
+    font-size: 0.95em;
+    color: #636e72;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+/* Remove text mirroring on back faces */
+.sketchbook .face.back .book-page-content {
+    transform: none;
+}
+
+.sketchbook-stage-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.sketchbook-arrow {
+    flex-shrink: 0;
+    border: 0;
+    background: none;
+    font-size: clamp(24px, 5vw, 42px);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: clamp(40px, 8vw, 64px);
+    width: clamp(40px, 8vw, 64px);
+    border-radius: 50%;
+    background-color: rgba(6, 20, 12, 0.7);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(6px);
+    transition: all .2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+    z-index: 10;
+}
+
+.sketchbook-arrow:hover {
+    background-color: rgba(6, 20, 12, 0.9);
+    color: #c6fe69;
+    transform: scale(1.1);
+    border-color: #c6fe69;
+}
+
+.sketchbook-arrow:active {
+    transform: scale(.9);
+}
+
+.sketchbook-close {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    border: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 48px;
+    width: 48px;
+    border-radius: 50%;
+    background-color: #dc2626;
+    color: #fff;
+    font-size: 24px;
+    font-weight: 800;
+    border: 3px solid #fff;
+    z-index: 160;
+    transition: all .2s ease;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.sketchbook-close:hover {
+    background-color: #ef4444;
+    transform: rotate(90deg) scale(1.1);
+}
+
+.sketchbook-close:active {
+    transform: scale(.92);
+}
+
+.sketchbook-caption {
+    margin: 4px 0 0;
+    max-width: 90%;
+    padding: 6px 20px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, rgba(6, 20, 12, 0.85), rgba(16, 44, 30, 0.75));
+    color: #fff;
+    font-size: clamp(10px, 2.5vw, 14px);
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    text-align: center;
+    font-weight: 900;
+    border: 2px solid rgba(198, 254, 105, 0.4);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+    .sketchbook-stage {
+        gap: 12px;
+    }
+    .sketchbook-stage-row {
+        gap: 6px;
+    }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+    .sketchbook-stage {
+        width: min(98vw, 94vh * 16 / 9, 1200px);
+    }
+    .sketchbook-caption {
+        margin-top: 2px;
+        padding: 4px 16px;
+    }
+}
+
+/* ==========================================================================
+   MINECRAFT-STYLE HOTBAR (book, feed, camera)
+   ========================================================================== */
+.hotbar-slot {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 52px;
+    width: 52px;
+    border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    transition: transform .12s ease, background-color .12s ease, border-color .12s ease;
+    touch-action: manipulation;
+}
+
+.hotbar-slot:not(:disabled):hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: #c6fe69;
+}
+
+.hotbar-slot:not(:disabled):active {
+    transform: scale(.93);
+}
+
+.hotbar-slot:disabled {
+    border-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.hotbar-slot.is-active {
+    border-color: #c6fe69;
+    background-color: rgba(198, 254, 105, 0.18);
+    box-shadow: 0 0 0 2px rgba(6, 20, 12, 0.6), 0 0 14px rgba(198, 254, 105, 0.4);
+}
+
+.hotbar-slot .hotbar-icon {
+    font-size: 22px;
+    line-height: 1;
+}
+
+.hotbar-slot .hotbar-label {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: inherit;
+    line-height: 1;
+}
+
+@media (min-width: 640px) {
+    .hotbar-slot {
+        height: 60px;
+        width: 60px;
+        border-radius: 12px;
+    }
+
+    .hotbar-slot .hotbar-icon {
+        font-size: 26px;
+    }
+
+    .hotbar-slot .hotbar-label {
+        font-size: 9px;
+    }
+}
+
+@media (max-width: 340px) {
+    .hotbar-slot {
+        height: 44px;
+        width: 44px;
+        border-radius: 9px;
+    }
+
+    .hotbar-slot .hotbar-icon {
+        font-size: 19px;
+    }
+
+    .hotbar-slot .hotbar-label {
+        font-size: 7px;
+    }
+}

@@ -112,6 +112,7 @@ export function GameButton({
 export function SurfacePanel({ children, className = '', ...props }) {
     return (
         <div
+            data-ui-panel="true"
             className={cx(
                 'rounded-[1.5rem] border-2 border-emerald-100 bg-white shadow-[0_12px_0_0_rgba(5,46,22,0.1)]',
                 className,

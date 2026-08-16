@@ -249,12 +249,12 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
     let joystickTouchId = null;
     let lookTouchId = null;
     let jumpTouchId = null;
-    const JOYSTICK_PROXIMITY = 130;
-    const JUMP_PROXIMITY = 80;
+    const JOYSTICK_PROXIMITY = 90;
+    const JUMP_PROXIMITY = 60;
 
     const isUIInteractionTarget = (target) => {
         if (!(target instanceof Element)) return false;
-        return !!target.closest('[data-ui-scrollable="true"], [data-ui-modal="true"], [data-ui-panel="true"], button, a, input, textarea, select, [role="button"]');
+        return !!target.closest('[data-ui-scrollable="true"], [data-ui-modal="true"], [data-ui-panel="true"], [data-ui-hud="true"], [data-ui-button="true"], button, a, input, textarea, select, [role="button"]');
     };
 
     const getJoystickCenter = () => {
@@ -336,47 +336,51 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
         if (state.controlsEnabled === false) return;
 
         for (const touch of e.changedTouches) {
-            let handled = false;
-
+            // Priority 1: Jump Button (Immediate response)
             const onJump = jumpBtnRef?.current && (
                 isInsideElement(touch, jumpBtnRef.current) ||
                 isNearJump(touch) ||
                 (touch.target === jumpBtnRef.current) ||
                 (jumpBtnRef.current.contains(touch.target))
             );
+
             if (onJump && jumpTouchId === null) {
                 jumpTouchId = touch.identifier;
                 if (!state.isJumping && state.isGrounded) {
                     state.keys[" "] = true;
-                    // Reset jump key after a short delay to prevent repeat jumping if landing quickly
                     setTimeout(() => {
                         state.keys[" "] = false;
                         state.keys["space"] = false;
                     }, 50);
                 }
                 e.preventDefault();
-                handled = true;
                 continue;
             }
 
-            if (isUIInteractionTarget(touch.target)) continue;
-
+            // Priority 2: Joystick (Immediate response)
             const onJoystick = baseRef.current && (
                 isInsideElement(touch, baseRef.current) ||
                 isNearJoystick(touch) ||
                 (touch.target === baseRef.current) ||
                 (baseRef.current.contains(touch.target))
             );
+
             if (joystickTouchId === null && onJoystick) {
                 joystickTouchId = touch.identifier;
                 state.sActive = true;
                 updateJoystick(touch);
                 e.preventDefault();
-                handled = true;
                 continue;
             }
 
-            if (lookTouchId === null && !handled) {
+            // Priority 3: UI Interaction (buttons, panels, etc)
+            // We check this AFTER joystick/jump so those specific regions are reserved for movement
+            if (isUIInteractionTarget(touch.target)) {
+                continue;
+            }
+
+            // Priority 4: Look/Swipe (Fallback for any non-handled touch)
+            if (lookTouchId === null) {
                 lookTouchId = touch.identifier;
                 state.lActive = true;
                 state.lx = touch.clientX;

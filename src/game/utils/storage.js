@@ -11,10 +11,13 @@ const STORAGE_KEYS = {
 
 // Default values
 const DEFAULT_SETTINGS = {
-    musicEnabled: true,
-    soundEnabled: true,
+    ambienceVolume: 1.0,
+    musicVolume: 0.5,
+    uiVolume: 1.0,
+    sfxVolume: 1.0,
     graphicsQuality: 'medium',
-    fpsLimit: 60
+    fpsLimit: 60,
+    sensitivity: 1.0
 };
 
 const DEFAULT_PROGRESS = {
@@ -69,14 +72,15 @@ export function saveSettings(settings) {
     return updated;
 }
 
-export function toggleMusic() {
-    const settings = getSettings();
-    return saveSettings({ musicEnabled: !settings.musicEnabled });
+export function setVolume(key, value) {
+    const next = {};
+    next[key] = Math.max(0, Math.min(1, value));
+    return saveSettings(next);
 }
 
-export function toggleSound() {
+export function toggleMusic() {
     const settings = getSettings();
-    return saveSettings({ soundEnabled: !settings.soundEnabled });
+    return setVolume('musicVolume', settings.musicVolume > 0 ? 0 : 0.5);
 }
 
 export function setGraphicsQuality(quality) {

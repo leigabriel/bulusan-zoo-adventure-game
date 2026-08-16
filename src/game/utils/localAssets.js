@@ -41,8 +41,9 @@ const ANIMAL_MODEL_DEPENDENCIES = [
 ];
 
 const AUDIO_ASSETS = [
-  '/audio/ambience.mp3',
   '/audio/alpaca.mp3',
+  '/audio/ambience.mp3',
+  '/audio/book-page-turning.mp3',
   '/audio/bull.wav',
   '/audio/click.mp3',
   '/audio/cow.mp3',
@@ -51,6 +52,7 @@ const AUDIO_ASSETS = [
   '/audio/feed.wav',
   '/audio/finish-task.mp3',
   '/audio/fox.mp3',
+  '/audio/game-bg-music.mp3',
   '/audio/horse.mp3',
   '/audio/husky.mp3',
   '/audio/redd.mp3',
@@ -159,6 +161,12 @@ async function fetchAndPersist(path) {
 export async function resolveAssetUrl(path) {
   const normalizedPath = normalizeAssetPath(path);
   if (!normalizedPath) return path;
+
+  // Don't use object URLs for models with relative dependencies (textures, bins).
+  // Returning the original path allows Three.js to resolve relative assets correctly.
+  // The Service Worker handles the actual caching/offline support.
+  const isModel = /\.(?:gltf|glb|obj|mtl|bin)$/i.test(normalizedPath);
+  if (isModel) return normalizedPath;
 
   try {
     const existingBlob = await readBlobFromDb(normalizedPath);

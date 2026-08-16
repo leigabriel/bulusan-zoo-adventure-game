@@ -4,8 +4,18 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import gsap from 'gsap';
+import { CustomEase } from 'gsap/CustomEase';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { ActionButton, GameButton, IconButton, ModalShell, SideSheet, SurfacePanel, cx } from './UIComponents.jsx';
+
+let sketchbookEaseRegistered = false;
+function ensureSketchbookEase() {
+    if (sketchbookEaseRegistered) return;
+    sketchbookEaseRegistered = true;
+    gsap.registerPlugin(CustomEase);
+    CustomEase.create('sketchbookTurn', '.42,.05,.25,1');
+}
 
 const SETTINGS_KEY = 'minizoo_settings';
 const SETTINGS_CHANGE_EVENT = 'minizoo-settings-changed';
@@ -17,6 +27,7 @@ const SFX_FILES = {
     feed: '/audio/feed.wav',
     confirm: '/audio/click.mp3',
     'task-complete': '/audio/finish-task.mp3',
+    'page-turn': '/audio/book-page-turning.mp3',
 };
 
 const uiAudioTemplates = {};
@@ -43,8 +54,10 @@ function savePlayerName(name) {
 }
 
 const UI_DEFAULT_SETTINGS = {
-    musicEnabled: true,
-    soundEnabled: true,
+    ambienceVolume: 1.0,
+    musicVolume: 0.5,
+    uiVolume: 1.0,
+    sfxVolume: 1.0,
     graphicsQuality: 'medium',
     fpsLimit: 60,
     sensitivity: 1.0
@@ -69,7 +82,8 @@ function persistSettings(updated) {
 
 function isUISoundEnabled() {
     try {
-        return readSettings().soundEnabled !== false;
+        const settings = readSettings();
+        return (settings.uiVolume ?? 1.0) > 0;
     } catch {
         return true;
     }
@@ -80,6 +94,7 @@ function getUIButtonAudioTemplate(kind = 'tap') {
     if (!uiAudioTemplates[src]) {
         const template = new Audio(src);
         template.preload = 'auto';
+        template.volume = 0;
         uiAudioTemplates[src] = template;
         resolveAssetUrl(src).then((url) => {
             if (url) template.src = url;
@@ -173,6 +188,32 @@ function ToggleRow({ label, description, enabled, onToggle }) {
                 )} />
             </div>
         </button>
+    );
+}
+
+function VolumeSliderRow({ label, description, value, onChange }) {
+    return (
+        <div className="flex w-full flex-col gap-2 rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
+            <div className="flex justify-between items-center px-1">
+                <div className="text-left">
+                    <span className="block text-sm font-black uppercase tracking-wider text-slate-800">{label}</span>
+                    {description && <span className="block text-[10px] font-semibold text-slate-400">{description}</span>}
+                </div>
+                <span className="text-xs font-black text-emerald-600">{Math.round(value * 100)}%</span>
+            </div>
+
+            <div className="relative mt-1 h-8 flex items-center px-1">
+                <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={value}
+                    onChange={(e) => onChange(parseFloat(e.target.value))}
+                    className="w-full h-3 rounded-full appearance-none bg-slate-100 cursor-pointer accent-emerald-500 [&::-webkit-slider-runnable-track]:h-3 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:-mt-1.5"
+                />
+            </div>
+        </div>
     );
 }
 
@@ -276,13 +317,17 @@ function ConfirmModal({
 }
 
 export function playGameButtonSfx(kind = 'tap') {
-    if (!isUISoundEnabled()) return;
+    const settings = readSettings();
+    const volume = settings.uiVolume ?? 1.0;
+    if (volume <= 0) return;
 
     try {
         const template = getUIButtonAudioTemplate(kind);
-        const src = template.currentSrc || template.src || SFX_FILES[kind] || SFX_FILES.tap;
-        const audio = new Audio(src);
-        audio.volume = kind === 'feed' || kind === 'task-complete' || kind === 'confirm' ? 1 : 0.9;
+        const finalSrc = template.currentSrc || template.src || SFX_FILES[kind] || SFX_FILES.tap;
+        if (!finalSrc) return;
+
+        const audio = new Audio(finalSrc);
+        audio.volume = (kind === 'feed' || kind === 'task-complete' || kind === 'confirm') ? volume : volume * 0.85;
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.catch === 'function') {
             playPromise.catch(() => { });
@@ -435,9 +480,10 @@ function Character3DPreview({ modelFile }) {
     );
 }
 
-function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = true }) {
+function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = true, cameraMode, onCameraModeChange }) {
     const [settings, setSettings] = useState(() => readSettings());
     const [playerName, setPlayerName] = useState(() => readPlayerName());
+    const [showAudioSubSettings, setShowAudioSubSettings] = useState(false);
     const [howToPlayOpen, setHowToPlayOpen] = useState(false);
 
     const toggle = useCallback((key) => {
@@ -450,34 +496,40 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = 
         savePlayerName(playerName);
     }, [playerName]);
 
+    const handleVolumeChange = (key, val) => {
+        const next = { ...settings, [key]: val };
+        setSettings(next);
+        persistSettings(next);
+    };
+
     if (!isOpen) return null;
 
     return (
         <>
-            <ModalShell isOpen={isOpen} onClose={onClose} title="Game Settings" size="sm">
+            <ModalShell isOpen={isOpen} onClose={onClose} title="Game Settings" size="md">
                 <div className="space-y-6">
-                    {showNameInput && (
-                        <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2" htmlFor="settings-player-name">
-                                Player Name
-                            </label>
-                            <input
-                                id="settings-player-name"
-                                type="text"
-                                maxLength={24}
-                                value={playerName}
-                                onChange={(e) => setPlayerName(e.target.value)}
-                                onBlur={handleSaveName}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleSaveName();
-                                }}
-                                className="block w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-base font-black text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white"
-                                placeholder="Your name"
-                            />
-                        </div>
-                    )}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        {showNameInput && (
+                            <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm sm:col-span-2">
+                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2" htmlFor="settings-player-name">
+                                    Player Name
+                                </label>
+                                <input
+                                    id="settings-player-name"
+                                    type="text"
+                                    maxLength={24}
+                                    value={playerName}
+                                    onChange={(e) => setPlayerName(e.target.value)}
+                                    onBlur={handleSaveName}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveName();
+                                    }}
+                                    className="block w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-base font-black text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white"
+                                    placeholder="Your name"
+                                />
+                            </div>
+                        )}
 
-                    <div className="space-y-3">
                         <SelectRow
                             label="Graphics"
                             options={[
@@ -507,44 +559,87 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = 
                             }}
                         />
 
-                        <SelectRow
-                            label="Look Sensitivity"
-                            options={[
-                                { label: 'Slow', value: 0.5 },
-                                { label: 'Normal', value: 1.0 },
-                                { label: 'Fast', value: 1.8 }
-                            ]}
-                            value={settings.sensitivity ?? 1.0}
-                            onChange={(val) => {
-                                const next = { ...settings, sensitivity: val };
-                                setSettings(next);
-                                persistSettings(next);
-                            }}
-                        />
+                        <div className="sm:col-span-2">
+                            <SelectRow
+                                label="View Perspective"
+                                options={[
+                                    { label: 'First Person', value: 'first' },
+                                    { label: 'Third Person', value: 'third' }
+                                ]}
+                                value={cameraMode}
+                                onChange={onCameraModeChange}
+                            />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                            <SelectRow
+                                label="Look Sensitivity"
+                                options={[
+                                    { label: 'Slow', value: 0.5 },
+                                    { label: 'Normal', value: 1.0 },
+                                    { label: 'Fast', value: 1.8 }
+                                ]}
+                                value={settings.sensitivity ?? 1.0}
+                                onChange={(val) => {
+                                    const next = { ...settings, sensitivity: val };
+                                    setSettings(next);
+                                    persistSettings(next);
+                                }}
+                            />
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <ToggleRow
-                            label="Music"
-                            enabled={settings.musicEnabled !== false}
-                            onToggle={() => toggle('musicEnabled')}
-                        />
-                        <ToggleRow
-                            label="Sound"
-                            enabled={settings.soundEnabled !== false}
-                            onToggle={() => toggle('soundEnabled')}
-                        />
+                    <div className="space-y-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowAudioSubSettings(!showAudioSubSettings)}
+                            className="flex w-full items-center justify-between rounded-2xl border-2 border-slate-100 bg-white px-4 py-3 shadow-sm transition-all active:translate-y-px"
+                        >
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Audio Settings</span>
+                            <span className={cx("text-xl transition-transform duration-200", showAudioSubSettings ? "rotate-180" : "")}>
+                                {showAudioSubSettings ? '−' : '+'}
+                            </span>
+                        </button>
+
+                        {showAudioSubSettings && (
+                            <div className="grid grid-cols-1 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <VolumeSliderRow
+                                    label="Music"
+                                    description="Background"
+                                    value={settings.musicVolume ?? 0.5}
+                                    onChange={(v) => handleVolumeChange('musicVolume', v)}
+                                />
+                                <VolumeSliderRow
+                                    label="Ambience"
+                                    description="Nature"
+                                    value={settings.ambienceVolume ?? 1.0}
+                                    onChange={(v) => handleVolumeChange('ambienceVolume', v)}
+                                />
+                                <VolumeSliderRow
+                                    label="SFX"
+                                    description="Animals"
+                                    value={settings.sfxVolume ?? 1.0}
+                                    onChange={(v) => handleVolumeChange('sfxVolume', v)}
+                                />
+                                <VolumeSliderRow
+                                    label="UI"
+                                    description="Buttons"
+                                    value={settings.uiVolume ?? 1.0}
+                                    onChange={(v) => handleVolumeChange('uiVolume', v)}
+                                />
+                            </div>
+                        )}
                     </div>
 
-                    <div className="pt-4 space-y-3 border-t-2 border-slate-50">
+                    <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t-2 border-slate-50">
                         {onResetTasks && (
-                            <ActionButton variant="warning" className="w-full h-14 text-base" onClick={onResetTasks}>
+                            <ActionButton variant="warning" className="h-14 text-base" onClick={onResetTasks}>
                                 Reset Progress
                             </ActionButton>
                         )}
 
-                            {onQuit && (
-                            <ActionButton variant="danger" className="w-full h-14 text-base" onClick={onQuit}>
+                        {onQuit && (
+                            <ActionButton variant="danger" className="h-14 text-base" onClick={onQuit}>
                                 Quit Game
                             </ActionButton>
                         )}
@@ -722,7 +817,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                     <button
                         onClick={handleStart}
                         disabled={starting}
-                        className="group relative w-full max-w-[100px] sm:max-w-[120px] transition-all active:scale-95 disabled:opacity-50"
+                        className="group relative w-full max-w-25 sm:max-w-30 transition-all active:scale-95 disabled:opacity-50"
                     >
                         <img
                             src="/ui-buttons/play-button.png"
@@ -818,8 +913,8 @@ const WoodenTitle = ({ titlePart1, titlePart2, className = '' }) => {
     return (
         <div className={cx("relative flex flex-col items-center select-none", className)}>
             {/* Wooden Ropes - Long enough to hang from the top of the screen regardless of scale */}
-            <div className="absolute -top-[1000px] left-1/4 w-1 sm:w-1.5 h-[1020px] bg-[#3d2314] rounded-full z-0 opacity-90 shadow-sm" />
-            <div className="absolute -top-[1000px] right-1/4 w-1 sm:w-1.5 h-[1020px] bg-[#3d2314] rounded-full z-0 opacity-90 shadow-sm" />
+            <div className="absolute -top-250 left-1/4 w-1 sm:w-1.5 h-255 bg-[#3d2314] rounded-full z-0 opacity-90 shadow-sm" />
+            <div className="absolute -top-250 right-1/4 w-1 sm:w-1.5 h-255 bg-[#3d2314] rounded-full z-0 opacity-90 shadow-sm" />
 
             {/* Cedar Wooden Board */}
             <div className="relative z-10 bg-linear-to-b from-[#7f4f24] to-[#582f0e] border-4 sm:border-[6px] border-[#6c3a11] rounded-2xl sm:rounded-3xl shadow-[0_8px_0_0_#3d2314] px-6 py-2 sm:px-12 sm:py-4 text-center overflow-hidden">
@@ -862,29 +957,31 @@ export function GameHUD({ playerName, onMenuClick, onTasksClick, completedTasks,
             <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-1 sm:gap-3">
 
                 {/* Left Side: Player & Menu */}
-                <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 sm:gap-3">
+                <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 sm:gap-3" data-ui-hud="true">
                     <button
                         onClick={onMenuClick}
                         className="group flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center transition-all active:scale-95"
                         aria-label="Menu"
+                        data-ui-button="true"
                     >
                         <img src={menuIcon} alt="" className="h-full w-full object-contain group-hover:scale-110 transition-transform" />
                     </button>
 
                     <div className="hud-player-pill flex min-w-0 items-center gap-2 rounded-2xl border-2 border-white/50 bg-emerald-950/80 px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-md shadow-xl">
                         <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                        <p className="max-w-[80px] sm:max-w-[200px] truncate text-[10px] sm:text-xs font-black uppercase tracking-widest text-white">
+                        <p className="max-w-20 sm:max-w-50 truncate text-[10px] sm:text-xs font-black uppercase tracking-widest text-white">
                             {playerName || 'Explorer'}
                         </p>
                     </div>
                 </div>
 
                 {/* Right Side: Tasks */}
-                <div className="pointer-events-auto">
+                <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-3" data-ui-hud="true">
                     <button
                         onClick={onTasksClick}
                         className="group flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center transition-all active:scale-95"
                         aria-label="Tasks"
+                        data-ui-button="true"
                     >
                         <img src={taskIcon} alt="" className="h-full w-full object-contain group-hover:scale-110 transition-transform" />
                     </button>
@@ -894,7 +991,7 @@ export function GameHUD({ playerName, onMenuClick, onTasksClick, completedTasks,
     );
 }
 
-export function SettingsPanel({ isOpen, onClose, onQuit, onResetTasks }) {
+export function SettingsPanel({ isOpen, onClose, onQuit, onResetTasks, cameraMode, onCameraModeChange }) {
     return (
         <SettingsModal
             isOpen={isOpen}
@@ -902,6 +999,8 @@ export function SettingsPanel({ isOpen, onClose, onQuit, onResetTasks }) {
             onQuit={onQuit}
             onResetTasks={onResetTasks}
             showNameInput={false}
+            cameraMode={cameraMode}
+            onCameraModeChange={onCameraModeChange}
         />
     );
 }
@@ -967,7 +1066,7 @@ export function InteractionPrompt({ visible, onFeed, onViewDetails, animalName, 
     if (!visible) return null;
 
     return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-75 flex justify-center px-3 sm:bottom-24">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] z-75 flex justify-center px-3 sm:bottom-28">
             <SurfacePanel className="pointer-events-auto w-full max-w-sm p-2.5 sm:p-3" data-ui-panel="true">
                 <p className="text-center text-[11px] sm:text-xs font-bold text-slate-600">Near {animalName || 'animal'}</p>
                 <div className="mt-1.5 sm:mt-2 grid grid-cols-2 gap-1.5 sm:gap-2">
@@ -983,7 +1082,7 @@ export function NPCInteractionPrompt({ visible, onInteract, npcName = 'Zoo Staff
     if (!visible) return null;
 
     return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-75 flex justify-center px-3 sm:bottom-24">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] z-75 flex justify-center px-3 sm:bottom-28">
             <SurfacePanel className="pointer-events-auto w-full max-w-sm p-2.5 sm:p-3" data-ui-panel="true">
                 <p className="text-center text-[11px] sm:text-xs font-bold text-slate-600">Talk to {npcName}</p>
                 {!isTouchDevice ? <p className="mt-1 text-center text-[11px] font-black uppercase tracking-[0.12em] text-amber-700">Press T to talk</p> : null}
@@ -1046,7 +1145,7 @@ export function AnimalInfoModal({
 
     if (isCompact) {
         return (
-            <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-74 px-3">
+            <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] z-74 px-3 sm:bottom-28">
                 <SurfacePanel className="pointer-events-auto mx-auto max-w-lg p-2.5 sm:p-3" data-ui-panel="true">
                     <div className="flex items-start justify-between gap-2 sm:gap-3">
                         <div className="min-w-0">
@@ -1198,7 +1297,10 @@ export function Joystick({ baseRef, stickRef, isTouchDevice }) {
                 ref={baseRef}
                 className="pointer-events-auto grid h-28 w-28 place-items-center rounded-full border border-white/35 bg-slate-950/25 touch-none select-none backdrop-blur sm:h-28 sm:w-28"
             >
-                <div ref={stickRef} className="h-12 w-12 rounded-full border border-white/50 bg-white/85 shadow sm:h-12 sm:w-12" />
+                <div
+                    ref={stickRef}
+                    className="h-12 w-12 rounded-full border border-white/50 bg-white/85 shadow sm:h-12 sm:w-12 transition-transform duration-150 ease-out"
+                />
             </div>
         </div>
     );
@@ -1214,7 +1316,6 @@ export function JumpButton({ jumpRef, isTouchDevice }) {
             <button
                 ref={jumpRef}
                 type="button"
-                data-ui-button="true"
                 className="pointer-events-auto inline-flex h-16 w-16 items-center justify-center rounded-full border border-white/45 bg-amber-400/95 text-sm font-black uppercase tracking-[0.08em] text-slate-900 shadow-lg active:scale-95 sm:h-16 sm:w-16 sm:text-sm touch-manipulation"
             >
                 Jump
@@ -1227,22 +1328,220 @@ export function CameraSystem() {
     return null;
 }
 
-export function BottomHotbar({ gameStarted, completedTasks, totalTasks, onMenuClick, onTasksClick }) {
-    if (!gameStarted) return null;
+export const BOOK_PAGES = [
+  { src: "/book/kyoto-performing-arts.png", title: "Kyoto Performing Arts Hall" },
+  { src: "/book/kyoto.png", title: "Kyoto Garden Museum" },
+  { src: "/book/castle.png", title: "Western Castle" },
+  { src: "/book/taipei-market.png", title: "Taipei Night Market" },
+  { src: "/book/osaka.png", title: "Osaka Castle" },
+  { src: "/book/tokyo-museum.png", title: "Tokyo National Museum" },
+];
+
+export function SketchbookModal({ isOpen, onClose }) {
+  const bookRef = useRef(null);
+  const pageRef = useRef(null);
+  const captionRef = useRef(null);
+  const flipTweenRef = useRef(null);
+  const currentPageRef = useRef(0);
+  const introPlayingRef = useRef(false);
+
+  const pages = BOOK_PAGES;
+
+  const halfImage = (pageIndex, side) =>
+    `<img src="${pages[pageIndex].src}" class="${side}">`;
+
+  const showPage = (pageIndex) => {
+    currentPageRef.current = pageIndex;
+    if (pageRef.current) {
+      pageRef.current.innerHTML = `
+        <div class="half left">${halfImage(pageIndex, "left")}</div>
+        <div class="half right">${halfImage(pageIndex, "right")}</div>`;
+    }
+  };
+
+  const setCaption = (title) => {
+    if (captionRef.current) {
+      captionRef.current.textContent = title;
+      gsap.fromTo(captionRef.current, { opacity: 0 }, { opacity: 1, duration: 0.4, overwrite: "auto" });
+    }
+  };
+
+  const turn = (direction, duration = 0.85, ease = "pageTurn", onDone) => {
+    if (flipTweenRef.current && flipTweenRef.current.isActive()) {
+      flipTweenRef.current.progress(1);
+    }
+
+    playGameButtonSfx('page-turn');
+
+    const goingNext = direction === "next";
+    const targetPage = (currentPageRef.current + (goingNext ? 1 : -1) + pages.length) % pages.length;
+
+    const liftSide = goingNext ? "right" : "left";
+    const landSide = goingNext ? "left" : "right";
+
+    if (bookRef.current) {
+      bookRef.current.insertAdjacentHTML("beforeend", `
+        <div class="turn">
+          <div class="half ${liftSide}">${halfImage(targetPage, liftSide)}</div>
+          <div class="flap ${goingNext ? "next" : "prev"}">
+            <div class="face">${halfImage(currentPageRef.current, liftSide)}</div>
+            <div class="face back">${halfImage(targetPage, landSide)}</div>
+          </div>
+        </div>`);
+
+      setCaption(pages[targetPage].title);
+
+      flipTweenRef.current = gsap.to(bookRef.current.querySelector(".flap"), {
+        rotationY: goingNext ? -180 : 180,
+        transformOrigin: goingNext ? "left center" : "right center",
+        duration: duration,
+        ease: ease,
+        onComplete() {
+          showPage(targetPage);
+          const turnEl = bookRef.current?.querySelector(".turn");
+          if (turnEl) turnEl.remove();
+          if (onDone) onDone();
+        }
+      });
+    }
+  };
+
+  const riffle = (step = 0) => {
+    if (!introPlayingRef.current || step >= pages.length) {
+      introPlayingRef.current = false;
+      if (bookRef.current) bookRef.current.classList.remove("blur-light", "blur-heavy");
+      return;
+    }
+
+    const bell = Math.sin(Math.PI * step / (pages.length - 1));
+    if (bookRef.current) {
+      bookRef.current.classList.toggle("blur-light", bell > 0.25 && bell <= 0.6);
+      bookRef.current.classList.toggle("blur-heavy", bell > 0.6);
+    }
+
+    turn("next", 0.2 - 0.15 * bell, "none", () => riffle(step + 1));
+  };
+
+  const navigate = (direction) => {
+    introPlayingRef.current = false;
+    turn(direction);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    gsap.registerPlugin(CustomEase);
+    if (!gsap.parseEase("pageTurn")) {
+      CustomEase.create("pageTurn", ".42,.05,.25,1");
+    }
+
+    showPage(0);
+    setCaption(pages[0].title);
+
+    const introTimer = gsap.delayedCall(0.2, () => {
+      introPlayingRef.current = true;
+      riffle();
+    });
+
+    const onKeyDown = (event) => {
+      if (event.key === "ArrowRight") navigate("next");
+      if (event.key === "ArrowLeft") navigate("prev");
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      introTimer.kill();
+      if (flipTweenRef.current) flipTweenRef.current.kill();
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="sketchbook-overlay">
+      <button className="sketchbook-close-btn" onClick={onClose}>&times;</button>
+
+      <h1>Sketchbook</h1>
+
+      <svg width="0" height="0" aria-hidden="true" style={{ position: 'absolute' }}>
+        <filter id="motion-blur-light"><feGaussianBlur stdDeviation="5 0" /></filter>
+        <filter id="motion-blur-heavy"><feGaussianBlur stdDeviation="14 0" /></filter>
+      </svg>
+
+      <div className="stage">
+        <button className="arrow" onClick={() => navigate("prev")}>‹</button>
+        <div
+          className="book"
+          ref={bookRef}
+          onClick={(e) => {
+            const rect = bookRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            navigate(x < rect.width / 2 ? "prev" : "next");
+          }}
+        >
+          <div className="page" ref={pageRef}></div>
+        </div>
+        <button className="arrow" onClick={() => navigate("next")}>›</button>
+      </div>
+
+      <p className="caption" ref={captionRef}></p>
+    </div>
+  );
+}
+
+export function Hotbar({ onOpenBook, bookOpen = false }) {
+    const slots = useMemo(() => [
+        {
+            id: 'book',
+            label: 'Book',
+            icon: '📖',
+            title: 'Open the sketchbook',
+            enabled: true,
+            active: bookOpen,
+            onClick: onOpenBook,
+        },
+        {
+            id: 'feed',
+            label: 'Feed',
+            icon: '🍎',
+            title: 'Feed animals (coming soon)',
+            enabled: false,
+            active: false,
+            onClick: null,
+        },
+        {
+            id: 'camera',
+            label: 'Camera',
+            icon: '📷',
+            title: 'Camera (coming soon)',
+            enabled: false,
+            active: false,
+            onClick: null,
+        },
+    ], [onOpenBook, bookOpen]);
 
     return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-72 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] md:hidden">
-            <SurfacePanel className="pointer-events-auto p-2" data-ui-panel="true">
-                <div className="flex items-center gap-2">
-                    <button onClick={onMenuClick} className="flex-1 h-10 transition-all active:scale-95">
-                        <img src="/ui-buttons/settings-button.png" alt="Menu" className="h-full w-full object-contain" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.6rem)] z-72 flex justify-center px-1 select-none">
+            <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 rounded-2xl border-2 border-white/40 bg-slate-950/55 p-1.5 sm:p-2 shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md" data-ui-hud="true">
+                {slots.map((slot) => (
+                    <button
+                        key={slot.id}
+                        type="button"
+                        data-ui-button={slot.enabled ? 'true' : undefined}
+                        onClick={slot.enabled ? slot.onClick : undefined}
+                        disabled={!slot.enabled}
+                        title={slot.title}
+                        aria-label={slot.label}
+                        aria-disabled={!slot.enabled}
+                        className={cx('hotbar-slot', slot.active && 'is-active')}
+                    >
+                        <span className="hotbar-icon" aria-hidden="true">{slot.icon}</span>
+                        <span className="hotbar-label">{slot.label}</span>
                     </button>
-                    <button onClick={onTasksClick} className="flex-1 h-10 transition-all active:scale-95">
-                        <img src="/ui-buttons/task-list-button.png" alt="Tasks" className="h-full w-full object-contain" />
-                    </button>
-                    <ProgressChip completed={completedTasks} total={totalTasks} className="shrink-0" />
-                </div>
-            </SurfacePanel>
+                ))}
+            </div>
         </div>
     );
 }

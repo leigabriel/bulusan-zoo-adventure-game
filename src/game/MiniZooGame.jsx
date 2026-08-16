@@ -32,6 +32,8 @@ import {
     NPCInteractionPrompt,
     NPCDialogueModal,
     RotateDeviceOverlay,
+    Hotbar,
+    SketchbookModal,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
 import { LoadingScreen } from '../components/loading-screen.jsx';
@@ -201,25 +203,47 @@ function createContactShadow(size, opacity) {
     return mesh;
 }
 
-function isMusicEnabled() {
+function getAmbienceVolume() {
     try {
         const raw = localStorage.getItem('minizoo_settings');
-        if (!raw) return true;
+        if (!raw) return 1.0;
         const parsed = JSON.parse(raw);
-        return parsed?.musicEnabled !== false;
+        return typeof parsed?.ambienceVolume === 'number' ? parsed.ambienceVolume : 1.0;
     } catch {
-        return true;
+        return 1.0;
     }
 }
 
-function isSoundEnabled() {
+function getMusicVolume() {
     try {
         const raw = localStorage.getItem('minizoo_settings');
-        if (!raw) return true;
+        if (!raw) return 0.5;
         const parsed = JSON.parse(raw);
-        return parsed?.soundEnabled !== false;
+        return typeof parsed?.musicVolume === 'number' ? parsed.musicVolume : 0.5;
     } catch {
-        return true;
+        return 0.5;
+    }
+}
+
+function getSfxVolume() {
+    try {
+        const raw = localStorage.getItem('minizoo_settings');
+        if (!raw) return 1.0;
+        const parsed = JSON.parse(raw);
+        return typeof parsed?.sfxVolume === 'number' ? parsed.sfxVolume : 1.0;
+    } catch {
+        return 1.0;
+    }
+}
+
+function getUiVolume() {
+    try {
+        const raw = localStorage.getItem('minizoo_settings');
+        if (!raw) return 1.0;
+        const parsed = JSON.parse(raw);
+        return typeof parsed?.uiVolume === 'number' ? parsed.uiVolume : 1.0;
+    } catch {
+        return 1.0;
     }
 }
 
@@ -427,11 +451,12 @@ function MiniZooGame() {
 
     const welcomeTimerRef = useRef(null);
     const ambienceRef = useRef(null);
+    const musicRef = useRef(null);
     const statueMessageTimerRef = useRef(null);
     const statueMessageHideRef = useRef(null);
     const isNearStatueRef = useRef(false);
     const hasShownStatueEntryRef = useRef(false);
-    const soundEnabledRef = useRef(isSoundEnabled());
+    const soundEnabledRef = useRef(getSfxVolume() > 0);
     const gameStartedRef = useRef(false);
     const cameraModeRef = useRef('first');
     const showNpcDialogueRef = useRef(false);
@@ -465,6 +490,8 @@ function MiniZooGame() {
     const [nearbyStaff, setNearbyStaff] = useState(false);
     const [showNpcDialogue, setShowNpcDialogue] = useState(false);
     const [npcDialogueNodeId, setNpcDialogueNodeId] = useState('root');
+    const [bookOpen, setBookOpen] = useState(false);
+    const bookOpenRef = useRef(false);
 
     const [nearbyAnimal, setNearbyAnimal] = useState(null);
     const [selectedAnimal, setSelectedAnimal] = useState(null);
@@ -526,6 +553,7 @@ function MiniZooGame() {
         if (!isTouchDevice) return;
 
         const handleTouchStart = (e) => {
+            if (bookOpenRef.current) return;
             const now = performance.now();
             const elapsed = now - lastTapRef.current;
             if (elapsed < 300 && elapsed > 0) {
@@ -570,7 +598,8 @@ function MiniZooGame() {
 
     const getAmbience = useCallback(() => {
         if (!ambienceRef.current) {
-            const audio = new Audio();
+            const fallbackPath = '/audio/ambience.mp3';
+            const audio = new Audio(fallbackPath);
             audio.loop = true;
             audio.preload = 'auto';
             audio.volume = 1.0;
@@ -578,35 +607,79 @@ function MiniZooGame() {
             ambienceRef.current = audio;
             ambienceLoadingRef.current = true;
 
-            resolveAssetUrl('/audio/ambience.mp3')
+            resolveAssetUrl(fallbackPath)
                 .then((assetUrl) => {
-                    if (ambienceRef.current === audio) {
-                        audio.src = assetUrl || '/audio/ambience.mp3';
-                        ambienceLoadingRef.current = false;
+                    if (ambienceRef.current === audio && assetUrl) {
+                        audio.src = assetUrl;
                     }
+                    ambienceLoadingRef.current = false;
                 })
                 .catch(() => {
-                    if (ambienceRef.current === audio) {
-                        audio.src = '/audio/ambience.mp3';
-                        ambienceLoadingRef.current = false;
-                    }
+                    ambienceLoadingRef.current = false;
                 });
         }
         return ambienceRef.current;
     }, []);
 
+    const musicLoadingRef = useRef(false);
+    const getMusic = useCallback(() => {
+        if (!musicRef.current) {
+            const fallbackPath = '/audio/game-bg-music.mp3';
+            const audio = new Audio(fallbackPath);
+            audio.loop = true;
+            audio.preload = 'auto';
+            audio.volume = 0.5; // BG music usually slightly quieter
+            audio.setAttribute('playsinline', 'true');
+            musicRef.current = audio;
+            musicLoadingRef.current = true;
+
+            resolveAssetUrl(fallbackPath)
+                .then((assetUrl) => {
+                    if (musicRef.current === audio && assetUrl) {
+                        audio.src = assetUrl;
+                    }
+                    musicLoadingRef.current = false;
+                })
+                .catch(() => {
+                    musicLoadingRef.current = false;
+                });
+        }
+        return musicRef.current;
+    }, []);
+
     const playAmbience = useCallback(async () => {
-        if (!isMusicEnabled()) return;
-        if (ambienceLoadingRef.current) return;
+        const vol = getAmbienceVolume();
         const audio = getAmbience();
-        if (!audio || !audio.src) return;
+        if (!audio || (!audio.src && !audio.currentSrc)) return;
+        audio.volume = vol;
+        if (vol <= 0) {
+            audio.pause();
+            return;
+        }
         if (!audio.paused) return;
         try {
             await audio.play();
         } catch {
-            // Playback can fail before a user interaction; we'll retry on next allowed interaction.
+            // Playback can fail before a user interaction
         }
     }, [getAmbience]);
+
+    const playMusic = useCallback(async () => {
+        const vol = getMusicVolume();
+        const audio = getMusic();
+        if (!audio || (!audio.src && !audio.currentSrc)) return;
+        audio.volume = vol;
+        if (vol <= 0) {
+            audio.pause();
+            return;
+        }
+        if (!audio.paused) return;
+        try {
+            await audio.play();
+        } catch {
+            // Playback can fail
+        }
+    }, [getMusic]);
 
     const stopAmbience = useCallback((keepPosition = true) => {
         const audio = ambienceRef.current;
@@ -617,13 +690,23 @@ function MiniZooGame() {
         }
     }, []);
 
+    const stopMusic = useCallback((keepPosition = true) => {
+        const audio = musicRef.current;
+        if (!audio) return;
+        audio.pause();
+        if (!keepPosition) {
+            audio.currentTime = 0;
+        }
+    }, []);
+
     const stopGameplaySounds = useCallback((keepMusicPosition = false) => {
         stopAmbience(keepMusicPosition);
+        stopMusic(keepMusicPosition);
         const state = gameStateRef.current;
         state.animals.forEach((animal) => {
             animal.stopSound?.(true);
         });
-    }, [stopAmbience]);
+    }, [stopAmbience, stopMusic]);
 
     const clearStatueMessageTimers = useCallback(() => {
         if (statueMessageTimerRef.current) {
@@ -913,8 +996,9 @@ function MiniZooGame() {
             createGrass(scene, isMobile ? 260 : 900);
             setLoadProgress(55);
 
-            // Pass the obstacles to the animals so they don't walk through them either!
-            state.animals = await loadGLTFAnimals(scene, state.obstacles);
+            const initialSfxVolume = getSfxVolume();
+            // Pass the obstacles and initial volume to the animals
+            state.animals = await loadGLTFAnimals(scene, state.obstacles, initialSfxVolume);
             setLoadProgress(80);
 
             state.clouds = createClouds(scene, isMobile ? 8 : 12);
@@ -1225,9 +1309,8 @@ function MiniZooGame() {
             ? CHARACTER_OPTIONS.find((option) => option.id === storedCharacterId)
             : null;
 
-        hasShownStatueEntryRef.current = false;
         gameStartedRef.current = true;
-        soundEnabledRef.current = isSoundEnabled();
+        soundEnabledRef.current = getSfxVolume() > 0;
         setPlayerName(getStoredPlayerName());
         setShowMenu(false);
         setGameStarted(true);
@@ -1261,10 +1344,14 @@ function MiniZooGame() {
         }
 
         playAmbience();
+        playMusic();
         setTimeout(() => {
-            if (gameStartedRef.current) playAmbience();
+            if (gameStartedRef.current) {
+                playAmbience();
+                playMusic();
+            }
         }, 220);
-    }, [playAmbience, handleSelectCharacter]);
+    }, [playAmbience, playMusic, handleSelectCharacter]);
 
     const saveSessionSnapshot = useCallback(() => {
         const state = gameStateRef.current;
@@ -1319,6 +1406,7 @@ function MiniZooGame() {
         setNearbyStaff(false);
         setShowNpcDialogue(false);
         setNpcDialogueNodeId('root');
+        setBookOpen(false);
         setGameStarted(false);
         setShowMenu(true);
     }, [stopGameplaySounds]);
@@ -1336,9 +1424,10 @@ function MiniZooGame() {
     const handleFeedAnimal = useCallback(() => {
         if (!nearbyAnimal) return;
         const info = nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config;
-        if (isSoundEnabled()) {
+        if (getSfxVolume() > 0) {
             nearbyAnimal.playSound?.();
         }
+        playGameButtonSfx('feed');
         markAnimalDiscovered(info.name);
         feedAnimal(info.name);
         setTasks(getTasks());
@@ -1347,7 +1436,7 @@ function MiniZooGame() {
 
     const handleFeedFromModal = useCallback(() => {
         if (!selectedAnimal) return;
-        if (isSoundEnabled()) {
+        if (getSfxVolume() > 0) {
             const state = gameStateRef.current;
             const match = state.animals.find(a => {
                 const info = a.getInfo ? a.getInfo() : a.config;
@@ -1355,6 +1444,7 @@ function MiniZooGame() {
             });
             match?.playSound?.();
         }
+        playGameButtonSfx('feed');
         markAnimalDiscovered(selectedAnimal.name);
         feedAnimal(selectedAnimal.name);
         setTasks(getTasks());
@@ -1399,6 +1489,31 @@ function MiniZooGame() {
         setNpcDialogueNodeId(choice.nextId || 'root');
     }, [closeNpcDialogue]);
 
+    const openBook = useCallback(() => {
+        if (!gameStarted || !characterReady) return;
+        const state = gameStateRef.current;
+        state.controlsEnabled = false;
+        state.mX = 0;
+        state.mY = 0;
+        state.keys.w = false;
+        state.keys.a = false;
+        state.keys.s = false;
+        state.keys.d = false;
+        setBookOpen(true);
+    }, [gameStarted, characterReady]);
+
+    const closeBook = useCallback(() => {
+        setBookOpen(false);
+        const state = gameStateRef.current;
+        if (gameStarted && characterReady) {
+            state.controlsEnabled = true;
+        }
+    }, [gameStarted, characterReady]);
+
+    useEffect(() => {
+        bookOpenRef.current = bookOpen;
+    }, [bookOpen]);
+
     const handleCloseAnimalModal = useCallback(() => {
         if (animalModalPlacement === 'center') {
             setAnimalModalPlacement('bottom');
@@ -1428,6 +1543,7 @@ function MiniZooGame() {
     useEffect(() => {
         const onKey = e => {
             const key = e.key.toLowerCase();
+            if (bookOpen) return;
             if (key === 'e' && nearbyAnimal && gameStarted && characterReady) {
                 const info = nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config;
                 markAnimalDiscovered(info.name);
@@ -1440,9 +1556,10 @@ function MiniZooGame() {
             }
             if (key === 'f' && nearbyAnimal && !selectedAnimal && gameStarted && characterReady) {
                 const info = nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config;
-                if (isSoundEnabled()) {
+                if (getSfxVolume() > 0) {
                     nearbyAnimal.playSound?.();
                 }
+                playGameButtonSfx('feed');
                 markAnimalDiscovered(info.name);
                 feedAnimal(info.name);
                 setTasks(getTasks());
@@ -1470,7 +1587,7 @@ function MiniZooGame() {
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [nearbyAnimal, nearbyStaff, selectedAnimal, showNpcDialogue, gameStarted, settingsOpen, tasksOpen, animalModalPlacement, characterReady, cycleCameraMode, openNpcDialogue, closeNpcDialogue]);
+    }, [nearbyAnimal, nearbyStaff, selectedAnimal, showNpcDialogue, gameStarted, settingsOpen, tasksOpen, animalModalPlacement, characterReady, cycleCameraMode, openNpcDialogue, closeNpcDialogue, bookOpen]);
 
     useEffect(() => {
         gameStartedRef.current = gameStarted;
@@ -1524,7 +1641,7 @@ function MiniZooGame() {
 
     useEffect(() => {
         const syncSoundEnabled = () => {
-            soundEnabledRef.current = isSoundEnabled();
+            soundEnabledRef.current = getSfxVolume() > 0;
         };
 
         const syncGraphicsAndFps = () => {
@@ -1570,6 +1687,12 @@ function MiniZooGame() {
             syncSoundEnabled();
             syncGraphicsAndFps();
             syncSensitivity();
+
+            // Sync animal SFX volume when settings change
+            const sfxVol = getSfxVolume();
+            if (gameStateRef.current?.animals) {
+                gameStateRef.current.animals.forEach(a => a.updateVolume?.(sfxVol));
+            }
         };
 
         window.addEventListener('storage', onStorage);
@@ -1614,7 +1737,7 @@ function MiniZooGame() {
 
     useEffect(() => {
         const state = gameStateRef.current;
-        if (showNpcDialogue) {
+        if (showNpcDialogue || bookOpen) {
             state.controlsEnabled = false;
             return;
         }
@@ -1622,7 +1745,7 @@ function MiniZooGame() {
         if (gameStarted && characterReady) {
             state.controlsEnabled = true;
         }
-    }, [showNpcDialogue, gameStarted, characterReady]);
+    }, [showNpcDialogue, bookOpen, gameStarted, characterReady]);
 
     useEffect(() => {
         if (!gameStarted) return;
@@ -1630,12 +1753,23 @@ function MiniZooGame() {
         const applyMusicState = () => {
             if (document.hidden) {
                 stopAmbience(true);
+                stopMusic(true);
                 return;
             }
-            if (isMusicEnabled()) {
+
+            const ambVol = getAmbienceVolume();
+            const musVol = getMusicVolume();
+
+            if (ambVol > 0) {
                 playAmbience();
             } else {
                 stopAmbience(true);
+            }
+
+            if (musVol > 0) {
+                playMusic();
+            } else {
+                stopMusic(true);
             }
         };
 
@@ -1643,11 +1777,13 @@ function MiniZooGame() {
 
         const onSettingsChanged = () => {
             applyMusicState();
+            soundEnabledRef.current = getSfxVolume() > 0;
         };
 
         const onStorage = (e) => {
             if (!e || e.key === 'minizoo_settings' || e.key === null) {
                 applyMusicState();
+                soundEnabledRef.current = getSfxVolume() > 0;
             }
         };
 
@@ -1729,19 +1865,6 @@ function MiniZooGame() {
                 <>
                     <WelcomePopup visible={showWelcome} message="Welcome, Explorer! Head to the Bulusan Statue and start your zoo tour." />
                     <WelcomePopup visible={showStatueGreeting} message={STATUE_ENTRY_MESSAGE} />
-                    {characterReady && (
-                        <button
-                            data-ui-button="true"
-                            type="button"
-                            onClick={cycleCameraMode}
-                            className={`camera-toggle-btn absolute right-1 sm:right-3 z-70 rounded-full border border-emerald-300/80 bg-linear-to-b from-white to-emerald-50 font-extrabold text-emerald-950 shadow-[0_10px_24px_-16px_rgba(5,46,22,0.5)] transition hover:to-emerald-100 active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 ${isTouchDevice
-                                ? 'top-[calc(env(safe-area-inset-top)+3.8rem)] px-2 py-1 text-[10px] sm:px-2.5 sm:py-1.5 sm:text-[11px]'
-                                : 'top-[calc(env(safe-area-inset-top)+3.45rem)] px-3 py-2 text-xs'}`}
-                            title="Toggle camera view (V)"
-                        >
-                            {cameraMode === 'first' ? '1st' : '3rd'}
-                        </button>
-                    )}
                     <GameHUD
                         playerName={playerName || 'Explorer'}
                         onMenuClick={handleMenuClick}
@@ -1752,11 +1875,15 @@ function MiniZooGame() {
                     />
                     <Joystick baseRef={baseRef} stickRef={stickRef} isTouchDevice={isTouchDevice} />
                     <JumpButton jumpRef={jumpRef} isTouchDevice={isTouchDevice} />
+                    <Hotbar onOpenBook={openBook} bookOpen={bookOpen} />
+                    <SketchbookModal isOpen={bookOpen} onClose={closeBook} />
                     <SettingsPanel
                         isOpen={settingsOpen}
                         onClose={() => setSettingsOpen(false)}
                         onQuit={handleQuitRequest}
                         onResetTasks={handleResetTasks}
+                        cameraMode={cameraMode}
+                        onCameraModeChange={(mode) => setCameraMode(mode)}
                     />
                     <TaskPanel isOpen={tasksOpen} onClose={() => setTasksOpen(false)} tasks={tasks} onTaskClick={() => setTasksOpen(false)} />
                     <AnimalInfoModal
