@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2026-04-27-v4';
+const CACHE_VERSION = '2026-08-17-v3.1';
 const APP_SHELL_CACHE = `minizoo-app-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `minizoo-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `minizoo-media-${CACHE_VERSION}`;
@@ -8,10 +8,7 @@ const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/favicon.svg',
-  '/icons/icon-180.png',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
+  '/bz-url-logo.png',
 ];
 
 const STATIC_EXT_RE = /\.(?:js|css|png|jpg|jpeg|webp|svg|gif|ico|woff2?|ttf|otf)$/i;
