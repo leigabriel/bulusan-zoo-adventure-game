@@ -34,7 +34,6 @@ import {
     NPCDialogueModal,
     RotateDeviceOverlay,
     RunButton,
-    RangerTipPop,
     AnimalCaution,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
@@ -2010,13 +2009,6 @@ function MiniZooGame() {
         { title: 'Feed the rabbit', objective: 'Find either rabbit and hold Feed for a gentle snack.', done: missionProgress.fedRabbit, icon: '🐇' }
     ];
     const missionComplete = missionSteps.every((step) => step.done);
-    const rangerTips = !missionProgress.talkedToRanger
-        ? ['Can you find me? Walk close and say hello to start our animal adventure!', 'Look around the paths and listen for animal sounds.']
-        : !missionProgress.fedHorse
-            ? ['Look for the friendly horse. Hold Feed to give it a gentle snack.', 'Be gentle and patient. Animals like calm Zoo Rangers.']
-            : !missionProgress.fedRabbit
-                ? ['Find either rabbit and hold Feed to help it have a snack.', 'Rabbits are quiet and quick. Move slowly so you do not surprise them.']
-                : ['You cared for two animals! Keep exploring and discover more zoo friends.', 'Open the Animal Book to learn a fun fact about every animal you meet.'];
     const npcDialogueNode = npcDialogueNodeId === 'mission'
         ? { ...getStaffDialogueNode('mission'), message: missionComplete ? 'You did it! The horse and rabbit are cared for. Your ranger reward is safe in your progress.' : 'Here is your ranger trail. Complete each step in order, and I will keep your progress safe.' }
         : getStaffDialogueNode(npcDialogueNodeId);
@@ -2043,7 +2035,6 @@ function MiniZooGame() {
             )}
             {gameStarted && (
                 <>
-                     <RangerTipPop visible={!interfaceOpen && gameStarted && characterReady} tips={rangerTips} />
                      <GameHUD
                         playerName={playerName || 'Explorer'}
                          onMenuClick={handleMenuClick}

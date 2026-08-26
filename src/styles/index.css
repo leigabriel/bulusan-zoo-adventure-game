@@ -709,6 +709,7 @@ canvas {
     border-radius: 1.75rem;
     box-shadow: 0 18px 0 rgba(76, 52, 19, .16), 0 26px 70px rgba(3, 45, 25, .28);
     color: #163b2a;
+    background-image: linear-gradient(rgba(255, 250, 240, .96), rgba(255, 250, 240, .96)), repeating-linear-gradient(0deg, transparent 0, transparent 2.05rem, rgba(214, 168, 79, .1) 2.1rem, transparent 2.15rem);
 }
 
 .ranger-portrait {
@@ -722,6 +723,20 @@ canvas {
     background: #dff4df;
     font-size: 1.7rem;
     box-shadow: inset 0 -4px 0 rgba(22, 104, 74, .13);
+}
+
+.ranger-guide-header {
+    background: linear-gradient(135deg, #e7f6e7 0%, #fff5d6 100%);
+    border-bottom: 2px solid #d6a84f;
+}
+
+.ranger-guide-kicker,
+.ranger-message-label {
+    color: #a66b12;
+    font-size: .58rem;
+    font-weight: 900;
+    letter-spacing: .16em;
+    text-transform: uppercase;
 }
 
 .ranger-close-button {
@@ -744,6 +759,29 @@ canvas {
     box-shadow: 0 4px 0 rgba(22, 104, 74, .1);
 }
 
+.ranger-guide-message { padding: 1rem 1.1rem; }
+.ranger-message-label { display: block; margin-bottom: .35rem; }
+
+.ranger-choice-grid { display: grid; gap: .65rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ranger-choice-icon { display: grid; width: 2.25rem; height: 2.25rem; flex: 0 0 auto; place-items: center; border-radius: .75rem; background: #e7f6e7; font-size: 1.2rem; }
+.ranger-choice-arrow { margin-left: auto; color: #a66b12; font-size: 1.5rem; line-height: 1; }
+.ranger-mission-card { border: 2px solid #e8c66c; border-radius: 1.15rem; background: #fff5d6; padding: .8rem; }
+.ranger-mission-step { display: flex; gap: .6rem; border-radius: .8rem; background: rgba(255,255,255,.82); padding: .6rem; color: #334155; font-size: .72rem; font-weight: 800; line-height: 1.25; }
+.ranger-mission-step + .ranger-mission-step { margin-top: .45rem; }
+.ranger-mission-step-done { background: #dff4df; color: #16684a; }
+.ranger-mission-number { display: grid; width: 1.55rem; height: 1.55rem; flex: 0 0 auto; place-items: center; border-radius: 999px; background: #f4dfac; color: #6d4a0e; font-size: .7rem; font-weight: 900; }
+.ranger-mission-step-done .ranger-mission-number { background: #28a36f; color: white; }
+
+.ranger-animal-browser { display: grid; min-height: 15rem; grid-template-columns: minmax(8.5rem, .78fr) minmax(0, 1.45fr); gap: .7rem; }
+.ranger-animal-list { min-height: 0; overflow-y: auto; border: 2px solid #d9eadc; border-radius: 1rem; background: #eef8ef; padding: .5rem; }
+.ranger-list-label { padding: .25rem .45rem .45rem; color: #a66b12; font-size: .58rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+.ranger-animal-list-button { display: flex; width: 100%; min-height: 2.6rem; align-items: center; gap: .45rem; border-radius: .7rem; padding: .45rem; color: #315442; font-size: .7rem; font-weight: 900; text-align: left; touch-action: manipulation; }
+.ranger-animal-list-button:hover, .ranger-animal-list-button-active { background: #fff5d6; color: #6d4a0e; }
+.ranger-animal-detail { min-width: 0; border: 2px solid #e8c66c; border-radius: 1rem; background: #fff5d6; padding: .8rem; }
+.ranger-detail-emoji { display: grid; width: 3rem; height: 3rem; flex: 0 0 auto; place-items: center; border-radius: .9rem; background: #fff; font-size: 1.8rem; }
+.ranger-detail-empty { display: grid; height: 100%; min-height: 12rem; place-items: center; align-content: center; gap: .5rem; color: #6d4a0e; font-size: .75rem; font-weight: 900; text-align: center; }
+.ranger-detail-empty span { font-size: 2.5rem; }
+
 .ranger-choice-button,
 .ranger-footer-button {
     display: inline-flex;
@@ -758,12 +796,14 @@ canvas {
     font-size: .85rem;
     font-weight: 900;
     transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    touch-action: manipulation;
 }
 
 .ranger-choice-button:hover,
 .ranger-choice-button:focus-visible { transform: translateY(-2px); border-color: #d6a84f; background: #fff8e4; outline: none; }
 .ranger-choice-button:disabled { opacity: .55; pointer-events: none; }
 .ranger-choice-accent { border-color: #e8b84e; background: #fff3c9; }
+.ranger-choice-pressed { transform: scale(.97); border-color: #28a36f; background: #dff4df; }
 .ranger-footer-button { min-height: 2.6rem; padding: .45rem 1rem; background: #e6f5e8; color: #16684a; }
 .ranger-footer-close { background: #f4dfac; color: #5e4318; }
 .ranger-guide-transition { animation: ranger-dialogue-in .26s ease both; }
@@ -822,9 +862,13 @@ canvas {
     .ranger-guide-panel { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - .75rem); border-radius: 1.15rem; }
     .ranger-portrait { width: 2.6rem; height: 2.6rem; font-size: 1.3rem; }
     .ranger-choice-button { min-height: 2.7rem; padding: .45rem .65rem; font-size: .75rem; }
+    .ranger-choice-grid { grid-template-columns: 1fr; }
     .ranger-tip-pop { top: calc(env(safe-area-inset-top) + 4.25rem); width: min(15rem, 42vw); padding: .55rem; }
 }
 
 @media (max-width: 640px) and (orientation: portrait) {
+    .ranger-animal-browser { grid-template-columns: minmax(7rem, .8fr) minmax(0, 1.2fr); gap: .45rem; }
+    .ranger-animal-list-button { font-size: .62rem; }
+    .ranger-animal-detail { padding: .6rem; }
     .ranger-tip-pop { top: calc(env(safe-area-inset-top) + 5rem); width: min(15rem, calc(100vw - 5rem)); }
 }

@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2026-08-26-v3.3';
+const CACHE_VERSION = '2026-08-26-v3.4';
 const APP_SHELL_CACHE = `minizoo-app-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `minizoo-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `minizoo-media-${CACHE_VERSION}`;
@@ -101,6 +101,10 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // Vite source modules must always come from the dev server. Caching one
+  // old module can make named exports disagree during hot reload.
+  if (url.pathname.startsWith('/src/') || url.pathname.startsWith('/@')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(networkFirst(request, DYNAMIC_CACHE, '/index.html'));
