@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
-import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight } from './components/Terrain.jsx';
-import { loadGLTFAnimals } from './components/Animals.jsx';
+import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache } from './components/Terrain.jsx';
+import { loadGLTFAnimals, releaseAnimalModelCache } from './components/Animals.jsx';
 import { loadMultipleTowers, loadNewHouses } from './components/Structures.jsx';
+import { createGLTFLoader } from './utils/gltfLoader.js';
 import {
     createMovementHandler,
     setupKeyboardControls,
@@ -287,7 +287,7 @@ function addStatueLights(scene) {
 }
 
 async function loadCenterStatue(scene, isMobile) {
-    const loader = new GLTFLoader();
+    const loader = createGLTFLoader();
     const statueUrl = await resolveAssetUrl('/models/bulusanstatue.glb');
     return new Promise((resolve) => {
         loader.load(
@@ -350,7 +350,7 @@ async function loadCenterStatue(scene, isMobile) {
 }
 
 async function loadStaffNpc(scene, isMobile) {
-    const loader = new GLTFLoader();
+    const loader = createGLTFLoader();
     const staffUrl = await resolveAssetUrl(`/models/characters/${STAFF_NPC_CONFIG.file}`);
     return new Promise((resolve) => {
         loader.load(
@@ -517,7 +517,7 @@ function MiniZooGame() {
         controlsEnabled: false,
         cameraControlLockedUntil: 0,
         animationId: null, scene: null, camera: null, renderer: null,
-        animals: [], clouds: [], obstacles: [], animalObstacles: [], cleanup: null, initialized: false,
+        animals: [], clouds: [], obstacles: [], animalObstacles: [], animalObstaclePool: [], cleanup: null, initialized: false,
         playerAnchor: null,
         playerCharacter: null,
         playerCharacterBaseYOffset: 0,
@@ -815,7 +815,7 @@ function MiniZooGame() {
         try {
             disposePlayerCharacter();
 
-            const loader = new GLTFLoader();
+            const loader = createGLTFLoader();
             const characterUrl = await resolveAssetUrl(`/models/characters/${characterOption.file}`);
             const gltf = await new Promise((resolve, reject) => {
                 loader.load(characterUrl, resolve, undefined, reject);
@@ -1035,20 +1035,29 @@ function MiniZooGame() {
                     return;
                 }
 
-                state.animalObstacles = state.animals
-                    .filter(a => a?.group)
-                    .map((a) => ({
-                        x: a.group.position.x,
-                        z: a.group.position.z,
-                        radius: Math.max(1.15, a.radius ?? a.config?.collisionRadius ?? ((a.config?.scale ?? 1) * 0.7))
-                    }));
+                // Reuse the obstacle objects instead of allocating an array and
+                // object for every rendered frame.
+                const animalObstacles = state.animalObstacles;
+                const obstaclePool = state.animalObstaclePool;
+                let obstacleCount = 0;
+                state.animals.forEach((animal) => {
+                    if (!animal?.group) return;
+                    const obstacle = obstaclePool[obstacleCount] || (obstaclePool[obstacleCount] = {});
+                    obstacle.x = animal.group.position.x;
+                    obstacle.z = animal.group.position.z;
+                    obstacle.radius = Math.max(1.15, animal.radius ?? animal.config?.collisionRadius ?? ((animal.config?.scale ?? 1) * 0.7));
+                    animalObstacles[obstacleCount] = obstacle;
+                    obstacleCount += 1;
+                });
                 if (state.staffNpc) {
-                    state.animalObstacles.push({
-                        x: state.staffNpc.x,
-                        z: state.staffNpc.z,
-                        radius: state.staffNpc.obstacleRadius
-                    });
+                    const obstacle = obstaclePool[obstacleCount] || (obstaclePool[obstacleCount] = {});
+                    obstacle.x = state.staffNpc.x;
+                    obstacle.z = state.staffNpc.z;
+                    obstacle.radius = state.staffNpc.obstacleRadius;
+                    animalObstacles[obstacleCount] = obstacle;
+                    obstacleCount += 1;
                 }
+                animalObstacles.length = obstacleCount;
 
                 handleMovement();
                 const playerPosition = state.playerAnchor ? state.playerAnchor.position : camera.position;
@@ -1176,9 +1185,12 @@ function MiniZooGame() {
 
                 state.animals.forEach(a => {
                     if (a.group) {
-                        const dist = playerPosition.distanceTo(a.group.position);
+                        const dx = playerPosition.x - a.group.position.x;
+                        const dy = playerPosition.y - a.group.position.y;
+                        const dz = playerPosition.z - a.group.position.z;
+                        const distSq = dx * dx + dy * dy + dz * dz;
                         const updateRange = isMobile ? 130 : 200;
-                        if (dist < updateRange) a.update(now * 0.001, dt);
+                        if (distSq < updateRange * updateRange) a.update(now * 0.001, dt);
                     }
                 });
 
@@ -1280,6 +1292,23 @@ function MiniZooGame() {
                     state.staffNpc = null;
                 }
                 if (renderer) {
+                    const disposedGeometries = new Set();
+                    const disposedMaterials = new Set();
+                    state.scene?.traverse((child) => {
+                        if (!child.isMesh) return;
+                        if (child.geometry && !disposedGeometries.has(child.geometry)) {
+                            disposedGeometries.add(child.geometry);
+                            child.geometry.dispose();
+                        }
+                        const materials = Array.isArray(child.material) ? child.material : [child.material];
+                        materials.forEach((material) => {
+                            if (!material || disposedMaterials.has(material)) return;
+                            disposedMaterials.add(material);
+                            material.dispose();
+                        });
+                    });
+                    releaseAnimalModelCache();
+                    releaseTerrainModelCache();
                     renderer.dispose();
                     if (containerRef.current && renderer.domElement) {
                         containerRef.current.removeChild(renderer.domElement);

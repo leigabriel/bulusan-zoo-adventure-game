@@ -1,14 +1,6 @@
 @import "tailwindcss";
 
 @font-face {
-    font-family: 'Departure Mono';
-    src: url('/fonts/departure-mono.woff') format('woff');
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-}
-
-@font-face {
     font-family: 'Qilka';
     src: url('/fonts/qilka-bold.otf') format('opentype');
     font-style: normal;
@@ -35,7 +27,7 @@ body,
 }
 
 body {
-    font-family: 'Qilka', 'Departure Mono', 'Trebuchet MS', sans-serif;
+    font-family: 'Qilka', 'Trebuchet MS', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;

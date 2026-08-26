@@ -9,6 +9,26 @@ const ROCK_MODELS = ['Rock1', 'Rock2', 'Rock3'];
 
 const modelCache = new Map();
 
+function disposeCachedObject(root) {
+    root?.traverse((child) => {
+        if (!child.isMesh) return;
+        child.geometry?.dispose();
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => {
+            material?.map?.dispose();
+            material?.normalMap?.dispose();
+            material?.roughnessMap?.dispose();
+            material?.metalnessMap?.dispose();
+            material?.dispose();
+        });
+    });
+}
+
+export function releaseTerrainModelCache() {
+    modelCache.forEach(disposeCachedObject);
+    modelCache.clear();
+}
+
 export function getTerrainHeight(x, z) {
     const h1 = Math.sin(x * 0.015) * 3.5 + Math.cos(z * 0.015) * 3.5;
     const h2 = Math.sin(x * 0.006 + 1.2) * 6 + Math.cos(z * 0.008) * 4;
@@ -140,11 +160,15 @@ async function loadOBJModel(name, basePath, modelType = 'default') {
                                     metalness: 0.0
                                 });
 
-                                if (newMat.map) {
-                                    newMat.map.colorSpace = THREE.SRGBColorSpace;
-                                }
+                                 if (newMat.map) {
+                                     newMat.map.colorSpace = THREE.SRGBColorSpace;
+                                 }
 
-                                return newMat;
+                                 // The replacement material reuses the maps, so
+                                 // release only the obsolete material wrapper.
+                                 mat.dispose();
+
+                                 return newMat;
                             });
                             child.material = Array.isArray(child.material) ? fixedMats : fixedMats[0];
                         }

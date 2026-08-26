@@ -3,6 +3,7 @@ const STORE_NAME = 'assets';
 const DB_VERSION = 1;
 
 const objectUrlCache = new Map();
+const pendingAssetRequests = new Map();
 let dbPromise = null;
 
 const CHARACTER_MODELS = [
@@ -168,29 +169,38 @@ export async function resolveAssetUrl(path) {
   const isModel = /\.(?:gltf|glb|obj|mtl|bin)$/i.test(normalizedPath);
   if (isModel) return normalizedPath;
 
-  try {
-    const existingBlob = await readBlobFromDb(normalizedPath);
-    if (existingBlob) {
-      return toObjectUrl(normalizedPath, existingBlob);
-    }
+  const pending = pendingAssetRequests.get(normalizedPath);
+  if (pending) return pending;
 
-    const fetchedBlob = await fetchAndPersist(normalizedPath);
-    return toObjectUrl(normalizedPath, fetchedBlob);
-  } catch {
-    return normalizedPath;
-  }
+    const request = (async () => {
+      try {
+        const existingBlob = await readBlobFromDb(normalizedPath);
+        if (existingBlob) return toObjectUrl(normalizedPath, existingBlob);
+
+        const fetchedBlob = await fetchAndPersist(normalizedPath);
+        return toObjectUrl(normalizedPath, fetchedBlob);
+      } catch {
+        return normalizedPath;
+      } finally {
+        pendingAssetRequests.delete(normalizedPath);
+      }
+    })();
+    pendingAssetRequests.set(normalizedPath, request);
+    return request;
 }
 
 export async function warmupAssetStore(paths = ESSENTIAL_ASSET_PATHS, onProgress) {
   if (!Array.isArray(paths) || paths.length === 0) return;
 
   let completed = 0;
-  for (const path of paths) {
-    await resolveAssetUrl(path);
-    completed += 1;
-    if (typeof onProgress === 'function') {
-      onProgress(completed / paths.length, path);
-    }
+  const concurrency = 4;
+  for (let i = 0; i < paths.length; i += concurrency) {
+    const batch = paths.slice(i, i + concurrency);
+    await Promise.all(batch.map(async (path) => {
+      await resolveAssetUrl(path);
+      completed += 1;
+      if (typeof onProgress === 'function') onProgress(completed / paths.length, path);
+    }));
   }
 }
 
@@ -199,4 +209,5 @@ export function releaseAssetObjectUrls() {
     URL.revokeObjectURL(objectUrl);
   }
   objectUrlCache.clear();
+  pendingAssetRequests.clear();
 }

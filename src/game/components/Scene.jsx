@@ -59,7 +59,8 @@ export function createRenderer(container, graphicsQuality) {
 
     const renderer = new THREE.WebGLRenderer({
         antialias: config.antialias,
-        powerPreference: 'default',
+        // Prefer the discrete/high-performance GPU when the platform offers one.
+        powerPreference: 'high-performance',
         stencil: false,
         depth: true,
         alpha: false,

@@ -3,11 +3,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import gsap from 'gsap';
 import { CustomEase } from 'gsap/CustomEase';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { ActionButton, GameButton, IconButton, ModalShell, SideSheet, SurfacePanel, cx } from './UIComponents.jsx';
+import { createGLTFLoader } from '../utils/gltfLoader.js';
 
 let sketchbookEaseRegistered = false;
 function ensureSketchbookEase() {
@@ -296,6 +296,21 @@ function HowToPlayContent() {
     );
 }
 
+function CreditsContent() {
+    return (
+        <div className="space-y-4 text-center text-sm text-slate-700">
+            <p className="font-semibold italic">Built with the following tools and creative resources.</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+                {['Three.js', 'Sketchfab', 'Quaternius'].map((credit) => (
+                    <div key={credit} className="rounded-2xl border-2 border-slate-100 bg-white p-4 font-black text-emerald-800 shadow-sm">
+                        {credit}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function ConfirmModal({
     isOpen,
     onConfirm,
@@ -385,14 +400,17 @@ function Character3DPreview({ modelFile }) {
             const fov = camera.fov * (Math.PI / 180);
             let distance = Math.abs(size.y / Math.tan(fov / 2));
 
-            // Adjust for aspect ratio
-            const aspect = width / height;
-            if (aspect < 1) {
-                distance = distance / aspect;
-            }
+            // Fit both the height and width, including portrait mobile screens.
+            const aspect = Math.max(width / height, 0.1);
+            const verticalDistance = (size.y * 0.5) / Math.tan(fov / 2);
+            const horizontalFov = 2 * Math.atan(Math.tan(fov / 2) * aspect);
+            const horizontalDistance = (Math.max(size.x, size.z) * 0.5) / Math.tan(horizontalFov / 2);
+            distance = Math.max(verticalDistance, horizontalDistance);
 
-            camera.position.set(0, center.y + size.y * 0.05, distance * 1.2);
-            camera.lookAt(center.x, center.y + size.y * 0.05, center.z);
+            // Leave room for the model's idle pose and rotation. This keeps
+            // hats, hands, and feet inside the frame on portrait screens too.
+            camera.position.set(0, center.y + size.y * 0.03, distance * 1.8);
+            camera.lookAt(center.x, center.y + size.y * 0.02, center.z);
             camera.updateProjectionMatrix();
         };
 
@@ -415,16 +433,18 @@ function Character3DPreview({ modelFile }) {
         resolveAssetUrl(`/models/characters/${modelFile}`)
             .then((url) => {
                 if (!url) return;
-                const loader = new GLTFLoader();
+                const loader = createGLTFLoader();
                 loader.load(url, (gltf) => {
                     modelGroup = gltf.scene;
 
                     // Normalize model size
                     const box = new THREE.Box3().setFromObject(modelGroup);
                     const size = box.getSize(new THREE.Vector3());
-                    const maxDim = Math.max(size.x, size.y, size.z);
-                    const scale = 2.0 / maxDim; // Fixed size normalization
+                    const targetHeight = 1.65;
+                    const scale = targetHeight / Math.max(size.y, 0.001);
                     modelGroup.scale.set(scale, scale, scale);
+                    const fittedBox = new THREE.Box3().setFromObject(modelGroup);
+                    modelGroup.position.y -= fittedBox.min.y;
 
                     scene.add(modelGroup);
                     fitCamera();
@@ -469,6 +489,16 @@ function Character3DPreview({ modelFile }) {
                 container.removeChild(renderer.domElement);
             }
             if (modelGroup) scene.remove(modelGroup);
+            if (modelGroup) {
+                modelGroup.traverse((child) => {
+                    if (!child.isMesh) return;
+                    child.geometry?.dispose();
+                    const materials = Array.isArray(child.material) ? child.material : [child.material];
+                    materials.forEach((material) => material?.dispose());
+                });
+            }
+            stageGeom.dispose();
+            stageMat.dispose();
         };
     }, [modelFile]);
 
@@ -704,7 +734,7 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,transparent_75%)] pointer-events-none" />
 
                 {/* 3D Character Stage */}
-                <div className="flex-1 w-full max-w-6xl relative flex items-center justify-center">
+                <div className="flex-1 min-h-0 w-full max-w-6xl relative flex items-center justify-center">
 
                     {/* Navigation - Floating - Smaller Buttons */}
                     <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 sm:px-12 z-40 pointer-events-none">
@@ -723,7 +753,7 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
                         </button>
                     </div>
 
-                    <div className="w-full h-full relative z-10 flex items-center justify-center overflow-visible scale-110 sm:scale-125">
+                    <div className="w-full h-full max-h-[58vh] relative z-10 flex items-center justify-center overflow-hidden">
                         {previewChar && <Character3DPreview modelFile={previewChar.file} />}
                     </div>
                 </div>
@@ -768,8 +798,9 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
    ========================================================================== */
 
 export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCharacterId, onCharacterPicked }) {
-    const [starting, setStarting] = useState(false);
-    const [howToPlayOpen, setHowToPlayOpen] = useState(false);
+ const [starting, setStarting] = useState(false);
+ const [howToPlayOpen, setHowToPlayOpen] = useState(false);
+    const [creditsOpen, setCreditsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [charSelectOpen, setCharSelectOpen] = useState(false);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -847,6 +878,14 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                         </button>
 
                         <button
+                            onClick={() => setCreditsOpen(true)}
+                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
+                            title="Credits"
+                        >
+                            <img src="/ui-buttons/credit-button.png" alt="Credits" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
+                        </button>
+
+                        <button
                             onClick={() => setSettingsOpen(true)}
                             className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
                             title="Settings"
@@ -868,6 +907,10 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
             {/* Modals */}
             <ModalShell isOpen={howToPlayOpen} onClose={() => setHowToPlayOpen(false)} title="How To Play" size="md">
                 <HowToPlayContent />
+            </ModalShell>
+
+            <ModalShell isOpen={creditsOpen} onClose={() => setCreditsOpen(false)} title="Credits" size="md">
+                <CreditsContent />
             </ModalShell>
 
             <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
@@ -901,6 +944,11 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                 confirmLabel="Exit"
                 confirmVariant="danger"
             />
+
+            <div className="pointer-events-none absolute inset-x-3 bottom-1 z-40 flex justify-between text-[8px] font-black uppercase tracking-[0.18em] text-emerald-950/70 sm:inset-x-6 sm:bottom-3 sm:text-[10px]">
+                <span>2026</span>
+                <span>Version 3.1.0</span>
+            </div>
         </div>
     );
 }

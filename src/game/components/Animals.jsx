@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { getTerrainHeight } from './Terrain.jsx';
 import { resolveAssetUrl } from '../utils/localAssets.js';
+import { createGLTFLoader } from '../utils/gltfLoader.js';
 
 const ANIMAL_CONFIGS = [
     {
@@ -772,19 +772,33 @@ class GLTFAnimal {
             this.shadow.material?.dispose?.();
             this.shadow = null;
         }
-        this.group.traverse(child => {
-            if (child.isMesh) {
-                child.geometry?.dispose();
-                if (child.material) {
-                    if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-                    else child.material.dispose();
-                }
-            }
-        });
+        // Cloned GLTF animals share cached geometry/materials. The cache owns
+        // those GPU resources and releases them as a group when the scene ends.
+        this.group.parent?.remove(this.group);
     }
 }
 
 const modelCache = new Map();
+
+function disposeCachedObject(root) {
+    root?.traverse((child) => {
+        if (!child.isMesh) return;
+        child.geometry?.dispose();
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => {
+            material?.map?.dispose();
+            material?.normalMap?.dispose();
+            material?.roughnessMap?.dispose();
+            material?.metalnessMap?.dispose();
+            material?.dispose();
+        });
+    });
+}
+
+export function releaseAnimalModelCache() {
+    modelCache.forEach((gltf) => disposeCachedObject(gltf.scene));
+    modelCache.clear();
+}
 
 // Pass obstacles and initialVolume parameter here
 export async function loadGLTFAnimals(scene, obstacles, initialVolume) {
@@ -794,7 +808,7 @@ export async function loadGLTFAnimals(scene, obstacles, initialVolume) {
         if (modelCache.has(file)) return Promise.resolve(modelCache.get(file));
         return new Promise((resolve) => {
             const load = async () => {
-                const loader = new GLTFLoader();
+                const loader = createGLTFLoader();
                 const modelPath = `/models/animals/${file}`;
                 const modelUrl = await resolveAssetUrl(modelPath);
                 const resourcePath = modelPath.slice(0, modelPath.lastIndexOf('/') + 1);

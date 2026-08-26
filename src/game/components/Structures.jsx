@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getTerrainHeight } from './Terrain.jsx';
 import { resolveAssetUrl } from '../utils/localAssets.js';
+import { createGLTFLoader } from '../utils/gltfLoader.js';
 
 /**
  * Enhanced material fix to prevent models from appearing black
@@ -52,6 +52,7 @@ function fixMaterial(child) {
 
             newMat.transparent = mat.transparent || false;
             newMat.opacity = mat.opacity ?? 1;
+            mat.dispose();
 
             return newMat;
         });
@@ -129,7 +130,7 @@ export async function loadMultipleTowers(scene) {
 async function loadGLTFStructure(scene, path, name, x, z, scale = 1.0, rotationY = 0) {
     try {
         const url = await resolveAssetUrl(`${path}${name}`);
-        const loader = new GLTFLoader();
+        const loader = createGLTFLoader();
 
         return new Promise((resolve) => {
             loader.load(url, (gltf) => {
