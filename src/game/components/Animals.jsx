@@ -434,7 +434,14 @@ class GLTFAnimal {
     }
 
     getInfo() {
-        return { name: this.config.name, species: this.config.species, emoji: this.config.emoji, description: this.config.description };
+        return {
+            name: this.config.name,
+            species: this.config.species,
+            emoji: this.config.emoji,
+            description: this.config.description,
+            requiredItem: this.config.requiredItem,
+            hasRequiredItem: this.config.hasRequiredItem,
+        };
     }
 
     updateVolume(volume) {

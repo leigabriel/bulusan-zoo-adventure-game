@@ -1126,22 +1126,6 @@ export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick }) {
     );
 }
 
-export function InteractionPrompt({ visible, onFeed, onViewDetails, animalName, isTouchDevice }) {
-    if (!visible) return null;
-
-    return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] z-75 flex justify-center px-3 sm:bottom-28">
-            <SurfacePanel className="pointer-events-auto w-full max-w-sm p-2.5 sm:p-3" data-ui-panel="true">
-                <p className="text-center text-[11px] sm:text-xs font-bold text-slate-600">Near {animalName || 'animal'}</p>
-                <div className="mt-1.5 sm:mt-2 grid grid-cols-2 gap-1.5 sm:gap-2">
-                    <ActionButton variant="primary" size="sm" onClick={onFeed}>{isTouchDevice ? 'Feed' : 'Feed (F)'}</ActionButton>
-                    <ActionButton variant="secondary" size="sm" onClick={onViewDetails}>{isTouchDevice ? 'Info' : 'Info (E)'}</ActionButton>
-                </div>
-            </SurfacePanel>
-        </div>
-    );
-}
-
 export function NPCInteractionPrompt({ visible, onInteract, npcName = 'Zoo Staff', isTouchDevice }) {
     if (!visible) return null;
 
@@ -1180,80 +1164,6 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
     );
 }
 
-export function MobileInteractionButtons({ visible, onFeed, onViewDetails }) {
-    if (!visible) return null;
-
-    return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.8rem)] z-70 px-3 md:hidden">
-            <SurfacePanel className="pointer-events-auto mx-auto flex max-w-sm gap-2 p-2" data-ui-panel="true">
-                <ActionButton variant="primary" size="sm" className="flex-1" onClick={onFeed}>Feed</ActionButton>
-                <ActionButton variant="secondary" size="sm" className="flex-1" onClick={onViewDetails}>View</ActionButton>
-            </SurfacePanel>
-        </div>
-    );
-}
-
-export function AnimalInfoModal({
-    animal,
-    onClose,
-    onFeed,
-    isFed,
-    isFeeding = false,
-    placement = 'center',
-    preview = false,
-    onView,
-    bottomOffset,
-}) {
-    if (!animal) return null;
-
-    const isCompact = placement === 'bottom' || preview;
-
-    if (isCompact) {
-        return (
-            <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] z-74 px-3 sm:bottom-28">
-                <SurfacePanel className="pointer-events-auto mx-auto max-w-lg p-2.5 sm:p-3" data-ui-panel="true">
-                    <div className="flex items-start justify-between gap-2 sm:gap-3">
-                        <div className="min-w-0">
-                            <h3 className="truncate text-xs sm:text-sm font-black text-slate-900">{animal.name}</h3>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] sm:text-xs font-semibold leading-relaxed text-slate-600">{animal.description}</p>
-                        </div>
-                        <IconButton onClick={onClose} className="h-7 w-7 sm:h-8 sm:w-8 shrink-0">
-                            <span className="text-xs font-black">x</span>
-                        </IconButton>
-                    </div>
-
-                    <div className="mt-2 sm:mt-3 grid grid-cols-2 gap-1.5 sm:gap-2">
-                        <ActionButton variant="secondary" size="sm" onClick={onView}>Details</ActionButton>
-                        <ActionButton variant={isFed || isFeeding ? 'secondary' : 'primary'} size="sm" onClick={onFeed} disabled={isFed || isFeeding}>
-                            {isFed ? 'Already Fed' : isFeeding ? 'Feeding...' : 'Feed'}
-                        </ActionButton>
-                    </div>
-                </SurfacePanel>
-            </div>
-        );
-    }
-
-    return (
-        <ModalShell isOpen={!!animal} onClose={onClose} title={animal.name} size="md">
-            <div className="space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-500">Species</p>
-                    <p className="mt-1 text-sm font-bold text-slate-800">{animal.species || 'Unknown species'}</p>
-                </div>
-
-                <p className="text-sm font-semibold leading-relaxed text-slate-700">{animal.description || 'No description available yet.'}</p>
-
-                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <ActionButton variant="secondary" onClick={onClose}>Close</ActionButton>
-                    <ActionButton variant={isFed || isFeeding ? 'secondary' : 'primary'} onClick={onFeed} disabled={isFed || isFeeding}>
-                        {isFed ? 'Already Fed' : isFeeding ? 'Feeding...' : 'Feed Animal'}
-                    </ActionButton>
-                </div>
-            </div>
-        </ModalShell>
-    );
-}
-
 export function FeedingSuccessNotification({ visible, animalName, onHide }) {
     useEffect(() => {
         if (!visible) return undefined;
@@ -1266,8 +1176,8 @@ export function FeedingSuccessNotification({ visible, animalName, onHide }) {
     return (
         <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+0.75rem)] z-90 flex justify-center px-3">
             <SurfacePanel className="kids-slide-up rounded-full border-emerald-200 bg-emerald-50 px-4 py-2 text-center">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-700">Task Complete</p>
-                <p className="text-sm font-bold text-emerald-900">You fed {animalName || 'an animal'}!</p>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-700">Animal fed successfully</p>
+                <p className="text-sm font-bold text-emerald-900">{animalName || 'Animal'} is happy!</p>
             </SurfacePanel>
         </div>
     );
@@ -1411,6 +1321,60 @@ export function RunButton({ isTouchDevice, onRunStart, onRunEnd }) {
             >
                 Run
             </button>
+        </div>
+    );
+}
+
+export function HoldToFeedControl({
+    visible,
+    animalName,
+    progress = 0,
+    isHolding = false,
+    completed = false,
+    disabled = false,
+    message = '',
+    onStart,
+    onEnd,
+}) {
+    if (!visible) return null;
+
+    const percentage = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+    const label = completed ? 'Fed!' : disabled ? 'Need food' : isHolding ? 'Feeding...' : 'Hold to Feed';
+
+    return (
+        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+13.8rem)] right-2.5 z-70 flex w-28 flex-col items-center sm:right-3 sm:bottom-52">
+            <button
+                type="button"
+                aria-label={`${label}${animalName ? ` ${animalName}` : ''}`}
+                disabled={disabled || completed}
+                onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.currentTarget.setPointerCapture?.(event.pointerId);
+                    onStart?.();
+                }}
+                onPointerUp={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onEnd?.();
+                }}
+                onPointerCancel={onEnd}
+                onPointerLeave={onEnd}
+                className={cx(
+                    'pointer-events-auto relative grid h-24 w-24 place-items-center rounded-full border-4 border-white/70 shadow-xl touch-none select-none transition-transform active:scale-95 sm:h-28 sm:w-28',
+                    completed ? 'bg-emerald-500' : disabled ? 'bg-slate-400' : 'bg-emerald-950/80',
+                )}
+            >
+                <span
+                    className="absolute inset-[-4px] rounded-full"
+                    style={{ background: `conic-gradient(${completed ? '#22c55e' : '#facc15'} ${percentage}%, rgba(255,255,255,.25) ${percentage}% 100%)`, zIndex: 0 }}
+                    aria-hidden="true"
+                />
+                <span className="absolute inset-[5px] rounded-full bg-emerald-950/90" aria-hidden="true" />
+                {completed ? <span className="relative z-10 text-4xl font-black text-white">✓</span> : <img className="relative z-10 h-12 w-12 sm:h-14 sm:w-14" src="/ui-buttons/feed-button.png" alt="" />}
+            </button>
+            <span className="mt-1 rounded-full bg-emerald-950/85 px-2 py-1 text-center text-[9px] font-black uppercase tracking-wide text-white shadow-lg">{label}</span>
+            {message ? <span className="mt-1 max-w-28 text-center text-[10px] font-black leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.9)]">{message}</span> : null}
         </div>
     );
 }
@@ -1596,23 +1560,6 @@ export function BackModal({ onConfirm, onCancel }) {
 
 export function PreGameScreen({ onStart }) {
     return <MainMenu onStart={onStart} isVisible={true} />;
-}
-
-export function AnimalInfoPanel({ animal, onClose }) {
-    if (!animal) return null;
-    return <AnimalInfoModal animal={animal} onClose={onClose} onFeed={() => { }} isFed={false} />;
-}
-
-export function InteractPrompt({ visible }) {
-    return (
-        <InteractionPrompt
-            visible={visible}
-            onFeed={() => { }}
-            onViewDetails={() => { }}
-            animalName="Animal"
-            isTouchDevice={false}
-        />
-    );
 }
 
 export function RotateDeviceOverlay() {
