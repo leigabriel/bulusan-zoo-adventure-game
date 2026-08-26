@@ -7,6 +7,7 @@ import { resolveAssetUrl } from '../utils/localAssets.js';
 import { ActionButton, GameButton, IconButton, ModalShell, SideSheet, SurfacePanel, cx } from './UIComponents.jsx';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
 import { applyHumanSkinColor } from '../utils/characterMaterials.js';
+import { ANIMAL_METADATA } from '../data/animalMetadata.js';
 
 const SETTINGS_KEY = 'minizoo_settings';
 const SETTINGS_CHANGE_EVENT = 'minizoo-settings-changed';
@@ -1164,25 +1165,124 @@ export function NPCInteractionPrompt({ visible, onInteract, npcName = 'Zoo Staff
     );
 }
 
-export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, choices = [], onSelectChoice }) {
-    return (
-        <ModalShell isOpen={isOpen} onClose={onClose} title={npcName || 'Ranger'} size="md">
-            {npcRole ? <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-700">{npcRole}</p> : null}
-            <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-700">{message}</p>
+export function RangerTipPop({ visible, tips = [] }) {
+    const [showTip, setShowTip] = useState(false);
+    const [closing, setClosing] = useState(false);
+    const [tipIndex, setTipIndex] = useState(0);
+    const tipsKey = tips.join('|');
 
-            <div className="mt-4 grid gap-2">
-                {choices.map((choice) => (
-                    <ActionButton
-                        key={choice.id}
-                        variant="secondary"
-                        className="justify-start"
-                        onClick={() => onSelectChoice?.(choice)}
-                    >
-                        {choice.label}
-                    </ActionButton>
-                ))}
+    useEffect(() => {
+        if (!visible || tips.length === 0) {
+            setShowTip(false);
+            setClosing(false);
+            return undefined;
+        }
+
+        setTipIndex(0);
+        setShowTip(true);
+        let hideTimer;
+        let removeTimer;
+        let nextTimer;
+        const cycleTip = () => {
+            setClosing(true);
+            removeTimer = window.setTimeout(() => {
+                setShowTip(false);
+                setClosing(false);
+                nextTimer = window.setTimeout(() => {
+                    setTipIndex((current) => (current + 1) % tips.length);
+                    setShowTip(true);
+                    hideTimer = window.setTimeout(cycleTip, 3000);
+                }, 8000);
+            }, 300);
+        };
+        hideTimer = window.setTimeout(cycleTip, 3000);
+
+        return () => {
+            window.clearTimeout(hideTimer);
+            window.clearTimeout(removeTimer);
+            window.clearTimeout(nextTimer);
+        };
+    }, [visible, tipsKey]);
+
+    if (!visible || !showTip || tips.length === 0) return null;
+    const tip = tips[tipIndex];
+
+    return (
+        <aside className={cx('ranger-tip-pop', closing && 'ranger-tip-pop-closing')} aria-live="polite" aria-label="Ranger Lino tip">
+            <div className="ranger-tip-avatar" aria-hidden="true">🧑‍🌾</div>
+            <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                    <p className="text-xs font-black text-emerald-950">Ranger Lino</p>
+                    <span className="ranger-tip-tag">Tip</span>
+                </div>
+                <p className="mt-1 text-xs font-bold leading-snug text-slate-700">{tip}</p>
             </div>
-        </ModalShell>
+        </aside>
+    );
+}
+
+export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, choices = [], onSelectChoice, missionSteps = [], animalEntries = [], onOpenAnimalBook }) {
+    const [transitioning, setTransitioning] = useState(false);
+    const [selectedAnimal, setSelectedAnimal] = useState(null);
+    const transitioningRef = useRef(false);
+    const lastMessage = `${message}|${choices.map((choice) => choice.id).join(',')}`;
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        transitioningRef.current = true;
+        const timer = window.setTimeout(() => {
+            transitioningRef.current = false;
+            setTransitioning(false);
+            setSelectedAnimal(null);
+        }, 260);
+        return () => window.clearTimeout(timer);
+    }, [isOpen, lastMessage]);
+
+    if (!isOpen) return null;
+    const isAnimalPage = choices.length === 1 && choices[0]?.id === 'back' && animalEntries.length > 0;
+    const choose = (choice) => {
+        if (transitioning || transitioningRef.current) return;
+        onSelectChoice?.(choice);
+    };
+
+    return (
+        <div className="fixed inset-0 z-120 flex items-center justify-center bg-emerald-950/45 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-label="Ranger Guide">
+            <div className={cx('ranger-guide-panel relative flex max-h-[min(92dvh,48rem)] w-full max-w-3xl flex-col overflow-hidden', transitioning && 'ranger-guide-transition')}>
+                <header className="flex shrink-0 items-center gap-3 border-b-2 border-amber-200/80 px-4 py-3 sm:px-7 sm:py-4">
+                    <div className="ranger-portrait" aria-hidden="true">🧭</div>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xl font-black leading-none text-emerald-950 sm:text-3xl">{npcName || 'Ranger Lino'}</p>
+                        <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-amber-700 sm:text-xs">{npcRole || 'Zoo Ranger'}</p>
+                    </div>
+                    <button type="button" className="ranger-close-button" onClick={onClose} aria-label="Close Ranger Guide">×</button>
+                </header>
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-7 sm:py-5" data-ui-scrollable="true">
+                    <div className="ranger-speech-bubble">
+                        <p className="text-sm font-bold leading-relaxed text-emerald-950 sm:text-base">{message}</p>
+                    </div>
+                    {missionSteps.length > 0 && choices.some((choice) => choice.id === 'mission') ? null : null}
+                    {choices.some((choice) => choice.id === 'back') && missionSteps.length > 0 && !isAnimalPage ? (
+                        <div className="mt-4 rounded-2xl border-2 border-amber-200 bg-amber-50/80 p-3 sm:p-4">
+                            <div className="flex items-center justify-between gap-2"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Mission trail</p><p className="text-xs font-black text-emerald-800">{missionSteps.filter((step) => step.done).length} of {missionSteps.length} complete</p></div>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                {missionSteps.map((step) => <div key={step.title} className={cx('flex gap-2 rounded-xl p-2 text-xs font-bold', step.done ? 'bg-emerald-100 text-emerald-800' : 'bg-white/80 text-slate-700')}><span>{step.done ? '✓' : step.icon}</span><span><b>{step.title}</b><br /><span className="font-semibold opacity-80">{step.objective}</span></span></div>)}
+                            </div>
+                        </div>
+                    ) : null}
+                    {isAnimalPage ? (
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                            {animalEntries.map((animal) => <button type="button" key={animal.name} onClick={() => setSelectedAnimal(animal)} className="ranger-choice-button text-left"><span className="text-2xl">{animal.emoji}</span><span><b>{animal.name}</b><br /><i>{animal.scientific}</i></span></button>)}
+                            {selectedAnimal ? <div className="sm:col-span-2 rounded-2xl bg-emerald-50 p-3 text-xs font-semibold leading-relaxed text-emerald-950"><b>{selectedAnimal.name}</b> lives in {selectedAnimal.habitat.toLowerCase()}. It eats {selectedAnimal.diet.toLowerCase()}. <b>Fun fact:</b> {selectedAnimal.fact}<button type="button" className="mt-2 block font-black text-amber-700 underline" onClick={onOpenAnimalBook}>Open in Animal Book</button></div> : null}
+                        </div>
+                    ) : null}
+                    {!isAnimalPage ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{choices.map((choice) => <button type="button" key={choice.id} disabled={transitioning} onClick={() => choose(choice)} className={cx('ranger-choice-button', choice.accent && 'ranger-choice-accent')}><span className="text-xl">{choice.icon || '➜'}</span><span>{choice.label}</span></button>)}</div> : null}
+                </div>
+                <footer className="flex shrink-0 justify-between gap-2 border-t-2 border-amber-200/80 px-4 py-3 sm:px-7">
+                    <button type="button" className="ranger-footer-button" disabled={transitioning} onClick={() => choose({ id: 'back', nextId: 'root' })}>Back</button>
+                    <button type="button" className="ranger-footer-button ranger-footer-close" onClick={onClose}>Close</button>
+                </footer>
+            </div>
+        </div>
     );
 }
 
@@ -1400,19 +1500,7 @@ export function AnimalCaution({ visible }) {
     );
 }
 
-const ANIMAL_BOOK_ENTRIES = [
-    { name: 'White-tailed Deer', scientific: 'Odocoileus virginianus', file: 'Deer.gltf', habitat: 'Forest edges', diet: 'Leaves, grass, and berries', behavior: 'Alert and gentle', status: 'Least Concern', fact: 'Its white tail warns the herd of danger.', description: 'A graceful forest friend that helps keep plants growing in balance.' },
-    { name: 'Domestic Horse', scientific: 'Equus caballus', file: 'Horse.gltf', habitat: 'Open grassland', diet: 'Grass, hay, and grains', behavior: 'Social and curious', status: 'Domesticated', fact: 'Horses can sleep standing up.', description: 'A strong, kind companion that loves wide spaces and caring people.' },
-    { name: 'Ostrich', scientific: 'Struthio camelus', file: 'ostrich/scene.gltf', habitat: 'Dry grassland', diet: 'Plants and small insects', behavior: 'Fast runner', status: 'Least Concern', fact: 'It is the world’s largest living bird.', description: 'A tall bird with powerful legs and a very speedy run.' },
-    { name: 'Donkey', scientific: 'Equus asinus', file: 'Donkey.gltf', habitat: 'Grassland and farms', diet: 'Grass and hay', behavior: 'Patient and hardworking', status: 'Domesticated', fact: 'Long ears help donkeys stay cool.', description: 'A sure-footed helper with a calm and friendly nature.' },
-    { name: 'Domestic Cow', scientific: 'Bos taurus', file: 'Cow.gltf', habitat: 'Pastures and farms', diet: 'Grass and hay', behavior: 'Gentle herd animal', status: 'Domesticated', fact: 'Cows have excellent memories.', description: 'A peaceful grazer that enjoys living with its herd.' },
-    { name: 'Alpaca', scientific: 'Vicugna pacos', file: 'Alpaca.gltf', habitat: 'Mountain grasslands', diet: 'Grass and plants', behavior: 'Quiet and social', status: 'Domesticated', fact: 'Its fleece is soft and warm.', description: 'A fluffy animal from the Andes with a gentle personality.' },
-    { name: 'Red Deer Stag', scientific: 'Cervus elaphus', file: 'Stag.gltf', habitat: 'Woodlands', diet: 'Plants and grasses', behavior: 'Protective and alert', status: 'Least Concern', fact: 'A stag grows a new set of antlers each year.', description: 'A majestic deer whose antlers show how healthy it is.' },
-    { name: 'Bull', scientific: 'Bos taurus', file: 'Bull.gltf', habitat: 'Grassland and farms', diet: 'Grass and hay', behavior: 'Strong and watchful', status: 'Domesticated', fact: 'Bulls can recognize familiar faces.', description: 'A powerful bovine that deserves space, patience, and care.' },
-    { name: 'Forest Monkey', scientific: 'Macaca fascicularis', file: 'monkey/scene.gltf', habitat: 'Tropical forest', diet: 'Fruit, seeds, and insects', behavior: 'Playful and clever', status: 'Least Concern', fact: 'Monkeys use many different calls to communicate.', description: 'A clever climber that helps spread seeds through the forest.' },
-    { name: 'Rabbit', scientific: 'Oryctolagus cuniculus', file: 'rabbit/scene.gltf', habitat: 'Meadows and woodland edges', diet: 'Grass, herbs, and vegetables', behavior: 'Quiet and quick', status: 'Least Concern', fact: 'A rabbit’s teeth keep growing throughout its life.', description: 'A small, speedy friend with a twitching nose and soft fur.' },
-    { name: 'Bengal Tiger', scientific: 'Panthera tigris tigris', file: 'tiger/scene.gltf', habitat: 'Forests and grasslands', diet: 'Meat', behavior: 'Solitary and stealthy', status: 'Endangered', fact: 'Every tiger has a unique stripe pattern.', description: 'A magnificent big cat that needs protected forests to survive.' },
-];
+const ANIMAL_BOOK_ENTRIES = ANIMAL_METADATA;
 
 export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAnimals = {} }) {
     const [page, setPage] = useState(0);

@@ -34,6 +34,7 @@ import {
     NPCDialogueModal,
     RotateDeviceOverlay,
     RunButton,
+    RangerTipPop,
     AnimalCaution,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
@@ -49,8 +50,11 @@ import {
     getPlayerSession,
     savePlayerSession,
     getSettings,
-    getProgress
+    getProgress,
+    getMissionProgress,
+    saveMissionProgress
 } from './utils/storage.js';
+import { getAnimalBookEntry } from './data/animalMetadata.js';
 import {
     ESSENTIAL_ASSET_PATHS,
     releaseAssetObjectUrls,
@@ -94,40 +98,23 @@ const STAFF_NPC_CONFIG = {
 const STAFF_DIALOGUE_NODES = {
     root: {
         id: 'root',
-        message: 'Welcome to Bulusan Zootopia Adventure! I am Ranger Lino. Need help with the animals today?',
+        message: 'Hello, explorer! I am Ranger Lino, your Zoo Ranger guide. I can help you care for animals and finish your mission.',
         choices: [
-            { id: 'animals', label: 'Tell me about the animals.', nextId: 'animals' },
-            { id: 'safety', label: 'What are the safety rules?', nextId: 'safety' },
-            { id: 'bulusan', label: 'What makes Bulusan special?', nextId: 'bulusan' },
-            { id: 'tasks', label: 'How do I finish my zoo mission?', nextId: 'tasks' },
-            { id: 'controls', label: 'How do I explore the zoo?', nextId: 'controls' },
-            { id: 'tools', label: 'What are the book and camera for?', nextId: 'tools' },
-            { id: 'bye', label: 'Thanks, I will explore now.', close: true }
+            { id: 'mission', label: 'Current Mission', nextId: 'mission', icon: '★', accent: true },
+            { id: 'animals', label: 'Learn About Animals', nextId: 'animals', icon: '🐾' },
+            { id: 'bulusan', label: 'About Bulusan', nextId: 'bulusan', icon: '🌋' },
+            { id: 'how', label: 'How to Play', nextId: 'how', icon: '🧭' },
+            { id: 'bye', label: 'Goodbye', close: true, icon: '👋' }
         ]
     },
     animals: {
         id: 'animals',
-        message: 'Our animals need gentle care. If you see one nearby, feed it and check its details. Well-fed animals stay calm and happy.',
-        choices: [
-            { id: 'animals-more', label: 'Any tip for feeding all animals fast?', nextId: 'animalsMore' },
-            { id: 'safety', label: 'How should I approach animals?', nextId: 'safety' },
-            { id: 'back', label: 'Back', nextId: 'root' }
-        ]
-    },
-    safety: {
-        id: 'safety',
-        message: 'Stay outside the tiger enclosure and never try to feed the tiger. Approach the gentle animals slowly, keep a respectful distance, and stop if an animal seems uncomfortable. The warning on screen means you are too close to danger.',
+        message: 'Meet the animals you have discovered. Choose an animal to learn a little more.',
         choices: [
             { id: 'back', label: 'Back', nextId: 'root' }
         ]
     },
-    animalsMore: {
-        id: 'animalsMore',
-        message: 'Follow the paths around the zoo and use your task list often. When all tasks are complete, you can claim your certificate.',
-        choices: [
-            { id: 'back', label: 'Back', nextId: 'root' }
-        ]
-    },
+    mission: { id: 'mission', message: 'Let us care for a horse and rabbit together. I will remind you what to do next.', choices: [{ id: 'back', label: 'Back', nextId: 'root' }] },
     bulusan: {
         id: 'bulusan',
         message: 'Bulusan is known for rich nature and wildlife around the forest area. This adventure teaches kids to protect local habitats.',
@@ -135,16 +122,9 @@ const STAFF_DIALOGUE_NODES = {
             { id: 'back', label: 'Back', nextId: 'root' }
         ]
     },
-    tasks: {
-        id: 'tasks',
-        message: 'Your mission is simple: discover animals, feed each one, and track progress in My Tasks. Keep going until every animal is fed.',
-        choices: [
-            { id: 'back', label: 'Back', nextId: 'root' }
-        ]
-    },
-    controls: {
-        id: 'controls',
-        message: 'Use the on-screen joystick, Run, and Jump controls on mobile. On Windows, use WASD or the arrow keys to move, Shift to run, and the mouse to look around. Press V to switch between first- and third-person views.',
+    how: {
+        id: 'how',
+        message: 'Walk with the joystick or WASD. Use Run and Jump when you need them. Walk near a gentle animal and hold Feed. Press T or E near me to talk.',
         choices: [
             { id: 'back', label: 'Back', nextId: 'root' }
         ]
@@ -521,10 +501,12 @@ function MiniZooGame() {
 
     const [nearbyAnimal, setNearbyAnimal] = useState(null);
     const [tasks, setTasks] = useState(getTasks());
+    const [missionProgress, setMissionProgress] = useState(() => getMissionProgress());
+    const missionProgressRef = useRef(missionProgress);
     const [playerName, setPlayerName] = useState(() => getStoredPlayerName());
 
     const [feedingSuccess, setFeedingSuccess] = useState({ visible: false, animalName: '' });
-    const [discoveredAnimals, setDiscoveredAnimals] = useState(() => getProgress().animalsDiscovered);
+    const [discoveredAnimals, setDiscoveredAnimals] = useState(() => [...new Set(getProgress().animalsDiscovered.map((name) => getAnimalBookEntry(name)?.name || name))]);
     const [photoPreview, setPhotoPreview] = useState('');
     const [cameraFlash, setCameraFlash] = useState(false);
     const [feedingProgress, setFeedingProgress] = useState(0);
@@ -828,15 +810,16 @@ function MiniZooGame() {
     }, []);
 
     const beginFeed = useCallback((animal, info) => {
-        if (!animal || !info?.name || feedingInProgressRef.current || !gameStartedRef.current || isAnimalFed(info.name)) return;
+        const missionAnimal = getAnimalBookEntry(info?.name)?.name || info?.name;
+        if (!animal || !missionAnimal || feedingInProgressRef.current || !gameStartedRef.current || isAnimalFed(missionAnimal)) return;
         if (info.requiredItem && info.hasRequiredItem === false) return;
 
-        feedingInProgressRef.current = info.name;
+        feedingInProgressRef.current = missionAnimal;
         feedingStartedAtRef.current = performance.now();
         setIsFeeding(true);
         setFeedingProgress(0);
         const updateProgress = (now) => {
-            if (feedingInProgressRef.current !== info.name) return;
+            if (feedingInProgressRef.current !== missionAnimal) return;
             const progress = Math.min(1, (now - feedingStartedAtRef.current) / 1500);
             setFeedingProgress(progress);
             if (progress < 1) {
@@ -846,16 +829,26 @@ function MiniZooGame() {
         feedingFrameRef.current = requestAnimationFrame(updateProgress);
         feedingTimerRef.current = setTimeout(() => {
             feedingTimerRef.current = null;
-            if (!gameStartedRef.current || feedingInProgressRef.current !== info.name) return;
+            if (!gameStartedRef.current || feedingInProgressRef.current !== missionAnimal) return;
 
             if (getSfxVolume() > 0) {
                 animal.playSound?.();
             }
             playGameButtonSfx('feed');
-            markAnimalDiscovered(info.name);
-            feedAnimal(info.name);
+            markAnimalDiscovered(missionAnimal);
+            feedAnimal(missionAnimal);
+            let nextMission = missionAnimal === 'Domestic Horse'
+                ? saveMissionProgress({ fedHorse: true })
+                : missionAnimal === 'Rabbit'
+                    ? saveMissionProgress({ fedRabbit: true })
+                    : getMissionProgress();
+            if (nextMission.talkedToRanger && nextMission.fedHorse && nextMission.fedRabbit && !nextMission.rewardClaimed) {
+                nextMission = saveMissionProgress({ rewardClaimed: true });
+            }
+            missionProgressRef.current = nextMission;
+            setMissionProgress(nextMission);
             setTasks(getTasks());
-            setFeedingSuccess({ visible: true, animalName: info.name });
+            setFeedingSuccess({ visible: true, animalName: missionAnimal });
             playVictoryAnimation();
             animal.playAnimation?.('eat', { loopOnce: true });
             feedingInProgressRef.current = null;
@@ -1386,8 +1379,9 @@ function MiniZooGame() {
                         if (nextNearbyAnimal) {
                             const info = nextNearbyAnimal.getInfo ? nextNearbyAnimal.getInfo() : nextNearbyAnimal.config;
                             if (info?.name) {
-                                const progress = markAnimalDiscovered(info.name);
-                                setDiscoveredAnimals(progress.animalsDiscovered);
+                                const discoveredName = getAnimalBookEntry(info.name)?.name || info.name;
+                                const progress = markAnimalDiscovered(discoveredName);
+                                setDiscoveredAnimals([...new Set(progress.animalsDiscovered.map((name) => getAnimalBookEntry(name)?.name || name))]);
                             }
                         }
                         setNearbyAnimal(nextNearbyAnimal);
@@ -1675,6 +1669,9 @@ function MiniZooGame() {
         state.keys.shift = false;
         setNpcDialogueNodeId('root');
         setShowNpcDialogue(true);
+        const nextMission = saveMissionProgress({ talkedToRanger: true });
+        missionProgressRef.current = nextMission;
+        setMissionProgress(nextMission);
     }, [closeInterfaces, nearbyStaff, gameStarted, characterReady]);
 
     const closeNpcDialogue = useCallback(() => {
@@ -2007,7 +2004,22 @@ function MiniZooGame() {
     useEffect(() => {
         if (interfaceOpen || document.hidden) clearFeedingTimer();
     }, [interfaceOpen, clearFeedingTimer]);
-    const npcDialogueNode = getStaffDialogueNode(npcDialogueNodeId);
+    const missionSteps = [
+        { title: 'Talk to Ranger Lino', objective: 'Say hello and get your ranger mission.', done: missionProgress.talkedToRanger, icon: '👋' },
+        { title: 'Feed the horse', objective: 'Find the friendly horse and hold Feed.', done: missionProgress.fedHorse, icon: '🐴' },
+        { title: 'Feed the rabbit', objective: 'Find either rabbit and hold Feed for a gentle snack.', done: missionProgress.fedRabbit, icon: '🐇' }
+    ];
+    const missionComplete = missionSteps.every((step) => step.done);
+    const rangerTips = !missionProgress.talkedToRanger
+        ? ['Can you find me? Walk close and say hello to start our animal adventure!', 'Look around the paths and listen for animal sounds.']
+        : !missionProgress.fedHorse
+            ? ['Look for the friendly horse. Hold Feed to give it a gentle snack.', 'Be gentle and patient. Animals like calm Zoo Rangers.']
+            : !missionProgress.fedRabbit
+                ? ['Find either rabbit and hold Feed to help it have a snack.', 'Rabbits are quiet and quick. Move slowly so you do not surprise them.']
+                : ['You cared for two animals! Keep exploring and discover more zoo friends.', 'Open the Animal Book to learn a fun fact about every animal you meet.'];
+    const npcDialogueNode = npcDialogueNodeId === 'mission'
+        ? { ...getStaffDialogueNode('mission'), message: missionComplete ? 'You did it! The horse and rabbit are cared for. Your ranger reward is safe in your progress.' : 'Here is your ranger trail. Complete each step in order, and I will keep your progress safe.' }
+        : getStaffDialogueNode(npcDialogueNodeId);
     const canShowNpcPrompt = gameStarted
         && characterReady
         && nearbyStaff
@@ -2031,6 +2043,7 @@ function MiniZooGame() {
             )}
             {gameStarted && (
                 <>
+                     <RangerTipPop visible={!interfaceOpen && gameStarted && characterReady} tips={rangerTips} />
                      <GameHUD
                         playerName={playerName || 'Explorer'}
                          onMenuClick={handleMenuClick}
@@ -2041,9 +2054,9 @@ function MiniZooGame() {
                         totalTasks={totalCount}
                         isTouchDevice={isTouchDevice}
                     />
-                    <Joystick baseRef={baseRef} stickRef={stickRef} isTouchDevice={isTouchDevice} />
-                     <RunButton isTouchDevice={isTouchDevice} onRunStart={() => handleRunInput(true)} onRunEnd={() => handleRunInput(false)} />
-                     <JumpButton jumpRef={jumpRef} isTouchDevice={isTouchDevice} />
+                     {!interfaceOpen ? <Joystick baseRef={baseRef} stickRef={stickRef} isTouchDevice={isTouchDevice} /> : null}
+                      {!interfaceOpen ? <RunButton isTouchDevice={isTouchDevice} onRunStart={() => handleRunInput(true)} onRunEnd={() => handleRunInput(false)} /> : null}
+                      {!interfaceOpen ? <JumpButton jumpRef={jumpRef} isTouchDevice={isTouchDevice} /> : null}
                      <HoldToFeedControl
                          visible={Boolean(nearbyAnimal && !isDangerousAnimalNearby && gameStarted && characterReady && !interfaceOpen)}
                          animalName={nearbyAnimalInfo?.name}
@@ -2086,6 +2099,9 @@ function MiniZooGame() {
                         message={npcDialogueNode.message}
                         choices={npcDialogueNode.choices}
                         onSelectChoice={handleNpcChoice}
+                        missionSteps={missionSteps}
+                        animalEntries={discoveredAnimals.map((name) => getAnimalBookEntry(name)).filter(Boolean)}
+                        onOpenAnimalBook={() => { closeNpcDialogue(); openBook(); }}
                     />
                      <FeedingSuccessNotification visible={feedingSuccess.visible} animalName={feedingSuccess.animalName} onHide={handleHideFeedSuccess} />
                     <CameraPreview dataUrl={photoPreview} onSave={savePhoto} onRetake={() => { setPhotoPreview(''); captureScene(); }} onClose={() => setPhotoPreview('')} />

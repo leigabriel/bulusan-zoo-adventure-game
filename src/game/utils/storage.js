@@ -9,6 +9,14 @@ const STORAGE_KEYS = {
     FEEDING_STATUS: 'minizoo_feeding'
 };
 
+const DEFAULT_MISSION_PROGRESS = {
+    talkedToRanger: false,
+    fedHorse: false,
+    foundCarrot: false,
+    fedRabbit: false,
+    rewardClaimed: false
+};
+
 // Default values
 const DEFAULT_SETTINGS = {
     ambienceVolume: 1.0,
@@ -186,6 +194,7 @@ export function feedAnimal(animalName) {
 
 export function isAnimalFed(animalName) {
     const status = getFeedingStatus();
+    if (animalName === 'Rabbit' && (status['Rabbit (Idle)']?.fed || status['Rabbit (Walk)']?.fed)) return true;
     return status[animalName]?.fed || false;
 }
 
@@ -204,6 +213,17 @@ export function resetAllFeedingTasks() {
     return {};
 }
 
+export function getMissionProgress() {
+    const stored = localStorage.getItem('minizoo_missions');
+    return { ...DEFAULT_MISSION_PROGRESS, ...safeParse(stored, {}) };
+}
+
+export function saveMissionProgress(progress) {
+    const updated = { ...getMissionProgress(), ...progress };
+    localStorage.setItem('minizoo_missions', JSON.stringify(updated));
+    return updated;
+}
+
 /**
  * Get all tasks with completion status
  */
@@ -215,14 +235,14 @@ export function getTasks() {
         'White-tailed Deer', 'Domestic Horse',
         'Donkey', 'Domestic Cow', 'Alpaca', 'Ostrich',
         'Red Deer Stag', 'Bull', 'Forest Monkey',
-        'Rabbit (Idle)', 'Rabbit (Walk)'
+        'Rabbit'
     ];
     
     return animalNames.map(name => ({
         id: name.toLowerCase().replace(/\s+/g, '_'),
         name: `Feed the ${name}`,
         animalName: name,
-        completed: feedingStatus[name]?.fed || false,
+        completed: feedingStatus[name]?.fed || (name === 'Rabbit' && (feedingStatus['Rabbit (Idle)']?.fed || feedingStatus['Rabbit (Walk)']?.fed)) || false,
         feedCount: feedingStatus[name]?.feedCount || 0
     }));
 }

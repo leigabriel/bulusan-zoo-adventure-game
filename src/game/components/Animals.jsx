@@ -4,6 +4,7 @@ import { alignObjectToTerrain, getTerrainHeight, PLAYABLE_BOUNDARY } from './Ter
 import { isLandAccessible } from './River.jsx';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
+import { getAnimalBookEntry } from '../data/animalMetadata.js';
 
 const ANIMAL_CONFIGS = [
     {
@@ -436,11 +437,12 @@ class GLTFAnimal {
     }
 
     getInfo() {
+        const metadata = getAnimalBookEntry(this.config.name) || {};
         return {
             name: this.config.name,
-            species: this.config.species,
-            emoji: this.config.emoji,
-            description: this.config.description,
+            species: metadata.scientific || this.config.species,
+            emoji: metadata.emoji || this.config.emoji,
+            description: metadata.description || this.config.description,
             requiredItem: this.config.requiredItem,
             hasRequiredItem: this.config.hasRequiredItem,
         };
