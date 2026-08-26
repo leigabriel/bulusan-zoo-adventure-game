@@ -210,38 +210,12 @@ export function loadTrees(scene, quality = 'medium') {
         const validModels = models.filter(m => m !== null);
         if (validModels.length === 0) return trees;
 
-        const budgets = { low: 150, medium: 285, high: 430 };
-        const interiorBudgets = { low: 18, medium: 48, high: 88 };
+        const budgets = { low: 110, medium: 220, high: 340 };
         const budget = budgets[quality] || budgets.medium;
-        const boundaryPlacements = [];
-        const layers = quality === 'low'
-            ? [{ edge: 242, spacing: 15 }, { edge: 225, spacing: 18 }, { edge: 207, spacing: 22 }]
-            : [{ edge: 244, spacing: 9 }, { edge: 232, spacing: 10 }, { edge: 218, spacing: 12 }, { edge: 204, spacing: 16 }];
 
-        // Sample each side independently so square corners and all four outer
-        // edges are covered, with the tightest spacing at the map boundary.
-        layers.forEach(({ edge, spacing }) => {
-            const samples = Math.ceil((edge * 2) / spacing);
-            for (let side = 0; side < 4; side += 1) {
-                for (let i = 0; i < samples; i += 1) {
-                    const along = -edge + ((i + 0.5) / samples) * edge * 2;
-                    const jitter = (Math.random() - 0.5) * spacing * 0.65;
-                    const x = side === 0 ? -edge : side === 1 ? edge : along + jitter;
-                    const z = side === 2 ? -edge : side === 3 ? edge : along + jitter;
-                    if (isLandAccessible(x, z, 2.5)) {
-                        boundaryPlacements.push({ x, z, outer: true, scale: 2.3 + Math.random() * 2.8, rotation: Math.random() * Math.PI * 2 });
-                    }
-                }
-            }
-        });
-
-        // Keep the quality budget predictable while preserving every side.
-        const selectedBoundary = boundaryPlacements.length <= budget
-            ? boundaryPlacements
-            : boundaryPlacements.sort((a, b) => Math.max(Math.abs(b.x), Math.abs(b.z)) - Math.max(Math.abs(a.x), Math.abs(a.z))).slice(0, budget);
-
-        // Interior trees add variety without obscuring the central zoo, paths,
-        // river, habitats, NPC area, or the windmill clearing.
+        // Random sampling avoids the artificial perimeter rows. The outermost
+        // terrain band is intentionally less likely to receive a tree so the
+        // fence remains readable from every direction.
         const clearings = [
             { x: 0, z: 0, radius: 78 },
             { x: 105, z: -80, radius: 34 },
@@ -253,19 +227,25 @@ export function loadTrees(scene, quality = 'medium') {
             { x: 145, z: -155, radius: 38 },
             { x: -145, z: -155, radius: 38 },
         ];
-        const interior = [];
-        const interiorBudget = interiorBudgets[quality] || interiorBudgets.medium;
+        const selected = [];
         let attempts = 0;
-        while (interior.length < interiorBudget && attempts < interiorBudget * 30) {
+        while (selected.length < budget && attempts < budget * 35) {
             attempts += 1;
-            const x = THREE.MathUtils.randFloat(-180, 180);
-            const z = THREE.MathUtils.randFloat(-180, 180);
-            if (!isLandAccessible(x, z, 3)) continue;
+            const x = THREE.MathUtils.randFloat(-235, 235);
+            const z = THREE.MathUtils.randFloat(-235, 235);
+            const edgeDistance = 235 - Math.max(Math.abs(x), Math.abs(z));
+            if (edgeDistance < 28 && Math.random() < 0.72) continue;
+            if (!isLandAccessible(x, z, 3.5)) continue;
             if (clearings.some((clearing) => (x - clearing.x) ** 2 + (z - clearing.z) ** 2 < clearing.radius ** 2)) continue;
-            if (interior.some((tree) => (x - tree.x) ** 2 + (z - tree.z) ** 2 < 8 ** 2)) continue;
-            interior.push({ x, z, outer: false, scale: 1.6 + Math.random() * 2.3, rotation: Math.random() * Math.PI * 2 });
+            if (selected.some((tree) => (x - tree.x) ** 2 + (z - tree.z) ** 2 < 8 ** 2)) continue;
+            selected.push({
+                x,
+                z,
+                outer: Math.abs(x) > PLAYABLE_BOUNDARY || Math.abs(z) > PLAYABLE_BOUNDARY,
+                scale: 1.6 + Math.random() * 2.3,
+                rotation: Math.random() * Math.PI * 2
+            });
         }
-        const selected = selectedBoundary.concat(interior);
         const grouped = validModels.map(() => []);
         selected.forEach((placement) => grouped[Math.floor(Math.random() * grouped.length)].push(placement));
 
@@ -304,6 +284,60 @@ export function loadTrees(scene, quality = 'medium') {
     });
 
     return { trees, loadPromise };
+}
+
+export function createFence(scene, quality = 'medium') {
+    const fence = new THREE.Group();
+    const boundary = PLAYABLE_BOUNDARY;
+    const postSpacing = quality === 'low' ? 16 : 12;
+    const postCountPerSide = Math.ceil((boundary * 2) / postSpacing) + 1;
+    const postGeometry = new THREE.BoxGeometry(0.9, 5.5, 0.9);
+    const railGeometry = new THREE.BoxGeometry(1, 0.42, 0.42);
+    const material = new THREE.MeshStandardMaterial({ color: 0x8b5a32, roughness: 0.9 });
+    const posts = new THREE.InstancedMesh(postGeometry, material, postCountPerSide * 4);
+    const rails = new THREE.InstancedMesh(railGeometry, material, (postCountPerSide - 1) * 4 * 2);
+    const postMatrix = new THREE.Matrix4();
+    const railMatrix = new THREE.Matrix4();
+    const rotation = new THREE.Matrix4();
+    const scale = new THREE.Matrix4();
+    let postIndex = 0;
+    let railIndex = 0;
+
+    for (let side = 0; side < 4; side += 1) {
+        const horizontal = side > 1;
+        const fixed = side % 2 === 0 ? -boundary : boundary;
+        for (let i = 0; i < postCountPerSide; i += 1) {
+            const along = -boundary + (i / (postCountPerSide - 1)) * boundary * 2;
+            const x = horizontal ? along : fixed;
+            const z = horizontal ? fixed : along;
+            postMatrix.makeTranslation(x, getTerrainHeight(x, z) + 2.75, z);
+            posts.setMatrixAt(postIndex++, postMatrix);
+
+            if (i === postCountPerSide - 1) continue;
+            const nextAlong = -boundary + ((i + 1) / (postCountPerSide - 1)) * boundary * 2;
+            const nextX = horizontal ? nextAlong : fixed;
+            const nextZ = horizontal ? fixed : nextAlong;
+            const midX = (x + nextX) * 0.5;
+            const midZ = (z + nextZ) * 0.5;
+            const length = Math.abs(nextAlong - along);
+            for (const height of [1.7, 3.4]) {
+                railMatrix.makeTranslation(midX, (getTerrainHeight(x, z) + getTerrainHeight(nextX, nextZ)) * 0.5 + height, midZ);
+                rotation.makeRotationY(horizontal ? 0 : Math.PI / 2);
+                scale.makeScale(length, 1, 1);
+                rails.setMatrixAt(railIndex++, railMatrix.clone().multiply(rotation).multiply(scale));
+            }
+        }
+    }
+
+    posts.instanceMatrix.needsUpdate = true;
+    rails.instanceMatrix.needsUpdate = true;
+    posts.computeBoundingSphere();
+    rails.computeBoundingSphere();
+    posts.castShadow = quality !== 'low';
+    rails.castShadow = quality !== 'low';
+    fence.add(posts, rails);
+    scene.add(fence);
+    return fence;
 }
 
 export function loadBushes(scene, count = 100) {

@@ -45,8 +45,10 @@ function getQualityConfig(quality) {
             toneMappingExposure: 1.0,
         },
         high: {
-            pixelRatio: Math.min(dpr, 2.0),
-            antialias: true,
+            // High mode keeps detail on phones, but avoids a 2x render target
+            // and MSAA, both of which are disproportionately expensive there.
+            pixelRatio: isMobile ? Math.min(dpr, 1.25) : Math.min(dpr, 2.0),
+            antialias: !isMobile,
             shadows: true,
             toneMappingExposure: 1.1,
         },

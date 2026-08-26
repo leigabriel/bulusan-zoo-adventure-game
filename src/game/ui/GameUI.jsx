@@ -589,7 +589,8 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = 
                             label="FPS Limit"
                             options={[
                                 { label: '30', value: 30 },
-                                { label: '60', value: 60 }
+                                { label: '60', value: 60 },
+                                { label: '120', value: 120 }
                             ]}
                             value={settings.fpsLimit ?? 60}
                             onChange={(val) => {

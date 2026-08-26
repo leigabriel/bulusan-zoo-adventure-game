@@ -89,7 +89,7 @@ export function setGraphicsQuality(quality) {
 }
 
 export function setFpsLimit(fps) {
-    const valid = [24, 30, 60];
+    const valid = [24, 30, 60, 120];
     if (!valid.includes(fps)) return getSettings();
     return saveSettings({ fpsLimit: fps });
 }
