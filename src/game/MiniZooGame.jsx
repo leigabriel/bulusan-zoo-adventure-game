@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
-import { createTerrain, createFence, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache, PLAYABLE_BOUNDARY } from './components/Terrain.jsx';
+import { createTerrain, createFence, createTigerEnclosure, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache, PLAYABLE_BOUNDARY } from './components/Terrain.jsx';
 import { loadGLTFAnimals, loadAmbientBirds, releaseAnimalModelCache } from './components/Animals.jsx';
 import { createRiver, updateRiver, updateRiverQuality, disposeRiver, isLandAccessible, findAccessiblePosition } from './components/River.jsx';
 import { loadNewHouses } from './components/Structures.jsx';
@@ -34,6 +34,7 @@ import {
     NPCDialogueModal,
     RotateDeviceOverlay,
     RunButton,
+    AnimalCaution,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
 import { AnimalBookModal, CameraPreview } from './ui/ExplorationHUD.jsx';
@@ -96,8 +97,11 @@ const STAFF_DIALOGUE_NODES = {
         message: 'Welcome to Bulusan Zootopia Adventure! I am Ranger Lino. Need help with the animals today?',
         choices: [
             { id: 'animals', label: 'Tell me about the animals.', nextId: 'animals' },
+            { id: 'safety', label: 'What are the safety rules?', nextId: 'safety' },
             { id: 'bulusan', label: 'What makes Bulusan special?', nextId: 'bulusan' },
             { id: 'tasks', label: 'How do I finish my zoo mission?', nextId: 'tasks' },
+            { id: 'controls', label: 'How do I explore the zoo?', nextId: 'controls' },
+            { id: 'tools', label: 'What are the book and camera for?', nextId: 'tools' },
             { id: 'bye', label: 'Thanks, I will explore now.', close: true }
         ]
     },
@@ -106,6 +110,14 @@ const STAFF_DIALOGUE_NODES = {
         message: 'Our animals need gentle care. If you see one nearby, feed it and check its details. Well-fed animals stay calm and happy.',
         choices: [
             { id: 'animals-more', label: 'Any tip for feeding all animals fast?', nextId: 'animalsMore' },
+            { id: 'safety', label: 'How should I approach animals?', nextId: 'safety' },
+            { id: 'back', label: 'Back', nextId: 'root' }
+        ]
+    },
+    safety: {
+        id: 'safety',
+        message: 'Stay outside the tiger enclosure and never try to feed the tiger. Approach the gentle animals slowly, keep a respectful distance, and stop if an animal seems uncomfortable. The warning on screen means you are too close to danger.',
+        choices: [
             { id: 'back', label: 'Back', nextId: 'root' }
         ]
     },
@@ -126,6 +138,20 @@ const STAFF_DIALOGUE_NODES = {
     tasks: {
         id: 'tasks',
         message: 'Your mission is simple: discover animals, feed each one, and track progress in My Tasks. Keep going until every animal is fed.',
+        choices: [
+            { id: 'back', label: 'Back', nextId: 'root' }
+        ]
+    },
+    controls: {
+        id: 'controls',
+        message: 'Use the on-screen joystick, Run, and Jump controls on mobile. On Windows, use WASD or the arrow keys to move, Shift to run, and the mouse to look around. Press V to switch between first- and third-person views.',
+        choices: [
+            { id: 'back', label: 'Back', nextId: 'root' }
+        ]
+    },
+    tools: {
+        id: 'tools',
+        message: 'The book records animals you discover and shows their facts. The camera captures a view of your adventure so you can save or share a zoo photo. Your task progress is always available from the task list.',
         choices: [
             { id: 'back', label: 'Back', nextId: 'root' }
         ]
@@ -961,6 +987,7 @@ function MiniZooGame() {
             createLighting(scene);
             createTerrain(scene);
             createFence(scene, quality);
+            createTigerEnclosure(scene, quality);
             state.river = createRiver(scene, getTerrainHeight, quality);
             addStatueLights(scene);
             setLoadProgress(15);
@@ -1973,7 +2000,8 @@ function MiniZooGame() {
 
     const nearbyAnimalInfo = nearbyAnimal ? (nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config) : null;
     const nearbyAnimalFed = nearbyAnimalInfo ? isAnimalFed(nearbyAnimalInfo.name) : false;
-    const feedingBlocked = Boolean(nearbyAnimalInfo?.requiredItem && nearbyAnimalInfo.hasRequiredItem === false);
+    const isDangerousAnimalNearby = Boolean(nearbyAnimalInfo?.dangerous);
+    const feedingBlocked = isDangerousAnimalNearby || Boolean(nearbyAnimalInfo?.requiredItem && nearbyAnimalInfo.hasRequiredItem === false);
     const interfaceOpen = settingsOpen || tasksOpen || showNpcDialogue || bookOpen || photoPreview || showQuitModal || showResetTasksModal || showAllFedCelebration || showCertificate;
 
     useEffect(() => {
@@ -2017,7 +2045,7 @@ function MiniZooGame() {
                      <RunButton isTouchDevice={isTouchDevice} onRunStart={() => handleRunInput(true)} onRunEnd={() => handleRunInput(false)} />
                      <JumpButton jumpRef={jumpRef} isTouchDevice={isTouchDevice} />
                      <HoldToFeedControl
-                         visible={Boolean(nearbyAnimal && gameStarted && characterReady && !interfaceOpen)}
+                         visible={Boolean(nearbyAnimal && !isDangerousAnimalNearby && gameStarted && characterReady && !interfaceOpen)}
                          animalName={nearbyAnimalInfo?.name}
                          progress={nearbyAnimalFed ? 1 : feedingProgress}
                          isHolding={isFeeding}
@@ -2026,7 +2054,8 @@ function MiniZooGame() {
                         message={feedingBlocked ? `Find a ${nearbyAnimalInfo.requiredItem} first` : ''}
                          onStart={handleFeedAnimal}
                          onEnd={clearFeedingTimer}
-                     />
+                      />
+                      <AnimalCaution visible={isDangerousAnimalNearby && gameStarted && characterReady && !interfaceOpen} />
                     <AnimalBookModal
                         isOpen={bookOpen}
                         onClose={closeBook}

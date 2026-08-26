@@ -215,7 +215,7 @@ export function getTasks() {
         'White-tailed Deer', 'Domestic Horse',
         'Donkey', 'Domestic Cow', 'Alpaca', 'Ostrich',
         'Red Deer Stag', 'Bull', 'Forest Monkey',
-        'Rabbit (Idle)', 'Rabbit (Walk)', 'Bengal Tiger'
+        'Rabbit (Idle)', 'Rabbit (Walk)'
     ];
     
     return animalNames.map(name => ({

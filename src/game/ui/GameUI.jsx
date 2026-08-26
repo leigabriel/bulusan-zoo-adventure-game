@@ -1387,6 +1387,19 @@ export function HoldToFeedControl({
     );
 }
 
+export function AnimalCaution({ visible }) {
+    if (!visible) return null;
+
+    return (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+13.8rem)] z-70 flex justify-center px-3 sm:bottom-52">
+            <div className="rounded-2xl border-2 border-red-200 bg-red-950/90 px-4 py-2 text-center text-white shadow-xl">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-300">Caution: Dangerous Animal</p>
+                <p className="mt-1 text-[11px] font-bold">Please avoid contact with the tiger. Do not feed it.</p>
+            </div>
+        </div>
+    );
+}
+
 const ANIMAL_BOOK_ENTRIES = [
     { name: 'White-tailed Deer', scientific: 'Odocoileus virginianus', file: 'Deer.gltf', habitat: 'Forest edges', diet: 'Leaves, grass, and berries', behavior: 'Alert and gentle', status: 'Least Concern', fact: 'Its white tail warns the herd of danger.', description: 'A graceful forest friend that helps keep plants growing in balance.' },
     { name: 'Domestic Horse', scientific: 'Equus caballus', file: 'Horse.gltf', habitat: 'Open grassland', diet: 'Grass, hay, and grains', behavior: 'Social and curious', status: 'Domesticated', fact: 'Horses can sleep standing up.', description: 'A strong, kind companion that loves wide spaces and caring people.' },

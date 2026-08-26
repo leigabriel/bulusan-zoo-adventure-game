@@ -12,6 +12,7 @@ const TERRAIN_SEGMENTS = 140;
 // The playable area ends before the perimeter forest begins. Keeping this in
 // the terrain module lets movement, animals, and scenery use the same map edge.
 export const PLAYABLE_BOUNDARY = 194;
+export const TIGER_ENCLOSURE = { x: 145, z: 120, halfSize: 24 };
 
 const modelCache = new Map();
 
@@ -286,9 +287,9 @@ export function loadTrees(scene, quality = 'medium') {
     return { trees, loadPromise };
 }
 
-export function createFence(scene, quality = 'medium') {
+function createSquareFence(scene, centerX, centerZ, halfSize, quality = 'medium') {
     const fence = new THREE.Group();
-    const boundary = PLAYABLE_BOUNDARY;
+    const boundary = halfSize;
     const postSpacing = quality === 'low' ? 16 : 12;
     const postCountPerSide = Math.ceil((boundary * 2) / postSpacing) + 1;
     const postGeometry = new THREE.BoxGeometry(0.9, 5.5, 0.9);
@@ -308,15 +309,15 @@ export function createFence(scene, quality = 'medium') {
         const fixed = side % 2 === 0 ? -boundary : boundary;
         for (let i = 0; i < postCountPerSide; i += 1) {
             const along = -boundary + (i / (postCountPerSide - 1)) * boundary * 2;
-            const x = horizontal ? along : fixed;
-            const z = horizontal ? fixed : along;
+            const x = horizontal ? centerX + along : centerX + fixed;
+            const z = horizontal ? centerZ + fixed : centerZ + along;
             postMatrix.makeTranslation(x, getTerrainHeight(x, z) + 2.75, z);
             posts.setMatrixAt(postIndex++, postMatrix);
 
             if (i === postCountPerSide - 1) continue;
             const nextAlong = -boundary + ((i + 1) / (postCountPerSide - 1)) * boundary * 2;
-            const nextX = horizontal ? nextAlong : fixed;
-            const nextZ = horizontal ? fixed : nextAlong;
+            const nextX = horizontal ? centerX + nextAlong : centerX + fixed;
+            const nextZ = horizontal ? centerZ + fixed : centerZ + nextAlong;
             const midX = (x + nextX) * 0.5;
             const midZ = (z + nextZ) * 0.5;
             const length = Math.abs(nextAlong - along);
@@ -338,6 +339,14 @@ export function createFence(scene, quality = 'medium') {
     fence.add(posts, rails);
     scene.add(fence);
     return fence;
+}
+
+export function createFence(scene, quality = 'medium') {
+    return createSquareFence(scene, 0, 0, PLAYABLE_BOUNDARY, quality);
+}
+
+export function createTigerEnclosure(scene, quality = 'medium') {
+    return createSquareFence(scene, TIGER_ENCLOSURE.x, TIGER_ENCLOSURE.z, TIGER_ENCLOSURE.halfSize, quality);
 }
 
 export function loadBushes(scene, count = 100) {

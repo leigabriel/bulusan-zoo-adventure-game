@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getTerrainHeight, PLAYABLE_BOUNDARY } from '../components/Terrain.jsx';
+import { getTerrainHeight, PLAYABLE_BOUNDARY, TIGER_ENCLOSURE } from '../components/Terrain.jsx';
 
 const WALK_SPEED = 15;
 const RUN_SPEED = 22;
@@ -115,6 +115,21 @@ export function createMovementHandler(camera, state) {
                 }
             }
         };
+        const enclosureMinX = TIGER_ENCLOSURE.x - TIGER_ENCLOSURE.halfSize;
+        const enclosureMaxX = TIGER_ENCLOSURE.x + TIGER_ENCLOSURE.halfSize;
+        const enclosureMinZ = TIGER_ENCLOSURE.z - TIGER_ENCLOSURE.halfSize;
+        const enclosureMaxZ = TIGER_ENCLOSURE.z + TIGER_ENCLOSURE.halfSize;
+        if (nextX > enclosureMinX && nextX < enclosureMaxX && nextZ > enclosureMinZ && nextZ < enclosureMaxZ) {
+            const distances = [
+                { distance: nextX - enclosureMinX, axis: 'x', value: enclosureMinX - PLAYER_RADIUS },
+                { distance: enclosureMaxX - nextX, axis: 'x', value: enclosureMaxX + PLAYER_RADIUS },
+                { distance: nextZ - enclosureMinZ, axis: 'z', value: enclosureMinZ - PLAYER_RADIUS },
+                { distance: enclosureMaxZ - nextZ, axis: 'z', value: enclosureMaxZ + PLAYER_RADIUS },
+            ];
+            const nearest = distances.reduce((best, current) => current.distance < best.distance ? current : best);
+            if (nearest.axis === 'x') nextX = nearest.value;
+            else nextZ = nearest.value;
+        }
         resolveObstacles(state.obstacles);
         resolveObstacles(state.animalObstacles);
 
