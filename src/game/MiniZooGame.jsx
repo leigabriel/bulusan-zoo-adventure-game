@@ -5,7 +5,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
 import { createTerrain, createFence, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache, PLAYABLE_BOUNDARY } from './components/Terrain.jsx';
-import { loadGLTFAnimals, releaseAnimalModelCache } from './components/Animals.jsx';
+import { loadGLTFAnimals, loadAmbientBirds, releaseAnimalModelCache } from './components/Animals.jsx';
 import { createRiver, updateRiver, updateRiverQuality, disposeRiver, isLandAccessible, findAccessiblePosition } from './components/River.jsx';
 import { loadNewHouses } from './components/Structures.jsx';
 import { createGLTFLoader } from './utils/gltfLoader.js';
@@ -36,7 +36,7 @@ import {
     RunButton,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
-import { WelcomePaper, AnimalBookModal, CameraPreview } from './ui/ExplorationHUD.jsx';
+import { AnimalBookModal, CameraPreview } from './ui/ExplorationHUD.jsx';
 import { LoadingScreen } from '../components/loading-screen.jsx';
 
 import {
@@ -481,7 +481,6 @@ function MiniZooGame() {
     const [tasksOpen, setTasksOpen] = useState(false);
     const [showQuitModal, setShowQuitModal] = useState(false);
     const [showResetTasksModal, setShowResetTasksModal] = useState(false);
-    const [showWelcome, setShowWelcome] = useState(false);
     const [selectedCharacterId, setSelectedCharacterId] = useState(() => getStoredCharacterId());
     const [cameraMode, setCameraMode] = useState('third');
     const [characterReady, setCharacterReady] = useState(false);
@@ -524,7 +523,7 @@ function MiniZooGame() {
         controlsEnabled: false,
         cameraControlLockedUntil: 0,
         animationId: null, scene: null, camera: null, renderer: null,
-        animals: [], clouds: [], river: null, obstacles: [], animalObstacles: [], animalObstaclePool: [], cleanup: null, initialized: false,
+        animals: [], ambientBirds: [], clouds: [], river: null, obstacles: [], animalObstacles: [], animalObstaclePool: [], cleanup: null, initialized: false,
         isLandAccessible,
         playerAnchor: null,
         playerCharacter: null,
@@ -937,7 +936,6 @@ function MiniZooGame() {
             saveStoredCharacterId(characterOption.id);
             setCharacterReady(true);
             state.controlsEnabled = false;
-            setShowWelcome(true);
         } catch (error) {
             console.error('Failed to load selected character:', error);
             state.controlsEnabled = false;
@@ -970,21 +968,24 @@ function MiniZooGame() {
             const statuePromise = loadCenterStatue(scene, isMobile);
             const staffPromise = loadStaffNpc(scene, isMobile);
             const housesPromise = loadNewHouses(scene);
+            const birdsPromise = loadAmbientBirds(scene);
 
-            const { loadPromise: treesP } = loadTrees(scene, isMobile && quality !== 'high' ? 'low' : quality);
+            const { loadPromise: treesP } = loadTrees(scene, isMobile ? 'mobile' : quality);
             const { loadPromise: bushesP } = loadBushes(scene, isMobile ? 40 : 70);
             const { loadPromise: rocksP } = loadRocks(scene, isMobile ? 20 : 40);
 
             setLoadProgress(30);
             // Wait for all objects to load, and extract the resulting arrays!
-            const [loadedTrees, loadedBushes, loadedRocks, statueResult, staffResult, housesResult] = await Promise.all([
+            const [loadedTrees, loadedBushes, loadedRocks, statueResult, staffResult, housesResult, loadedBirds] = await Promise.all([
                 treesP,
                 bushesP,
                 rocksP,
                 statuePromise,
                 staffPromise,
-                housesPromise
+                housesPromise,
+                birdsPromise
             ]);
+            state.ambientBirds = loadedBirds;
 
             // Create collision obstacles based on the loaded meshes
             state.obstacles = [];
@@ -1305,6 +1306,7 @@ function MiniZooGame() {
                         if (distSq < updateRange * updateRange) a.update(now * 0.001, dt);
                     }
                 });
+                state.ambientBirds.forEach((bird) => bird.update(now * 0.001, dt));
 
                 // World animation continues while input is locked by the book overlay.
                 updateRiver(state.river, dt, gameStartedRef.current);
@@ -1480,12 +1482,10 @@ function MiniZooGame() {
         setCameraMode('third');
         setSelectedCharacterId(storedCharacterOption?.id || null);
         setCharacterReady(false);
-        setShowWelcome(true);
         setNearbyStaff(false);
         setShowNpcDialogue(false);
         setNpcDialogueNodeId('root');
         state.controlsEnabled = false;
-        setShowWelcome(false);
 
         if (storedCharacterOption) {
             // Auto-restore the previously selected character so replay starts immediately.
@@ -1534,13 +1534,11 @@ function MiniZooGame() {
         setTasksOpen(false);
         setShowNpcDialogue(false);
         setBookOpen(false);
-        setShowWelcome(false);
         setPhotoPreview('');
         clearFeedingTimer();
     }, [clearFeedingTimer]);
     const handleMenuClick = useCallback(() => { closeInterfaces(); setSettingsOpen(true); }, [closeInterfaces]);
     const handleTasksClick = useCallback(() => { closeInterfaces(); setTasksOpen(true); }, [closeInterfaces]);
-    const openWelcome = useCallback(() => { closeInterfaces(); setShowWelcome(true); }, [closeInterfaces]);
     const captureScene = useCallback(() => {
         const state = gameStateRef.current;
         if (!state.renderer || !state.scene || !state.camera) return;
@@ -1613,7 +1611,6 @@ function MiniZooGame() {
         setSettingsOpen(false);
         setTasksOpen(false);
          setNearbyAnimal(null);
-        setShowWelcome(false);
         setPhotoPreview('');
         setSelectedCharacterId(null);
         setCharacterReady(false);
@@ -1873,7 +1870,7 @@ function MiniZooGame() {
 
     useEffect(() => {
         const state = gameStateRef.current;
-        if (showNpcDialogue || bookOpen || showWelcome) {
+        if (showNpcDialogue || bookOpen) {
             state.controlsEnabled = false;
             return;
         }
@@ -1881,7 +1878,7 @@ function MiniZooGame() {
         if (gameStarted && characterReady) {
             state.controlsEnabled = true;
         }
-    }, [showNpcDialogue, bookOpen, showWelcome, gameStarted, characterReady]);
+    }, [showNpcDialogue, bookOpen, gameStarted, characterReady]);
 
     useEffect(() => {
         if (!gameStarted) return;
@@ -1977,7 +1974,7 @@ function MiniZooGame() {
     const nearbyAnimalInfo = nearbyAnimal ? (nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config) : null;
     const nearbyAnimalFed = nearbyAnimalInfo ? isAnimalFed(nearbyAnimalInfo.name) : false;
     const feedingBlocked = Boolean(nearbyAnimalInfo?.requiredItem && nearbyAnimalInfo.hasRequiredItem === false);
-    const interfaceOpen = showWelcome || settingsOpen || tasksOpen || showNpcDialogue || bookOpen || photoPreview || showQuitModal || showResetTasksModal || showAllFedCelebration || showCertificate;
+    const interfaceOpen = settingsOpen || tasksOpen || showNpcDialogue || bookOpen || photoPreview || showQuitModal || showResetTasksModal || showAllFedCelebration || showCertificate;
 
     useEffect(() => {
         if (interfaceOpen || document.hidden) clearFeedingTimer();
@@ -2006,12 +2003,10 @@ function MiniZooGame() {
             )}
             {gameStarted && (
                 <>
-                    <WelcomePaper isOpen={showWelcome} onClose={() => { setShowWelcome(false); }} objective="Visit the Bulusan Statue, discover animals, and feed every friend." />
                      <GameHUD
                         playerName={playerName || 'Explorer'}
                          onMenuClick={handleMenuClick}
                          onTasksClick={handleTasksClick}
-                         onWelcome={openWelcome}
                          onBook={openBook}
                          onCamera={captureScene}
                         completedTasks={completedCount}

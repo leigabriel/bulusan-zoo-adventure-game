@@ -210,7 +210,7 @@ export function loadTrees(scene, quality = 'medium') {
         const validModels = models.filter(m => m !== null);
         if (validModels.length === 0) return trees;
 
-        const budgets = { low: 110, medium: 220, high: 340 };
+        const budgets = { mobile: 55, low: 110, medium: 220, high: 340 };
         const budget = budgets[quality] || budgets.medium;
 
         // Random sampling avoids the artificial perimeter rows. The outermost

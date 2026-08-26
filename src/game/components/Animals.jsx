@@ -739,6 +739,53 @@ class GLTFAnimal {
     }
 }
 
+class AmbientBird {
+    constructor(model, animations, scene, birdIndex) {
+        this.group = model;
+        this.mixer = animations.length > 0 ? new THREE.AnimationMixer(model) : null;
+        this.phase = Math.random() * Math.PI * 2;
+        this.orbitRadius = 70 + birdIndex * 35 + Math.random() * 25;
+        this.orbitSpeed = 0.045 + Math.random() * 0.018;
+        this.altitude = 48 + birdIndex * 8 + Math.random() * 8;
+        this.centerX = (Math.random() - 0.5) * 80;
+        this.centerZ = (Math.random() - 0.5) * 80;
+
+        const bounds = new THREE.Box3().setFromObject(model);
+        const size = bounds.getSize(new THREE.Vector3());
+        const sourceHeight = Math.max(size.y, 0.001);
+        model.scale.multiplyScalar(THREE.MathUtils.clamp(2.2 / sourceHeight, 0.01, 10));
+        model.traverse((child) => {
+            if (!child.isMesh) return;
+            child.castShadow = false;
+            child.receiveShadow = false;
+        });
+
+        if (this.mixer) {
+            const flightClip = animations.find((clip) => /fly|flap|wing|flight/i.test(clip.name)) || animations[0];
+            this.mixer.clipAction(flightClip).play();
+        }
+
+        this.group.rotation.order = 'YXZ';
+        scene.add(this.group);
+        this.update(0, 0);
+    }
+
+    update(time, dt) {
+        const angle = this.phase + time * this.orbitSpeed;
+        const nextAngle = angle + 0.01;
+        const x = this.centerX + Math.cos(angle) * this.orbitRadius;
+        const z = this.centerZ + Math.sin(angle) * this.orbitRadius;
+        const nextX = this.centerX + Math.cos(nextAngle) * this.orbitRadius;
+        const nextZ = this.centerZ + Math.sin(nextAngle) * this.orbitRadius;
+        const y = this.altitude + Math.sin(time * 0.9 + this.phase) * 2.2;
+        this.group.position.set(x, y, z);
+        this.group.rotation.y = Math.atan2(nextX - x, nextZ - z);
+        this.group.rotation.z = Math.sin(time * 0.9 + this.phase) * 0.08;
+        this.group.rotation.x = Math.cos(time * 0.9 + this.phase) * 0.035;
+        this.mixer?.update(dt);
+    }
+}
+
 const modelCache = new Map();
 
 function disposeCachedObject(root) {
@@ -802,4 +849,32 @@ export async function loadGLTFAnimals(scene, obstacles, initialVolume) {
     }
 
     return animals;
+}
+
+export async function loadAmbientBirds(scene) {
+    const birdFiles = ['birds/bird_1/scene.gltf', 'birds/bird_2/scene.gltf'];
+    const birds = [];
+    const loadModel = (file) => {
+        if (modelCache.has(file)) return Promise.resolve(modelCache.get(file));
+        return new Promise((resolve) => {
+            const load = async () => {
+                const loader = createGLTFLoader();
+                const modelPath = `/models/animals/${file}`;
+                const modelUrl = await resolveAssetUrl(modelPath);
+                loader.setResourcePath(modelPath.slice(0, modelPath.lastIndexOf('/') + 1));
+                loader.load(modelUrl, (gltf) => {
+                    modelCache.set(file, gltf);
+                    resolve(gltf);
+                }, undefined, () => resolve(null));
+            };
+            load().catch(() => resolve(null));
+        });
+    };
+
+    const models = await Promise.all(birdFiles.map(loadModel));
+    models.forEach((gltf, index) => {
+        if (!gltf) return;
+        birds.push(new AmbientBird(cloneWithSkeleton(gltf.scene), gltf.animations.map((clip) => clip.clone()), scene, index));
+    });
+    return birds;
 }

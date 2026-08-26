@@ -30,38 +30,6 @@ const EMOJI_MAP = {
     'Bengal Tiger': '🐅'
 };
 
-export function WelcomePaper({
-    isOpen,
-    onClose,
-    objective = 'Discover animals and gently feed every friend.',
-}) {
-    return (
-        <ModalShell
-            isOpen={isOpen}
-            onClose={onClose}
-            title="Welcome Paper"
-            size="sm"
-            closeOnBackdrop={false}
-        >
-            <div className="rounded-2xl border-2 border-amber-200 bg-[#fff8df] p-4 text-slate-800 shadow-inner">
-                <h2 className="text-center text-xl font-black text-emerald-900">
-                    Welcome to Bulusan Zoo Adventure
-                </h2>
-                <p className="mt-3 text-sm font-semibold leading-relaxed">
-                    Explore the paths, meet friendly animals, and learn about the natural beauty of Bulusan.
-                </p>
-                <div className="mt-3 rounded-xl border border-amber-200 bg-white/70 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Your objective</p>
-                    <p className="mt-1 text-sm font-black">{objective}</p>
-                </div>
-                <ActionButton className="mt-4 w-full" onClick={onClose}>
-                    Start Exploring
-                </ActionButton>
-            </div>
-        </ModalShell>
-    );
-}
-
 export function CameraPreview({ dataUrl, onSave, onRetake, onClose }) {
     if (!dataUrl) return null;
     return (

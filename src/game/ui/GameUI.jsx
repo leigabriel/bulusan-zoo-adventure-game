@@ -288,6 +288,15 @@ function HowToPlayContent() {
 }
 
 function CreditsContent() {
+    const modelCredits = [
+        ['Rabbit', 'Tiko', 'https://sketchfab.com/3d-models/rabbit-caba07ca532947858ab66b65879cc105', 'CC-BY-4.0'],
+        ['Realsitic Monkey', 'TdoubleU8', 'https://sketchfab.com/3d-models/realsitic-monkey-50e4b1da03494429b1265fc095f2c530', 'CC-BY-4.0'],
+        ['Tiger', 'Blender Artist', 'https://sketchfab.com/3d-models/tiger-67bbedd727a047869ef7c7b608445484', 'CC-BY-4.0'],
+        ['African ostrich (Revised version)', 'Андрей', 'https://sketchfab.com/3d-models/african-ostrich-revised-version-0999e676453e4562a7777cd006125738', 'CC-BY-4.0'],
+        ['Birds', 'Zacxophone', 'https://sketchfab.com/3d-models/birds-3a9bb97be78944f9bffc23fb25c2154e', 'Sketchfab Standard'],
+        ['Low Poly Bird (Animated)', 'Charlie Tinley', 'https://sketchfab.com/3d-models/low-poly-bird-animated-82ada91f0ac64ab595fbc3dc994a3590', 'CC-BY-4.0'],
+    ];
+
     return (
         <div className="space-y-4 text-center text-sm text-slate-700">
             <p className="font-semibold italic">Character and environment assets provided by Quaternius.</p>
@@ -300,6 +309,19 @@ function CreditsContent() {
                 Quaternius<br />
                 <span className="text-xs font-bold normal-case tracking-normal">https://quaternius.com/</span>
             </a>
+            <div className="space-y-2 text-left">
+                <h3 className="text-center text-xs font-black uppercase tracking-widest text-emerald-800">Animal Model Licenses</h3>
+                <p className="text-center text-xs font-semibold text-slate-500">
+                    CC-BY-4.0 models require author credit and allow commercial use. The Birds model is under the Sketchfab Standard license and is used under its basic restrictions.
+                </p>
+                {modelCredits.map(([title, author, source, license]) => (
+                    <div key={source} className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                        <p className="font-black text-slate-800">{title}</p>
+                        <p className="text-xs font-semibold">By {author} | {license}</p>
+                        <a href={source} target="_blank" rel="noreferrer" className="break-all text-xs text-emerald-700 underline">{source}</a>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -950,7 +972,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
 
             <div className="pointer-events-none absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.35rem)] z-40 flex justify-between text-[8px] font-black uppercase tracking-[0.18em] text-emerald-950/70 sm:inset-x-6 sm:bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:text-[10px]">
                 <span>2026</span>
-                <span>Version 3.1.0</span>
+                <span>Version 5.3.0</span>
             </div>
         </div>
     );
@@ -999,7 +1021,7 @@ const WoodenTitle = ({ titlePart1, titlePart2, className = '' }) => {
     );
 };
 
-export function GameHUD({ playerName, onMenuClick, onTasksClick, onWelcome, onBook, onCamera, completedTasks, totalTasks, isTouchDevice = false }) {
+export function GameHUD({ playerName, onMenuClick, onTasksClick, onBook, onCamera, completedTasks, totalTasks, isTouchDevice = false }) {
     const menuIcon = '/ui-buttons/settings-button.png';
     const taskIcon = '/ui-buttons/task-list-button.png';
 
@@ -1027,9 +1049,6 @@ export function GameHUD({ playerName, onMenuClick, onTasksClick, onWelcome, onBo
                 </div>
 
                 <div className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+0.55rem)] left-1/2 z-65 flex -translate-x-1/2 items-center gap-0.5 rounded-2xl border-2 border-amber-200 bg-[#fff8df]/95 p-0.5 shadow-lg backdrop-blur-sm sm:gap-1 sm:p-1" data-ui-hud="true" aria-label="Exploration tools">
-                    <button type="button" onClick={onWelcome} className="group flex h-11 w-11 items-center justify-center rounded-xl hover:bg-amber-100 active:scale-95" aria-label="Open Welcome Paper" data-ui-button="true">
-                        <img src="/ui-buttons/paper-button.png" alt="" className="h-10 w-10 object-contain" />
-                    </button>
                     <button type="button" onClick={onBook} className="group flex h-11 w-11 items-center justify-center rounded-xl hover:bg-amber-100 active:scale-95" aria-label="Open Animal Book" data-ui-button="true">
                         <img src="/ui-buttons/book-button.png" alt="" className="h-10 w-10 object-contain" />
                     </button>
@@ -1349,7 +1368,6 @@ export function HoldToFeedControl({
                     onEnd?.();
                 }}
                 onPointerCancel={onEnd}
-                onPointerLeave={onEnd}
                 className={cx(
                     'pointer-events-auto relative grid h-24 w-24 place-items-center rounded-full border-4 border-white/70 shadow-xl touch-none select-none transition-transform active:scale-95 sm:h-28 sm:w-28',
                     completed ? 'bg-emerald-500' : disabled ? 'bg-slate-400' : 'bg-emerald-950/80',
