@@ -102,6 +102,10 @@ export function getProgress() {
     return { ...DEFAULT_PROGRESS, ...safeParse(stored, {}) };
 }
 
+export function getDiscoveredAnimals() {
+    return getProgress().animalsDiscovered;
+}
+
 export function saveProgress(progress) {
     const current = getProgress();
     const updated = { ...current, ...progress, lastPlayed: Date.now() };

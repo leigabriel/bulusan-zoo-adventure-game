@@ -28,16 +28,15 @@ import {
     ResetTasksModal,
     Joystick,
     JumpButton,
-    WelcomePopup,
     AllAnimalsCelebration,
     CertificateModal,
     NPCInteractionPrompt,
     NPCDialogueModal,
     RotateDeviceOverlay,
-    SketchbookModal,
     RunButton,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
+import { WelcomePaper, AnimalBookModal, CameraPreview } from './ui/ExplorationHUD.jsx';
 import { LoadingScreen } from '../components/loading-screen.jsx';
 
 import {
@@ -48,7 +47,8 @@ import {
     resetAllFeedingTasks,
     getPlayerSession,
     savePlayerSession,
-    getSettings
+    getSettings,
+    getProgress
 } from './utils/storage.js';
 import {
     ESSENTIAL_ASSET_PATHS,
@@ -75,7 +75,6 @@ const CHARACTER_OPTIONS = [
     { id: 'kimono_female', label: 'Kimono Female', file: 'Kimono_Female.gltf', emoji: '🌸' },
     { id: 'kimono_male', label: 'Kimono Male', file: 'Kimono_Male.gltf', emoji: '🎎' }
 ];
-const STATUE_ENTRY_MESSAGE = 'Welcome to Bulusan Zootopia Adventure. Start your adventure at the Bulusan Statue!';
 const STAFF_NPC_CONFIG = {
     name: 'Ranger Lino',
     role: 'Bulusan Zootopia Adventure Staff',
@@ -450,11 +449,8 @@ function MiniZooGame() {
     const baseRef = useRef(null);
     const jumpRef = useRef(null);
 
-    const welcomeTimerRef = useRef(null);
     const ambienceRef = useRef(null);
     const musicRef = useRef(null);
-    const statueMessageTimerRef = useRef(null);
-    const statueMessageHideRef = useRef(null);
     const isNearStatueRef = useRef(false);
     const hasShownStatueEntryRef = useRef(false);
     const soundEnabledRef = useRef(getSfxVolume() > 0);
@@ -489,7 +485,6 @@ function MiniZooGame() {
     const [characterReady, setCharacterReady] = useState(false);
     const [showAllFedCelebration, setShowAllFedCelebration] = useState(false);
     const [showCertificate, setShowCertificate] = useState(false);
-    const [showStatueGreeting, setShowStatueGreeting] = useState(false);
     const [nearbyStaff, setNearbyStaff] = useState(false);
     const [showNpcDialogue, setShowNpcDialogue] = useState(false);
     const [npcDialogueNodeId, setNpcDialogueNodeId] = useState('root');
@@ -501,6 +496,9 @@ function MiniZooGame() {
     const [playerName, setPlayerName] = useState(() => getStoredPlayerName());
 
     const [feedingSuccess, setFeedingSuccess] = useState({ visible: false, animalName: '' });
+    const [discoveredAnimals, setDiscoveredAnimals] = useState(() => getProgress().animalsDiscovered);
+    const [photoPreview, setPhotoPreview] = useState('');
+    const [cameraFlash, setCameraFlash] = useState(false);
     const [feedingProgress, setFeedingProgress] = useState(0);
     const [isFeeding, setIsFeeding] = useState(false);
     const allFedCelebratedRef = useRef(false);
@@ -724,28 +722,6 @@ function MiniZooGame() {
         });
     }, [stopAmbience, stopMusic]);
 
-    const clearStatueMessageTimers = useCallback(() => {
-        if (statueMessageTimerRef.current) {
-            clearTimeout(statueMessageTimerRef.current);
-            statueMessageTimerRef.current = null;
-        }
-        if (statueMessageHideRef.current) {
-            clearTimeout(statueMessageHideRef.current);
-            statueMessageHideRef.current = null;
-        }
-    }, []);
-
-    const showStatueEntryMessage = useCallback(() => {
-        setShowStatueGreeting(true);
-        if (statueMessageHideRef.current) {
-            clearTimeout(statueMessageHideRef.current);
-        }
-        statueMessageHideRef.current = setTimeout(() => {
-            setShowStatueGreeting(false);
-            statueMessageHideRef.current = null;
-        }, 3200);
-    }, []);
-
     useEffect(() => {
         cameraModeRef.current = cameraMode;
         const state = gameStateRef.current;
@@ -956,16 +932,8 @@ function MiniZooGame() {
             setSelectedCharacterId(characterOption.id);
             saveStoredCharacterId(characterOption.id);
             setCharacterReady(true);
-            state.controlsEnabled = true;
-
+            state.controlsEnabled = false;
             setShowWelcome(true);
-            if (welcomeTimerRef.current) {
-                clearTimeout(welcomeTimerRef.current);
-            }
-            welcomeTimerRef.current = setTimeout(() => {
-                setShowWelcome(false);
-                welcomeTimerRef.current = null;
-            }, 3000);
         } catch (error) {
             console.error('Failed to load selected character:', error);
             state.controlsEnabled = false;
@@ -1325,7 +1293,6 @@ function MiniZooGame() {
                         isNearStatueRef.current = true;
                         if (!hasShownStatueEntryRef.current) {
                             hasShownStatueEntryRef.current = true;
-                            showStatueEntryMessage();
                         }
                     } else if (!nearStatue && isNearStatueRef.current) {
                         isNearStatueRef.current = false;
@@ -1341,7 +1308,10 @@ function MiniZooGame() {
                         clearFeedingTimer();
                         if (nextNearbyAnimal) {
                             const info = nextNearbyAnimal.getInfo ? nextNearbyAnimal.getInfo() : nextNearbyAnimal.config;
-                            if (info?.name) markAnimalDiscovered(info.name);
+                            if (info?.name) {
+                                const progress = markAnimalDiscovered(info.name);
+                                setDiscoveredAnimals(progress.animalsDiscovered);
+                            }
                         }
                         setNearbyAnimal(nextNearbyAnimal);
                     }
@@ -1381,7 +1351,6 @@ function MiniZooGame() {
                 cleanupKeyboard();
                 cleanupTouch();
                 cleanupMouse();
-                clearStatueMessageTimers();
                 state.animals.forEach(a => a.dispose?.());
                 disposePlayerCharacter();
                 if (state.staffNpc) {
@@ -1436,7 +1405,7 @@ function MiniZooGame() {
             console.error('Game init failed:', err);
             setIsLoading(false);
         }
-    }, [checkNearbyAnimals, checkNearbyStaff, clearFeedingTimer, clearStatueMessageTimers, disposePlayerCharacter, playPlayerAction, showStatueEntryMessage]);
+    }, [checkNearbyAnimals, checkNearbyStaff, clearFeedingTimer, disposePlayerCharacter, playPlayerAction]);
 
     const handleCharacterPicked = useCallback((characterOption) => {
         setSelectedCharacterId(characterOption.id);
@@ -1462,6 +1431,7 @@ function MiniZooGame() {
         setCameraMode(session.cameraMode);
         setSelectedCharacterId(storedCharacterOption?.id || null);
         setCharacterReady(false);
+        setShowWelcome(true);
         setNearbyStaff(false);
         setShowNpcDialogue(false);
         setNpcDialogueNodeId('root');
@@ -1510,8 +1480,61 @@ function MiniZooGame() {
             characterId: getStoredCharacterId()
         });
     }, []);
-    const handleMenuClick = useCallback(() => { clearFeedingTimer(); setSettingsOpen(true); }, [clearFeedingTimer]);
-    const handleTasksClick = useCallback(() => { clearFeedingTimer(); setTasksOpen(true); }, [clearFeedingTimer]);
+    const closeInterfaces = useCallback(() => {
+        setSettingsOpen(false);
+        setTasksOpen(false);
+        setShowNpcDialogue(false);
+        setBookOpen(false);
+        setShowWelcome(false);
+        setPhotoPreview('');
+        clearFeedingTimer();
+    }, [clearFeedingTimer]);
+    const handleMenuClick = useCallback(() => { closeInterfaces(); setSettingsOpen(true); }, [closeInterfaces]);
+    const handleTasksClick = useCallback(() => { closeInterfaces(); setTasksOpen(true); }, [closeInterfaces]);
+    const openWelcome = useCallback(() => { closeInterfaces(); setShowWelcome(true); }, [closeInterfaces]);
+    const captureScene = useCallback(() => {
+        const state = gameStateRef.current;
+        if (!state.renderer || !state.scene || !state.camera) return;
+        try {
+            const renderer = state.renderer;
+            const width = renderer.domElement.width;
+            const height = renderer.domElement.height;
+            const target = new THREE.WebGLRenderTarget(width, height, { depthBuffer: true });
+            renderer.setRenderTarget(target);
+            renderer.render(state.scene, state.camera);
+            const pixels = new Uint8Array(width * height * 4);
+            renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
+            renderer.setRenderTarget(null);
+            renderer.render(state.scene, state.camera);
+            target.dispose();
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            const image = context.createImageData(width, height);
+            for (let row = 0; row < height; row += 1) {
+                const source = (height - row - 1) * width * 4;
+                image.data.set(pixels.subarray(source, source + width * 4), row * width * 4);
+            }
+            context.putImageData(image, 0, 0);
+            setCameraFlash(true);
+            window.setTimeout(() => setCameraFlash(false), 180);
+            playGameButtonSfx('confirm');
+            closeInterfaces();
+            setPhotoPreview(canvas.toDataURL('image/png'));
+        } catch (error) {
+            console.error('Unable to capture game scene:', error);
+            closeInterfaces();
+        }
+    }, [closeInterfaces]);
+    const savePhoto = useCallback(() => {
+        if (!photoPreview) return;
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const link = document.createElement('a');
+        link.href = photoPreview;
+        link.download = `bulusan-zoo-adventure-${stamp}.png`;
+        link.click();
+    }, [photoPreview]);
     const handleResetTasks = useCallback(() => {
         setShowResetTasksModal(true);
     }, []);
@@ -1542,6 +1565,7 @@ function MiniZooGame() {
         setTasksOpen(false);
          setNearbyAnimal(null);
         setShowWelcome(false);
+        setPhotoPreview('');
         setSelectedCharacterId(null);
         setCharacterReady(false);
          setCameraMode('third');
@@ -1566,6 +1590,7 @@ function MiniZooGame() {
 
     const openNpcDialogue = useCallback(() => {
         if (!nearbyStaff || !gameStarted || !characterReady) return;
+        closeInterfaces();
         const state = gameStateRef.current;
         state.controlsEnabled = false;
         state.mX = 0;
@@ -1577,7 +1602,7 @@ function MiniZooGame() {
         state.keys.shift = false;
         setNpcDialogueNodeId('root');
         setShowNpcDialogue(true);
-    }, [nearbyStaff, gameStarted, characterReady]);
+    }, [closeInterfaces, nearbyStaff, gameStarted, characterReady]);
 
     const closeNpcDialogue = useCallback(() => {
         setShowNpcDialogue(false);
@@ -1598,6 +1623,7 @@ function MiniZooGame() {
 
     const openBook = useCallback(() => {
         if (!gameStarted || !characterReady) return;
+        closeInterfaces();
         const state = gameStateRef.current;
         state.controlsEnabled = false;
         state.mX = 0;
@@ -1608,7 +1634,7 @@ function MiniZooGame() {
         state.keys.d = false;
         state.keys.shift = false;
         setBookOpen(true);
-    }, [gameStarted, characterReady]);
+    }, [closeInterfaces, gameStarted, characterReady]);
 
     const closeBook = useCallback(() => {
         setBookOpen(false);
@@ -1774,14 +1800,8 @@ function MiniZooGame() {
         return () => {
             mounted = false;
             clearTimeout(t);
-            clearStatueMessageTimers();
             isNearStatueRef.current = false;
             hasShownStatueEntryRef.current = false;
-            setShowStatueGreeting(false);
-            if (welcomeTimerRef.current) {
-                clearTimeout(welcomeTimerRef.current);
-                welcomeTimerRef.current = null;
-            }
             gameStartedRef.current = false;
             nearbyAnimalRef.current = null;
             nearbyStaffRef.current = false;
@@ -1794,7 +1814,7 @@ function MiniZooGame() {
             state.cleanup?.();
             releaseAssetObjectUrls();
         };
-    }, [clearFeedingTimer, clearStatueMessageTimers, initGame, stopGameplaySounds]);
+    }, [clearFeedingTimer, initGame, stopGameplaySounds]);
 
     useEffect(() => {
         showNpcDialogueRef.current = showNpcDialogue;
@@ -1802,7 +1822,7 @@ function MiniZooGame() {
 
     useEffect(() => {
         const state = gameStateRef.current;
-        if (showNpcDialogue || bookOpen) {
+        if (showNpcDialogue || bookOpen || showWelcome) {
             state.controlsEnabled = false;
             return;
         }
@@ -1810,7 +1830,7 @@ function MiniZooGame() {
         if (gameStarted && characterReady) {
             state.controlsEnabled = true;
         }
-    }, [showNpcDialogue, bookOpen, gameStarted, characterReady]);
+    }, [showNpcDialogue, bookOpen, showWelcome, gameStarted, characterReady]);
 
     useEffect(() => {
         if (!gameStarted) return;
@@ -1906,7 +1926,7 @@ function MiniZooGame() {
     const nearbyAnimalInfo = nearbyAnimal ? (nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config) : null;
     const nearbyAnimalFed = nearbyAnimalInfo ? isAnimalFed(nearbyAnimalInfo.name) : false;
     const feedingBlocked = Boolean(nearbyAnimalInfo?.requiredItem && nearbyAnimalInfo.hasRequiredItem === false);
-    const interfaceOpen = settingsOpen || tasksOpen || showNpcDialogue || bookOpen || showQuitModal || showResetTasksModal || showAllFedCelebration || showCertificate;
+    const interfaceOpen = showWelcome || settingsOpen || tasksOpen || showNpcDialogue || bookOpen || photoPreview || showQuitModal || showResetTasksModal || showAllFedCelebration || showCertificate;
 
     useEffect(() => {
         if (interfaceOpen || document.hidden) clearFeedingTimer();
@@ -1921,6 +1941,7 @@ function MiniZooGame() {
     return (
         <div className="relative h-dvh w-full overflow-hidden bg-linear-to-b from-sky-300 to-sky-100 touch-none overscroll-none">
             <RotateDeviceOverlay />
+            {cameraFlash ? <div className="pointer-events-none fixed inset-0 z-130 bg-white" aria-hidden="true" /> : null}
             <div ref={containerRef} className="absolute inset-0" />
             {isLoading && <LoadingScreen />}
             {!isLoading && showMenu && (
@@ -1934,12 +1955,14 @@ function MiniZooGame() {
             )}
             {gameStarted && (
                 <>
-                    <WelcomePopup visible={showWelcome} message="Welcome, Explorer! Head to the Bulusan Statue and start your zoo tour." />
-                    <WelcomePopup visible={showStatueGreeting} message={STATUE_ENTRY_MESSAGE} />
-                    <GameHUD
+                    <WelcomePaper isOpen={showWelcome} onClose={() => { setShowWelcome(false); }} objective="Visit the Bulusan Statue, discover animals, and feed every friend." />
+                     <GameHUD
                         playerName={playerName || 'Explorer'}
-                        onMenuClick={handleMenuClick}
-                        onTasksClick={handleTasksClick}
+                         onMenuClick={handleMenuClick}
+                         onTasksClick={handleTasksClick}
+                         onWelcome={openWelcome}
+                         onBook={openBook}
+                         onCamera={captureScene}
                         completedTasks={completedCount}
                         totalTasks={totalCount}
                         isTouchDevice={isTouchDevice}
@@ -1958,7 +1981,13 @@ function MiniZooGame() {
                          onStart={handleFeedAnimal}
                          onEnd={clearFeedingTimer}
                      />
-                    <SketchbookModal isOpen={bookOpen} onClose={closeBook} />
+                    <AnimalBookModal
+                        isOpen={bookOpen}
+                        onClose={closeBook}
+                        discoveredAnimals={discoveredAnimals}
+                        fedAnimals={tasks.reduce((result, task) => ({ ...result, [task.animalName]: task.completed }), {})}
+                        onPageTurn={() => playGameButtonSfx('page-turn')}
+                    />
                     <SettingsPanel
                         isOpen={settingsOpen}
                         onClose={() => setSettingsOpen(false)}
@@ -1983,7 +2012,8 @@ function MiniZooGame() {
                         choices={npcDialogueNode.choices}
                         onSelectChoice={handleNpcChoice}
                     />
-                    <FeedingSuccessNotification visible={feedingSuccess.visible} animalName={feedingSuccess.animalName} onHide={handleHideFeedSuccess} />
+                     <FeedingSuccessNotification visible={feedingSuccess.visible} animalName={feedingSuccess.animalName} onHide={handleHideFeedSuccess} />
+                    <CameraPreview dataUrl={photoPreview} onSave={savePhoto} onRetake={() => { setPhotoPreview(''); captureScene(); }} onClose={() => setPhotoPreview('')} />
                 </>
             )}
             <QuitModal isOpen={showQuitModal} onConfirm={handleConfirmQuit} onCancel={handleCancelQuit} />

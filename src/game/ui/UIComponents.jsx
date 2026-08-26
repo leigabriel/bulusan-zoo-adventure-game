@@ -124,7 +124,7 @@ export function SurfacePanel({ children, className = '', ...props }) {
     );
 }
 
-export function ModalShell({ isOpen, onClose, title, children, size = 'md' }) {
+export function ModalShell({ isOpen, onClose, title, children, size = 'md', closeOnBackdrop = true }) {
     if (!isOpen) return null;
 
     const maxWidth = {
@@ -144,7 +144,7 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md' }) {
             <button
                 type="button"
                 aria-label="Close modal"
-                onClick={onClose}
+                onClick={closeOnBackdrop ? onClose : undefined}
                 className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[4px]"
             />
 
