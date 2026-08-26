@@ -41,13 +41,13 @@ function getQualityConfig(quality) {
         medium: {
             pixelRatio: isMobile ? Math.min(dpr, 1.0) : Math.min(dpr, 1.25),
             antialias: !isMobile && dpr <= 1.5,
-            shadows: false,
+            shadows: true,
             toneMappingExposure: 1.0,
         },
         high: {
             pixelRatio: Math.min(dpr, 2.0),
             antialias: true,
-            shadows: false,
+            shadows: true,
             toneMappingExposure: 1.1,
         },
     };
@@ -70,6 +70,7 @@ export function createRenderer(container, graphicsQuality) {
     renderer.setPixelRatio(config.pixelRatio);
 
     renderer.shadowMap.enabled = config.shadows;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = config.toneMappingExposure;
@@ -87,6 +88,7 @@ export function applyRendererQuality(renderer, quality) {
     const config = getQualityConfig(quality || 'medium');
     renderer.setPixelRatio(config.pixelRatio);
     renderer.shadowMap.enabled = config.shadows;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMappingExposure = config.toneMappingExposure;
 }
 
@@ -98,8 +100,19 @@ export function createLighting(scene) {
     // Natural daylight sun (not overwhelmingly bright)
     const sun = new THREE.DirectionalLight(0xfff5e6, 1.4);
     sun.position.set(100, 150, 80);
-    sun.castShadow = false;
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(768, 768);
+    sun.shadow.camera.near = 10;
+    sun.shadow.camera.far = 500;
+    sun.shadow.bias = -0.0002;
     scene.add(sun);
+
+    const sunDisc = new THREE.Mesh(
+        new THREE.SphereGeometry(14, 12, 8),
+        new THREE.MeshBasicMaterial({ color: 0xfff3b0, fog: false })
+    );
+    sunDisc.position.set(-180, 190, -260);
+    scene.add(sunDisc);
 
     const fill = new THREE.DirectionalLight(0xaaccff, 0.4);
     fill.position.set(-50, 50, -50);

@@ -208,9 +208,9 @@ export function getTasks() {
     
     // Define all animal feeding tasks
     const animalNames = [
-        'Red Fox', 'White-tailed Deer', 'Gray Wolf', 'Domestic Horse',
-        'Donkey', 'Domestic Cow', 'Alpaca', 'Siberian Husky',
-        'Shiba Inu', 'Red Deer Stag', 'Bull', 'Forest Monkey',
+        'Red Fox', 'White-tailed Deer', 'Domestic Horse',
+        'Donkey', 'Domestic Cow', 'Alpaca', 'Ostrich',
+        'Red Deer Stag', 'Bull', 'Forest Monkey',
         'Rabbit (Idle)', 'Rabbit (Walk)', 'Bengal Tiger'
     ];
     

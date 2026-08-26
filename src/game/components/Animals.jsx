@@ -30,18 +30,6 @@ const ANIMAL_CONFIGS = [
         description: 'A graceful herbivore known for the white underside of its tail, often raised as an alarm signal.'
     },
     {
-        file: 'Wolf.gltf',
-        soundFile: 'wolf.mp3',
-        scale: 1.2,
-        speed: 0.07,
-        runSpeed: 0.14,
-        count: 1,
-        name: 'Gray Wolf',
-        species: 'Canis lupus',
-        emoji: '🐺',
-        description: 'A social pack animal and apex predator, known for its complex communication through howling.'
-    },
-    {
         file: 'Horse.gltf',
         soundFile: 'horse.mp3',
         scale: 1.3,
@@ -52,6 +40,21 @@ const ANIMAL_CONFIGS = [
         species: 'Equus caballus',
         emoji: '🐴',
         description: 'A majestic animal that has been a companion to humans for thousands of years.'
+    },
+    {
+        file: 'ostrich/scene.gltf',
+        targetHeight: 5.4,
+        scale: 1,
+        speed: 0,
+        runSpeed: 0,
+        count: 1,
+        movementStyle: 'static',
+        idleAnimation: 'play',
+        spawnArea: { x: 105, z: -80, radius: 18 },
+        name: 'Ostrich',
+        species: 'Struthio camelus',
+        emoji: '🦤',
+        description: 'The world’s largest living bird, known for its long legs and remarkable speed.'
     },
     {
         file: 'Donkey.gltf',
@@ -88,30 +91,6 @@ const ANIMAL_CONFIGS = [
         species: 'Vicugna pacos',
         emoji: '🦙',
         description: 'A fluffy South American camelid, prized for its soft and luxurious fleece.'
-    },
-    {
-        file: 'Husky.gltf',
-        soundFile: 'husky.mp3',
-        scale: 1.6,
-        speed: 0.07,
-        runSpeed: 0.14,
-        count: 1,
-        name: 'Siberian Husky',
-        species: 'Canis lupus familiaris',
-        emoji: '🐕',
-        description: 'An energetic sled dog breed known for its striking blue eyes and thick double coat.'
-    },
-    {
-        file: 'ShibaInu.gltf',
-        soundFile: 'shibainu.mp3',
-        scale: 1.3,
-        speed: 0.06,
-        runSpeed: 0.11,
-        count: 1,
-        name: 'Shiba Inu',
-        species: 'Canis lupus familiaris',
-        emoji: '🐕',
-        description: 'A small, agile Japanese breed known for its spirited personality and fox-like appearance.'
     },
     {
         file: 'Stag.gltf',
@@ -196,7 +175,8 @@ const ANIMAL_CONFIGS = [
         count: 1,
         collisionRadius: 2.2,
         movementStyle: 'bigCat',
-        idleAnimation: 'Eat',
+        // Eat lowers the whole body toward the ground; use the upright idle pose as the default.
+        idleAnimation: 'Idle',
         specialAnimation: 'Howl',
         specialAnimationInterval: 5,
         specialAnimationChance: 0.65,
@@ -387,10 +367,14 @@ class GLTFAnimal {
 
         this.group.traverse(child => {
             if (child.isMesh) {
-                child.castShadow = false;
-                child.receiveShadow = false;
+                child.castShadow = true;
+                child.receiveShadow = config.file !== 'ostrich/scene.gltf';
                 if (child.material) {
                     child.material.side = THREE.FrontSide;
+                    if (config.file === 'ostrich/scene.gltf') {
+                        child.material.emissive = new THREE.Color(0x202020);
+                        child.material.emissiveIntensity = 0.12;
+                    }
                 }
             }
         });
@@ -683,7 +667,7 @@ class GLTFAnimal {
         const rawGroundingDelta = desiredBoxMinY - this.dynamicBox.min.y;
         const groundingDelta = rawGroundingDelta > 0
             ? rawGroundingDelta
-            : THREE.MathUtils.clamp(rawGroundingDelta, -0.02, 0);
+            : rawGroundingDelta;
         this.group.position.y += groundingDelta;
         const desiredGroundY = this.dynamicBox.min.y + groundingDelta;
 

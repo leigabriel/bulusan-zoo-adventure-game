@@ -23,19 +23,23 @@ const ANIMAL_MODELS = [
   'Donkey.gltf',
   'Fox.gltf',
   'Horse.gltf',
-  'Husky.gltf',
   'monkey/scene.gltf',
+  'ostrich/scene.gltf',
   'rabbit/scene.gltf',
-  'ShibaInu.gltf',
   'Stag.gltf',
   'tiger/scene.gltf',
-  'Wolf.gltf',
 ];
 
 const ANIMAL_MODEL_DEPENDENCIES = [
   '/models/animals/monkey/scene.bin',
   '/models/animals/monkey/textures/material_diffuse.png',
   '/models/animals/monkey/textures/material_specularGlossiness.png',
+  '/models/animals/ostrich/scene.bin',
+  '/models/animals/ostrich/textures/material_baseColor.png',
+  '/models/animals/ostrich/textures/defaultMat_baseColor.png',
+  '/models/animals/ostrich/textures/defaultMat_normal.png',
+  '/models/animals/ostrich/textures/defaultMat_metallicRoughness.png',
+  '/models/animals/ostrich/textures/defaultMat_specularf0.png',
   '/models/animals/rabbit/scene.bin',
   '/models/animals/tiger/scene.bin',
   '/models/animals/tiger/textures/Tiger_Default_baseColor.png',
@@ -55,23 +59,10 @@ const AUDIO_ASSETS = [
   '/audio/fox.mp3',
   '/audio/game-bg-music.mp3',
   '/audio/horse.mp3',
-  '/audio/husky.mp3',
   '/audio/redd.mp3',
-  '/audio/shibainu.mp3',
-  '/audio/wolf.mp3',
 ];
 
 const STRUCTURE_ASSETS = [
-  '/models/watch-tower/wooden watch tower2.obj',
-  '/models/watch-tower/wooden watch tower2.mtl',
-  '/models/watch-tower/textures/Wood_Tower_Col.jpg',
-  '/models/watch-tower/textures/Wood_Tower_Nor.jpg',
-  '/models/low_poly_home_2/scene.gltf',
-  '/models/low_poly_home_2/scene.bin',
-  '/models/low_poly_home_2/textures/Material_baseColor.jpeg',
-  '/models/low_poly_medieval_house/scene.gltf',
-  '/models/low_poly_medieval_house/scene.bin',
-  '/models/low_poly_medieval_house/textures/material-env-project_baseColor.png',
 ];
 
 export const ESSENTIAL_ASSET_PATHS = [

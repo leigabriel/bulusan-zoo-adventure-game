@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { getTerrainHeight } from '../components/Terrain.jsx';
 
-const WALK_SPEED = 20;
-const RUN_SPEED = 32;
+const WALK_SPEED = 15;
+const RUN_SPEED = 22;
 const ACCELERATION = 12;
 const DECELERATION = 8;
 const JUMP_FORCE = 12;
@@ -98,22 +98,6 @@ export function createMovementHandler(camera, state) {
         const resolveObstacles = (list) => {
             if (!list || list.length === 0) return;
             for (const obs of list) {
-                // If it's a tower, allow the player to enter the "stair" zone
-                if (obs.isTower) {
-                    const dx = nextX - obs.x;
-                    const dz = nextZ - obs.z;
-                    const distSq = dx * dx + dz * dz;
-                    // Only collide with the very center base of the tower
-                    const towerBaseRadius = obs.radius * 0.4;
-                    if (distSq < towerBaseRadius * towerBaseRadius) {
-                        const dist = Math.sqrt(distSq) || 0.1;
-                        const overlap = towerBaseRadius - dist;
-                        nextX += (dx / dist) * overlap;
-                        nextZ += (dz / dist) * overlap;
-                    }
-                    continue;
-                }
-
                 const dx = nextX - obs.x;
                 const dz = nextZ - obs.z;
                 const distSq = dx * dx + dz * dz;
@@ -164,26 +148,6 @@ export function createMovementHandler(camera, state) {
         const playerHeight = state.playerHeight ?? PLAYER_HEIGHT;
         const terrainHeight = getTerrainHeight(camera.position.x, camera.position.z);
         let groundLevel = terrainHeight + playerHeight;
-
-        // --- NEW: TOWER CLIMBING LOGIC ---
-        if (state.towers && state.towers.length > 0) {
-            for (const tower of state.towers) {
-                const dx = camera.position.x - tower.x;
-                const dz = camera.position.z - tower.z;
-                const dist = Math.sqrt(dx * dx + dz * dz);
-
-                // If on top of the tower platform
-                if (dist < tower.platformRadius) {
-                    groundLevel = Math.max(groundLevel, tower.platformY + playerHeight);
-                }
-                // If on the stairs (ascending/descending)
-                else if (dist < tower.platformRadius * 2.2) {
-                    const stairProgress = 1 - ((dist - tower.platformRadius) / (tower.platformRadius * 1.2));
-                    const stairHeight = terrainHeight + (tower.platformY - terrainHeight) * Math.max(0, stairProgress);
-                    groundLevel = Math.max(groundLevel, stairHeight + playerHeight);
-                }
-            }
-        }
 
         if (state.isGrounded) {
             camera.position.y = groundLevel;

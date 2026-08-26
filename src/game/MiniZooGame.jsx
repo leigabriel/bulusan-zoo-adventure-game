@@ -6,7 +6,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
 import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache } from './components/Terrain.jsx';
 import { loadGLTFAnimals, releaseAnimalModelCache } from './components/Animals.jsx';
-import { loadMultipleTowers, loadNewHouses } from './components/Structures.jsx';
+import { loadNewHouses } from './components/Structures.jsx';
 import { createGLTFLoader } from './utils/gltfLoader.js';
 import {
     createMovementHandler,
@@ -32,7 +32,6 @@ import {
     NPCInteractionPrompt,
     NPCDialogueModal,
     RotateDeviceOverlay,
-    Hotbar,
     SketchbookModal,
     RunButton,
     playGameButtonSfx
@@ -502,7 +501,10 @@ function MiniZooGame() {
     const [playerName, setPlayerName] = useState(() => getStoredPlayerName());
 
     const [feedingSuccess, setFeedingSuccess] = useState({ visible: false, animalName: '' });
+    const [feedingAnimalName, setFeedingAnimalName] = useState('');
     const allFedCelebratedRef = useRef(false);
+    const feedingInProgressRef = useRef(null);
+    const feedingTimerRef = useRef(null);
 
     // Added obstacles array to state to hold tree/rock/bush positions
     const gameStateRef = useRef({
@@ -522,6 +524,7 @@ function MiniZooGame() {
         playerAnchor: null,
         playerCharacter: null,
         playerCharacterBaseYOffset: 0,
+        playerCharacterBox: new THREE.Box3(),
         playerShadow: null,
         playerMixer: null,
         playerActions: {},
@@ -579,14 +582,20 @@ function MiniZooGame() {
     const checkNearbyAnimals = useCallback((playerPosition, animals) => {
         if (!playerPosition || !animals.length) return null;
         const pos = playerPosition;
+        let nearest = null;
+        let nearestDistSq = Infinity;
         for (const animal of animals) {
             if (!animal.group) continue;
             const ap = animal.group.position;
             const dx = pos.x - ap.x;
             const dz = pos.z - ap.z;
-            if (Math.sqrt(dx * dx + dz * dz) < 15) return animal;
+            const distSq = dx * dx + dz * dz;
+            if (distSq < 15 * 15 && distSq < nearestDistSq) {
+                nearest = animal;
+                nearestDistSq = distSq;
+            }
         }
-        return null;
+        return nearest;
     }, []);
 
     const checkNearbyStaff = useCallback((playerPosition, staffNpc) => {
@@ -795,6 +804,38 @@ function MiniZooGame() {
         }
     }, [playPlayerAction]);
 
+    const clearFeedingTimer = useCallback(() => {
+        if (feedingTimerRef.current) {
+            clearTimeout(feedingTimerRef.current);
+            feedingTimerRef.current = null;
+        }
+        feedingInProgressRef.current = null;
+        setFeedingAnimalName('');
+    }, []);
+
+    const beginFeed = useCallback((animal, info) => {
+        if (!animal || !info?.name || feedingInProgressRef.current || !gameStartedRef.current) return;
+
+        feedingInProgressRef.current = info.name;
+        setFeedingAnimalName(info.name);
+        feedingTimerRef.current = setTimeout(() => {
+            feedingTimerRef.current = null;
+            if (!gameStartedRef.current || feedingInProgressRef.current !== info.name) return;
+
+            if (getSfxVolume() > 0) {
+                animal.playSound?.();
+            }
+            playGameButtonSfx('feed');
+            markAnimalDiscovered(info.name);
+            feedAnimal(info.name);
+            setTasks(getTasks());
+            setFeedingSuccess({ visible: true, animalName: info.name });
+            playVictoryAnimation();
+            feedingInProgressRef.current = null;
+            setFeedingAnimalName('');
+        }, 2000);
+    }, [playVictoryAnimation]);
+
     const disposePlayerCharacter = useCallback(() => {
         const state = gameStateRef.current;
         if (state.playerMixer) {
@@ -930,22 +971,20 @@ function MiniZooGame() {
 
             const statuePromise = loadCenterStatue(scene, isMobile);
             const staffPromise = loadStaffNpc(scene, isMobile);
-            const watchTowersPromise = loadMultipleTowers(scene);
             const housesPromise = loadNewHouses(scene);
 
-            const { loadPromise: treesP } = loadTrees(scene, isMobile ? 50 : 80);
+            const { loadPromise: treesP } = loadTrees(scene, isMobile ? 60 : 100);
             const { loadPromise: bushesP } = loadBushes(scene, isMobile ? 40 : 70);
             const { loadPromise: rocksP } = loadRocks(scene, isMobile ? 20 : 40);
 
             setLoadProgress(30);
             // Wait for all objects to load, and extract the resulting arrays!
-            const [loadedTrees, loadedBushes, loadedRocks, statueResult, staffResult, towersResult, housesResult] = await Promise.all([
+            const [loadedTrees, loadedBushes, loadedRocks, statueResult, staffResult, housesResult] = await Promise.all([
                 treesP,
                 bushesP,
                 rocksP,
                 statuePromise,
                 staffPromise,
-                watchTowersPromise,
                 housesPromise
             ]);
 
@@ -954,18 +993,6 @@ function MiniZooGame() {
             loadedTrees.forEach(t => state.obstacles.push({ x: t.position.x, z: t.position.z, radius: t.scale.x * 0.8 }));
             loadedRocks.forEach(r => state.obstacles.push({ x: r.position.x, z: r.position.z, radius: r.scale.x * 1.1 }));
             loadedBushes.forEach(b => state.obstacles.push({ x: b.position.x, z: b.position.z, radius: b.scale.x * 0.6 }));
-
-            if (towersResult) {
-                state.towers = towersResult;
-                towersResult.forEach(tower => {
-                    state.obstacles.push({
-                        x: tower.x,
-                        z: tower.z,
-                        radius: tower.radius,
-                        isTower: true
-                    });
-                });
-            }
 
             if (housesResult) {
                 housesResult.forEach(house => {
@@ -1025,7 +1052,7 @@ function MiniZooGame() {
             state.animals = await loadGLTFAnimals(scene, state.obstacles, initialSfxVolume);
             setLoadProgress(80);
 
-            state.clouds = createClouds(scene, isMobile ? 8 : 12);
+            state.clouds = createClouds(scene, isMobile ? 12 : 18);
             setLoadProgress(95);
 
             const handleMovement = createMovementHandler(state.playerAnchor, state);
@@ -1097,6 +1124,9 @@ function MiniZooGame() {
                         characterGround + state.playerCharacterBaseYOffset + jumpOffset,
                         playerPosition.z
                     );
+                    state.playerCharacterBox.setFromObject(state.playerCharacter);
+                    const characterGroundingDelta = (characterGround + 0.02 + jumpOffset) - state.playerCharacterBox.min.y;
+                    state.playerCharacter.position.y += characterGroundingDelta;
                     // Keep movement unchanged while showing the character's back in third person.
                     const desiredCharacterYaw = state.yaw + (cameraModeRef.current === 'third' ? Math.PI : 0);
                     const currentY = state.playerCharacter.rotation.y;
@@ -1440,18 +1470,20 @@ function MiniZooGame() {
     }, []);
     const handleConfirmResetTasks = useCallback(() => {
         setShowResetTasksModal(false);
+        clearFeedingTimer();
         resetAllFeedingTasks();
         setTasks(getTasks());
         allFedCelebratedRef.current = false;
         setShowAllFedCelebration(false);
         setShowCertificate(false);
         setFeedingSuccess({ visible: false, animalName: '' });
-    }, []);
+    }, [clearFeedingTimer]);
     const handleCancelResetTasks = useCallback(() => setShowResetTasksModal(false), []);
     const handleQuitRequest = useCallback(() => { setSettingsOpen(false); setShowQuitModal(true); }, []);
     const handleConfirmQuit = useCallback(() => {
         // Stop sounds
         stopGameplaySounds(false);
+        clearFeedingTimer();
 
         // State cleanup - This will return the user to the Main Menu
         gameStartedRef.current = false;
@@ -1476,7 +1508,7 @@ function MiniZooGame() {
         setBookOpen(false);
         setGameStarted(false);
         setShowMenu(true);
-    }, [stopGameplaySounds]);
+    }, [clearFeedingTimer, stopGameplaySounds]);
     const handleCancelQuit = useCallback(() => setShowQuitModal(false), []);
 
     const handleViewDetails = useCallback(() => {
@@ -1484,46 +1516,30 @@ function MiniZooGame() {
         const info = nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config;
         markAnimalDiscovered(info.name);
         setSelectedAnimal(info);
-        setIsCompactAnimalPopupDismissed(false);
+        setIsCompactAnimalPopupDismissed(true);
         setAnimalModalPlacement('center');
     }, [nearbyAnimal]);
 
     const handleFeedAnimal = useCallback(() => {
         if (!nearbyAnimal) return;
         const info = nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config;
-        if (getSfxVolume() > 0) {
-            nearbyAnimal.playSound?.();
-        }
-        playGameButtonSfx('feed');
-        markAnimalDiscovered(info.name);
-        feedAnimal(info.name);
-        setTasks(getTasks());
-        setFeedingSuccess({ visible: true, animalName: info.name });
-        playVictoryAnimation();
-    }, [nearbyAnimal, playVictoryAnimation]);
+        beginFeed(nearbyAnimal, info);
+    }, [nearbyAnimal, beginFeed]);
 
     const handleFeedFromModal = useCallback(() => {
         if (!selectedAnimal) return;
-        if (getSfxVolume() > 0) {
-            const state = gameStateRef.current;
-            const match = state.animals.find(a => {
-                const info = a.getInfo ? a.getInfo() : a.config;
-                return info?.name === selectedAnimal.name;
-            });
-            match?.playSound?.();
-        }
-        playGameButtonSfx('feed');
-        markAnimalDiscovered(selectedAnimal.name);
-        feedAnimal(selectedAnimal.name);
-        setTasks(getTasks());
-        setFeedingSuccess({ visible: true, animalName: selectedAnimal.name });
-        playVictoryAnimation();
+        const state = gameStateRef.current;
+        const match = state.animals.find(a => {
+            const info = a.getInfo ? a.getInfo() : a.config;
+            return info?.name === selectedAnimal.name;
+        });
+        beginFeed(match, selectedAnimal);
         if (animalModalPlacement === 'center') {
             setAnimalModalPlacement('bottom');
             setSelectedAnimal(null);
             setIsCompactAnimalPopupDismissed(false);
         }
-    }, [selectedAnimal, animalModalPlacement, playVictoryAnimation]);
+    }, [selectedAnimal, animalModalPlacement, beginFeed]);
 
     const handleHideFeedSuccess = useCallback(() => setFeedingSuccess({ visible: false, animalName: '' }), []);
 
@@ -1627,15 +1643,7 @@ function MiniZooGame() {
             }
             if (key === 'f' && nearbyAnimal && !selectedAnimal && gameStarted && characterReady) {
                 const info = nearbyAnimal.getInfo ? nearbyAnimal.getInfo() : nearbyAnimal.config;
-                if (getSfxVolume() > 0) {
-                    nearbyAnimal.playSound?.();
-                }
-                playGameButtonSfx('feed');
-                markAnimalDiscovered(info.name);
-                feedAnimal(info.name);
-                setTasks(getTasks());
-                setFeedingSuccess({ visible: true, animalName: info.name });
-                playVictoryAnimation();
+                beginFeed(nearbyAnimal, info);
             }
             if (key === 'v' && gameStarted && characterReady) {
                 cycleCameraMode();
@@ -1659,7 +1667,7 @@ function MiniZooGame() {
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [nearbyAnimal, nearbyStaff, selectedAnimal, showNpcDialogue, gameStarted, settingsOpen, tasksOpen, animalModalPlacement, characterReady, cycleCameraMode, openNpcDialogue, closeNpcDialogue, bookOpen, playVictoryAnimation]);
+    }, [nearbyAnimal, nearbyStaff, selectedAnimal, showNpcDialogue, gameStarted, settingsOpen, tasksOpen, animalModalPlacement, characterReady, cycleCameraMode, openNpcDialogue, closeNpcDialogue, bookOpen, beginFeed]);
 
     useEffect(() => {
         gameStartedRef.current = gameStarted;
@@ -1803,7 +1811,7 @@ function MiniZooGame() {
             state.cleanup?.();
             releaseAssetObjectUrls();
         };
-    }, [clearStatueMessageTimers, initGame, stopGameplaySounds]);
+    }, [clearFeedingTimer, clearStatueMessageTimers, initGame, stopGameplaySounds]);
 
     useEffect(() => {
         showNpcDialogueRef.current = showNpcDialogue;
@@ -1915,10 +1923,13 @@ function MiniZooGame() {
     const compactAnimal = (!isCompactAnimalPopupDismissed && animalModalPlacement === 'bottom') ? nearbyAnimalInfo : null;
     const modalAnimal = animalModalPlacement === 'center' ? selectedAnimal : compactAnimal;
     const isModalAnimalFed = modalAnimal ? isAnimalFed(modalAnimal.name) : false;
+    const isModalAnimalFeeding = modalAnimal ? feedingAnimalName === modalAnimal.name : false;
     const npcDialogueNode = getStaffDialogueNode(npcDialogueNodeId);
     const canShowNpcPrompt = gameStarted
         && characterReady
         && nearbyStaff
+        && !nearbyAnimal
+        && !selectedAnimal
         && !showNpcDialogue;
 
     return (
@@ -1950,7 +1961,6 @@ function MiniZooGame() {
                     <Joystick baseRef={baseRef} stickRef={stickRef} isTouchDevice={isTouchDevice} />
                     <RunButton isTouchDevice={isTouchDevice} onRunStart={() => handleRunInput(true)} onRunEnd={() => handleRunInput(false)} />
                     <JumpButton jumpRef={jumpRef} isTouchDevice={isTouchDevice} />
-                    <Hotbar onOpenBook={openBook} bookOpen={bookOpen} />
                     <SketchbookModal isOpen={bookOpen} onClose={closeBook} />
                     <SettingsPanel
                         isOpen={settingsOpen}
@@ -1966,6 +1976,7 @@ function MiniZooGame() {
                         onClose={handleCloseAnimalModal}
                         onFeed={animalModalPlacement === 'center' ? handleFeedFromModal : handleFeedAnimal}
                         isFed={isModalAnimalFed}
+                        isFeeding={isModalAnimalFeeding}
                         placement={animalModalPlacement}
                         preview={animalModalPlacement === 'bottom'}
                         onView={handleViewDetails}

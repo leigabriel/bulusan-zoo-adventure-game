@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { getTerrainHeight } from './Terrain.jsx';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
@@ -61,69 +59,6 @@ function fixMaterial(child) {
     }
 }
 
-export async function loadWatchTower(scene, x = 45, z = 45, scale = 2.5) {
-    const basePath = '/models/watch-tower/';
-    const modelName = 'wooden watch tower2';
-
-    try {
-        const mtlUrl = await resolveAssetUrl(`${basePath}${modelName}.mtl`);
-        const objUrl = await resolveAssetUrl(`${basePath}${modelName}.obj`);
-
-        return new Promise((resolve) => {
-            const mtlLoader = new MTLLoader();
-            // setPath is for the .mtl file itself, setResourcePath is for textures/images
-            mtlLoader.setPath(basePath);
-            mtlLoader.setResourcePath(basePath);
-
-            mtlLoader.load(`${modelName}.mtl`, (materials) => {
-                materials.preload();
-
-                const objLoader = new OBJLoader();
-                objLoader.setMaterials(materials);
-                objLoader.setPath(basePath);
-                objLoader.load(`${modelName}.obj`, (object) => {
-                    object.traverse(fixMaterial);
-
-                    const terrainY = getTerrainHeight(x, z);
-                    // Sink the tower slightly into the ground to prevent floating on slopes
-                    object.position.set(x, terrainY - (0.4 * scale), z);
-                    object.scale.setScalar(scale);
-
-                    scene.add(object);
-
-                    const platformHeight = terrainY + (6.5 * scale);
-                    const platformRadius = 2.5 * scale;
-
-                    resolve({
-                        object,
-                        x,
-                        z,
-                        radius: 1.5 * scale,
-                        isTower: true,
-                        platformY: platformHeight,
-                        platformRadius: platformRadius
-                    });
-                }, undefined, () => resolve(null));
-            }, undefined, () => resolve(null));
-        });
-    } catch (error) {
-        console.error('Error loading watch tower:', error);
-        return null;
-    }
-}
-
-export async function loadMultipleTowers(scene) {
-    const towerConfigs = [
-        { x: 45, z: 45, scale: 2.5 },
-        { x: -80, z: 90, scale: 2.8 },
-        { x: 120, z: -40, scale: 2.4 }
-    ];
-
-    const promises = towerConfigs.map(cfg => loadWatchTower(scene, cfg.x, cfg.z, cfg.scale));
-    const results = await Promise.all(promises);
-    return results.filter(r => r !== null);
-}
-
 /**
  * Loads the new low-poly house models
  */
@@ -160,20 +95,6 @@ async function loadGLTFStructure(scene, path, name, x, z, scale = 1.0, rotationY
 
 export async function loadNewHouses(scene) {
     const houseConfigs = [
-        {
-            path: '/models/low_poly_home_2/',
-            file: 'scene.gltf',
-            x: -120, z: -100,
-            scale: 12.0, // Fixed: Scale was way too small (0.05)
-            rotation: Math.PI / 4
-        },
-        {
-            path: '/models/low_poly_medieval_house/',
-            file: 'scene.gltf',
-            x: 130, z: 100,
-            scale: 5.5,
-            rotation: -Math.PI / 3
-        }
     ];
 
     const promises = houseConfigs.map(cfg =>

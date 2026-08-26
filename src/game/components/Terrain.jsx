@@ -6,6 +6,7 @@ const TREE_MODELS = ['Tree1', 'Tree2', 'Tree3', 'Tree4'];
 const BUSH_MODELS = ['Bush1', 'Bush2', 'Bush3'];
 const GRASS_MODELS = ['Grass1', 'Grass2', 'Grass3'];
 const ROCK_MODELS = ['Rock1', 'Rock2', 'Rock3'];
+const TERRAIN_SIZE = 500;
 
 const modelCache = new Map();
 
@@ -37,7 +38,7 @@ export function getTerrainHeight(x, z) {
 }
 
 export function createTerrain(scene) {
-    const terrainGeo = new THREE.PlaneGeometry(750, 750, 120, 120);
+    const terrainGeo = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, 100, 100);
     const posAttr = terrainGeo.attributes.position;
 
     const colors = [];
@@ -90,7 +91,7 @@ export function createTerrain(scene) {
         })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = false;
+    ground.receiveShadow = true;
     scene.add(ground);
 
     return ground;
@@ -190,47 +191,23 @@ export function loadTrees(scene, count = 120) {
         const validModels = models.filter(m => m !== null);
         if (validModels.length === 0) return trees;
 
-        const clusters = [
-            { x: 120, z: 90, count: 20, radius: 45, minScale: 3, maxScale: 6 },
-            { x: -100, z: 120, count: 18, radius: 40, minScale: 3.5, maxScale: 5.5 },
-            { x: 90, z: -110, count: 18, radius: 40, minScale: 3, maxScale: 5 },
-            { x: -130, z: -90, count: 22, radius: 45, minScale: 3, maxScale: 6 },
-            { x: 10, z: 150, count: 15, radius: 35, minScale: 2.5, maxScale: 4.5 },
-            { x: 160, z: -50, count: 15, radius: 35, minScale: 2.5, maxScale: 4.5 },
-            { x: -50, z: 50, count: 8, radius: 25, minScale: 2, maxScale: 4 },
-            { x: 50, z: -50, count: 8, radius: 25, minScale: 2, maxScale: 4 }
-        ];
-
-        clusters.forEach(cluster => {
-            for (let i = 0; i < cluster.count; i++) {
-                const baseModel = validModels[Math.floor(Math.random() * validModels.length)];
-                const tree = baseModel.clone();
-                const scale = cluster.minScale + Math.random() * (cluster.maxScale - cluster.minScale);
-                tree.scale.setScalar(scale);
-
-                const angle = Math.random() * Math.PI * 2;
-                const r = Math.pow(Math.random(), 0.5) * cluster.radius;
-                const x = cluster.x + Math.cos(angle) * r;
-                const z = cluster.z + Math.sin(angle) * r;
-                const h = getTerrainHeight(x, z);
-
-                tree.position.set(x, h, z);
-                tree.rotation.y = Math.random() * Math.PI * 2;
-
-                scene.add(tree);
-                trees.push(tree);
-            }
-        });
-
-        const scattered = count - trees.length;
-        for (let i = 0; i < scattered; i++) {
+        // Reuse the fixed tree budget between an edge ring and a middle forest
+        // band so density improves without increasing draw calls.
+        const edgeTreeCount = Math.ceil(count * 0.75);
+        const forestSectors = 14;
+        for (let i = 0; i < count; i++) {
             const baseModel = validModels[Math.floor(Math.random() * validModels.length)];
             const tree = baseModel.clone();
-            const scale = 2.5 + Math.random() * 3;
+            const scale = 2.5 + Math.random() * 2.5;
             tree.scale.setScalar(scale);
 
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 60 + Math.random() * 200;
+            const isEdgeTree = i < edgeTreeCount;
+            const angle = isEdgeTree
+                ? (Math.floor(i / Math.ceil(edgeTreeCount / forestSectors)) / forestSectors) * Math.PI * 2 + (Math.random() - 0.5) * 0.28
+                : Math.random() * Math.PI * 2;
+            const radius = isEdgeTree
+                ? 175 + Math.random() * 50
+                : 55 + Math.random() * 125;
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
             const h = getTerrainHeight(x, z);
@@ -362,7 +339,7 @@ export function createGrass(scene, count = 2500) {
 
                 // Spread evenly across the ENTIRE terrain map
                 const angle = Math.random() * Math.PI * 2;
-                const r = Math.pow(Math.random(), 0.5) * 360; // 360 covers the 750x750 plane nicely
+                const r = Math.pow(Math.random(), 0.5) * 235; // Keep grass within the 500x500 terrain.
                 const x = Math.cos(angle) * r;
                 const z = Math.sin(angle) * r;
                 const h = getTerrainHeight(x, z);
@@ -396,30 +373,31 @@ export function createClouds(scene, count = 18) {
         fog: false
     });
 
+    const puffGeometry = new THREE.DodecahedronGeometry(1, 0);
     for (let i = 0; i < count; i++) {
         const group = new THREE.Group();
         const numPuffs = 4 + Math.floor(Math.random() * 4);
 
         for (let j = 0; j < numPuffs; j++) {
             const size = 4 + Math.random() * 5;
-            const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 10, 8), mat);
+            const mesh = new THREE.Mesh(puffGeometry, mat);
             mesh.position.set(
                 j * 6 + Math.random() * 2,
                 Math.random() * 3,
                 Math.random() * 5
             );
             mesh.scale.set(
-                0.8 + Math.random() * 0.6,
-                0.5 + Math.random() * 0.4,
-                0.7 + Math.random() * 0.5
+                size * (1.2 + Math.random() * 0.8),
+                size * (0.55 + Math.random() * 0.2),
+                size * (0.8 + Math.random() * 0.45)
             );
             group.add(mesh);
         }
 
         group.position.set(
-            (Math.random() - 0.5) * 800,
+            (Math.random() - 0.5) * 600,
             60 + Math.random() * 35,
-            (Math.random() - 0.5) * 800
+            (Math.random() - 0.5) * 600
         );
         scene.add(group);
         clouds.push(group);

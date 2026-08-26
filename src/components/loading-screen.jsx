@@ -4,7 +4,7 @@ export function LoadingScreen() {
     return (
         <div
             className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden px-4 py-5"
-            style={{ backgroundColor: '#c6fe69' }}
+            style={{ backgroundColor: '#4ade80' }}
         >
             <div
                 className="relative z-10 flex w-full items-center justify-center text-center"

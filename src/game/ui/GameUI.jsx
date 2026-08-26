@@ -407,8 +407,8 @@ function Character3DPreview({ modelFile }) {
 
             // Leave room for the model's idle pose and rotation. This keeps
             // hats, hands, and feet inside the frame on portrait screens too.
-                    camera.position.set(0, center.y + size.y * 0.03, distance * 2.4);
-            camera.lookAt(center.x, center.y + size.y * 0.02, center.z);
+                    camera.position.set(0, center.y + size.y * 0.03, distance * 3.1);
+                    camera.lookAt(center.x, center.y + size.y * 0.08, center.z);
             camera.updateProjectionMatrix();
         };
 
@@ -460,7 +460,7 @@ function Character3DPreview({ modelFile }) {
                             actions[clip.name.toLowerCase()] = mixer.clipAction(clip);
                         });
                         const actionEntries = Object.entries(actions);
-                        idleAction = actionEntries.find(([name]) => /idle|stand|breath/.test(name))?.[1] || actionEntries[0]?.[1] || null;
+                        idleAction = actions.idle || actionEntries.find(([name]) => /idle|stand|breath/.test(name))?.[1] || actionEntries[0]?.[1] || null;
                         if (idleAction) {
                             idleAction.enabled = true;
                             idleAction.setEffectiveWeight(1);
@@ -742,8 +742,6 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
             {/* --- MAIN SELECTION AREA --- */}
             <div className="flex-1 relative flex flex-col items-center justify-center min-h-0">
                 {/* Radial Stage Effect */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,transparent_75%)] pointer-events-none" />
-
                 {/* 3D Character Stage */}
                 <div className="flex-1 min-h-0 w-full max-w-6xl relative flex items-center justify-center">
 
@@ -764,7 +762,7 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
                         </button>
                     </div>
 
-                    <div className="w-full h-full min-h-0 relative z-10 flex items-center justify-center overflow-hidden">
+                    <div className="w-full h-full min-h-0 relative z-10 flex translate-y-14 items-center justify-center overflow-hidden sm:translate-y-20">
                         {previewChar && <Character3DPreview modelFile={previewChar.file} />}
                     </div>
                 </div>
@@ -1065,47 +1063,51 @@ export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick }) {
     return (
         <SideSheet isOpen={isOpen} onClose={onClose} title="Zoo Missions" side="right">
             <div className="space-y-4">
-                <div className="rounded-2xl bg-emerald-950 p-4 text-white shadow-xl">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Total Progress</span>
-                        <span className="text-sm font-black">{completedCount} / {tasks.length}</span>
+                <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-300 bg-linear-to-br from-emerald-950 via-emerald-800 to-teal-700 p-4 text-white shadow-[0_8px_0_0_#a7f3d0]">
+                    <div className="pointer-events-none absolute -right-5 -top-7 text-6xl opacity-20">★</div>
+                    <div className="relative flex items-center justify-between gap-2 mb-2">
+                        <div>
+                            <span className="block text-[10px] font-black uppercase tracking-widest text-emerald-300">Zoo Mission</span>
+                            <span className="text-sm font-black">Feed every friend!</span>
+                        </div>
+                        <span className="rounded-full bg-lime-300 px-3 py-1 text-sm font-black text-emerald-950 shadow-sm">{completedCount} / {tasks.length}</span>
                     </div>
-                    <div className="h-3 w-full bg-emerald-900/50 rounded-full overflow-hidden border border-white/10">
+                    <div className="h-3 w-full overflow-hidden rounded-full border border-white/20 bg-emerald-950/50">
                         <div
-                            className="h-full bg-linear-to-r from-emerald-500 to-lime-400 transition-all duration-500 ease-out shadow-[0_0_12px_rgba(52,211,153,0.5)]"
+                            className="h-full rounded-full bg-linear-to-r from-lime-300 to-amber-300 transition-all duration-500 ease-out shadow-[0_0_12px_rgba(253,224,71,0.65)]"
                             style={{ width: `${progressPercent}%` }}
                         />
                     </div>
                 </div>
 
                 <div className="space-y-3" data-ui-scrollable="true">
-                    {tasks.map((task) => (
+                    {tasks.map((task, index) => (
                         <button
                             key={task.id}
                             type="button"
                             data-ui-button="true"
                             onClick={() => onTaskClick?.(task)}
                             className={cx(
-                                'group flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-all active:scale-[0.98]',
+                                'group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border-2 px-3 py-3 text-left transition-all active:scale-[0.98] hover:-translate-y-0.5',
                                 task.completed
                                     ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-[0_4px_0_0_#d1fae5]'
                                     : 'border-slate-100 bg-white text-slate-800 shadow-[0_4px_0_0_#f1f5f9] hover:border-amber-200 hover:bg-amber-50',
                             )}
                         >
-                            <div className="flex items-center gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
                                 <div className={cx(
-                                    "w-8 h-8 rounded-full flex items-center justify-center text-lg shadow-inner",
-                                    task.completed ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"
+                                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-sm font-black shadow-inner",
+                                    task.completed ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-700"
                                 )}>
-                                    {task.completed ? '✓' : '•'}
+                                    {task.completed ? '✓' : index + 1}
                                 </div>
-                                <span className="text-sm sm:text-base font-black tracking-tight">{task.name}</span>
+                                <span className="truncate text-sm font-black tracking-tight sm:text-base">{task.name}</span>
                             </div>
                             <span className={cx(
                                 "shrink-0 rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-widest",
                                 task.completed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
                             )}>
-                                {task.completed ? 'Done' : 'Pending'}
+                                {task.completed ? 'Done!' : 'Feed'}
                             </span>
                         </button>
                     ))}
@@ -1187,6 +1189,7 @@ export function AnimalInfoModal({
     onClose,
     onFeed,
     isFed,
+    isFeeding = false,
     placement = 'center',
     preview = false,
     onView,
@@ -1212,8 +1215,8 @@ export function AnimalInfoModal({
 
                     <div className="mt-2 sm:mt-3 grid grid-cols-2 gap-1.5 sm:gap-2">
                         <ActionButton variant="secondary" size="sm" onClick={onView}>Details</ActionButton>
-                        <ActionButton variant={isFed ? 'secondary' : 'primary'} size="sm" onClick={onFeed} disabled={isFed}>
-                            {isFed ? 'Already Fed' : 'Feed'}
+                        <ActionButton variant={isFed || isFeeding ? 'secondary' : 'primary'} size="sm" onClick={onFeed} disabled={isFed || isFeeding}>
+                            {isFed ? 'Already Fed' : isFeeding ? 'Feeding...' : 'Feed'}
                         </ActionButton>
                     </div>
                 </SurfacePanel>
@@ -1233,8 +1236,8 @@ export function AnimalInfoModal({
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <ActionButton variant="secondary" onClick={onClose}>Close</ActionButton>
-                    <ActionButton variant={isFed ? 'secondary' : 'primary'} onClick={onFeed} disabled={isFed}>
-                        {isFed ? 'Already Fed' : 'Feed Animal'}
+                    <ActionButton variant={isFed || isFeeding ? 'secondary' : 'primary'} onClick={onFeed} disabled={isFed || isFeeding}>
+                        {isFed ? 'Already Fed' : isFeeding ? 'Feeding...' : 'Feed Animal'}
                     </ActionButton>
                 </div>
             </div>
@@ -1383,7 +1386,7 @@ export function RunButton({ isTouchDevice, onRunStart, onRunEnd }) {
     if (!isTouch) return null;
 
     return (
-        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+5.7rem)] right-2.5 z-70 sm:right-3">
+        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+6.8rem)] right-2.5 z-70 sm:right-3">
             <button
                 type="button"
                 aria-label="Hold to run"
@@ -1568,61 +1571,6 @@ export function SketchbookModal({ isOpen, onClose }) {
       <p className="caption" ref={captionRef}></p>
     </div>
   );
-}
-
-export function Hotbar({ onOpenBook, bookOpen = false }) {
-    const slots = useMemo(() => [
-        {
-            id: 'book',
-            label: 'Book',
-            icon: '📖',
-            title: 'Open the sketchbook',
-            enabled: true,
-            active: bookOpen,
-            onClick: onOpenBook,
-        },
-        {
-            id: 'feed',
-            label: 'Feed',
-            icon: '🍎',
-            title: 'Feed animals (coming soon)',
-            enabled: false,
-            active: false,
-            onClick: null,
-        },
-        {
-            id: 'camera',
-            label: 'Camera',
-            icon: '📷',
-            title: 'Camera (coming soon)',
-            enabled: false,
-            active: false,
-            onClick: null,
-        },
-    ], [onOpenBook, bookOpen]);
-
-    return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.6rem)] z-72 flex justify-center px-1 select-none">
-            <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 rounded-2xl border-2 border-white/40 bg-slate-950/55 p-1.5 sm:p-2 shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md" data-ui-hud="true">
-                {slots.map((slot) => (
-                    <button
-                        key={slot.id}
-                        type="button"
-                        data-ui-button={slot.enabled ? 'true' : undefined}
-                        onClick={slot.enabled ? slot.onClick : undefined}
-                        disabled={!slot.enabled}
-                        title={slot.title}
-                        aria-label={slot.label}
-                        aria-disabled={!slot.enabled}
-                        className={cx('hotbar-slot', slot.active && 'is-active')}
-                    >
-                        <span className="hotbar-icon" aria-hidden="true">{slot.icon}</span>
-                        <span className="hotbar-label">{slot.label}</span>
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
 }
 
 export function GameUI() {
