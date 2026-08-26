@@ -1,22 +1,10 @@
 import * as THREE from 'three';
 import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { getTerrainHeight } from './Terrain.jsx';
+import { alignObjectToTerrain, getTerrainHeight } from './Terrain.jsx';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
 
 const ANIMAL_CONFIGS = [
-    {
-        file: 'Fox.gltf',
-        soundFile: 'fox.mp3',
-        scale: 1.2,
-        speed: 0.06,
-        runSpeed: 0.12,
-        count: 1,
-        name: 'Red Fox',
-        species: 'Vulpes vulpes',
-        emoji: '🦊',
-        description: 'A clever and adaptable predator known for its beautiful red coat and bushy tail.'
-    },
     {
         file: 'Deer.gltf',
         soundFile: 'deer.mp3',
@@ -43,8 +31,8 @@ const ANIMAL_CONFIGS = [
     },
     {
         file: 'ostrich/scene.gltf',
-        targetHeight: 5.4,
-        scale: 1,
+        targetHeight: 2.4,
+        scale: 3,
         speed: 0,
         runSpeed: 0,
         count: 1,
@@ -135,7 +123,6 @@ const ANIMAL_CONFIGS = [
     },
     {
         file: 'rabbit/scene.gltf',
-        floorHeight: 0.08,
         scale: 0.05,
         speed: 0.03,
         runSpeed: 0.05,
@@ -151,7 +138,6 @@ const ANIMAL_CONFIGS = [
     },
     {
         file: 'rabbit/scene.gltf',
-        floorHeight: 0.08,
         scale: 0.05,
         speed: 0.03,
         runSpeed: 0.05,
@@ -167,21 +153,14 @@ const ANIMAL_CONFIGS = [
     },
     {
         file: 'tiger/scene.gltf',
-        floorHeight: 1.7,
         scale: 4.25,
         soundFile: 'tiger.mp3',
         speed: 0.038,
         runSpeed: 0.082,
         count: 1,
         collisionRadius: 2.2,
-        movementStyle: 'bigCat',
-        // Eat lowers the whole body toward the ground; use the upright idle pose as the default.
-        idleAnimation: 'Idle',
-        specialAnimation: 'Howl',
-        specialAnimationInterval: 5,
-        specialAnimationChance: 0.65,
-        specialAnimationTimeScale: 0.78,
-        groundClearance: 0.28,
+        movementStyle: 'static',
+        idleAnimation: 'Idle_Lie Prone',
         name: 'Bengal Tiger',
         species: 'Panthera tigris tigris',
         emoji: '🐅',
@@ -358,13 +337,6 @@ class GLTFAnimal {
             this.group.scale.multiplyScalar(fitScale);
         }
 
-        const alignedBox = new THREE.Box3().setFromObject(this.group);
-        // this.baseYOffset = THREE.MathUtils.clamp(-alignedBox.min.y, -2, 12);
-        this.baseYOffset = THREE.MathUtils.clamp(-alignedBox.min.y, -2, 12);
-        if (typeof config.floorHeight === 'number') {
-            this.baseYOffset += config.floorHeight;
-        }
-
         this.group.traverse(child => {
             if (child.isMesh) {
                 child.castShadow = true;
@@ -372,8 +344,9 @@ class GLTFAnimal {
                 if (child.material) {
                     child.material.side = THREE.FrontSide;
                     if (config.file === 'ostrich/scene.gltf') {
-                        child.material.emissive = new THREE.Color(0x202020);
-                        child.material.emissiveIntensity = 0.12;
+                        child.material.color.set(0xffffff);
+                        child.material.emissive = new THREE.Color(0x555555);
+                        child.material.emissiveIntensity = 0.2;
                     }
                 }
             }
@@ -446,10 +419,9 @@ class GLTFAnimal {
         this.pos.z = spawn.z;
 
         const h = getTerrainHeight(this.pos.x, this.pos.z);
-        this.group.position.set(this.pos.x, h + this.baseYOffset, this.pos.z);
+        this.group.position.set(this.pos.x, h, this.pos.z);
         this.group.rotation.y = this.angle;
-        this.dynamicBox.setFromObject(this.group);
-        this.groundOffsetFromMin = this.group.position.y - this.dynamicBox.min.y;
+        alignObjectToTerrain(this.group, h, this.dynamicBox, config.groundClearance ?? 0.01);
 
         this.shadow.position.set(this.pos.x, h + 0.055, this.pos.z);
         scene.add(this.group);
@@ -629,7 +601,7 @@ class GLTFAnimal {
         }
 
         const h = getTerrainHeight(this.pos.x, this.pos.z);
-        this.group.position.set(this.pos.x, h + this.baseYOffset, this.pos.z);
+        this.group.position.set(this.pos.x, h, this.pos.z);
         const terrainNormal = getTerrainNormalAt(this.terrainNormal, this.pos.x, this.pos.z);
         const targetPitch = THREE.MathUtils.clamp(Math.atan2(-terrainNormal.z, terrainNormal.y), -0.28, 0.28);
         const targetRoll = THREE.MathUtils.clamp(Math.atan2(terrainNormal.x, terrainNormal.y), -0.28, 0.28);
@@ -660,19 +632,12 @@ class GLTFAnimal {
             this.group.rotation.z = this.slopeRoll;
         }
 
-        // Ground by matching the animated bounding-box floor to terrain height + clearance.
+        // Re-align after animation and slope rotation so animated pivots cannot sink.
         const groundClearance = this.config.groundClearance ?? 0.01;
-        this.dynamicBox.setFromObject(this.group);
-        const desiredBoxMinY = h + groundClearance;
-        const rawGroundingDelta = desiredBoxMinY - this.dynamicBox.min.y;
-        const groundingDelta = rawGroundingDelta > 0
-            ? rawGroundingDelta
-            : rawGroundingDelta;
-        this.group.position.y += groundingDelta;
-        const desiredGroundY = this.dynamicBox.min.y + groundingDelta;
+        const groundingDelta = alignObjectToTerrain(this.group, h, this.dynamicBox, groundClearance);
 
         if (this.shadow) {
-            const airHeight = Math.max(0, this.group.position.y - desiredGroundY);
+            const airHeight = Math.max(0, groundingDelta);
             this.shadow.position.set(this.pos.x, h + 0.055, this.pos.z);
             this.shadow.material.opacity = THREE.MathUtils.clamp(0.23 - airHeight * 0.1, 0.09, 0.23);
         }

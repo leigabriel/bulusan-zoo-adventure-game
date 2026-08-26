@@ -21,7 +21,6 @@ const ANIMAL_MODELS = [
   'Cow.gltf',
   'Deer.gltf',
   'Donkey.gltf',
-  'Fox.gltf',
   'Horse.gltf',
   'monkey/scene.gltf',
   'ostrich/scene.gltf',
@@ -56,19 +55,14 @@ const AUDIO_ASSETS = [
   '/audio/donkey.mp3',
   '/audio/feed.wav',
   '/audio/finish-task.mp3',
-  '/audio/fox.mp3',
   '/audio/game-bg-music.mp3',
   '/audio/horse.mp3',
   '/audio/redd.mp3',
 ];
 
-const STRUCTURE_ASSETS = [
-];
-
 export const ESSENTIAL_ASSET_PATHS = [
   '/models/bulusanstatue.glb',
   ...AUDIO_ASSETS,
-  ...STRUCTURE_ASSETS,
   ...CHARACTER_MODELS.map((file) => `/models/characters/${file}`),
   ...ANIMAL_MODELS.map((file) => `/models/animals/${file}`),
   ...ANIMAL_MODEL_DEPENDENCIES,

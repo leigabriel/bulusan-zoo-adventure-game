@@ -31,10 +31,23 @@ export function releaseTerrainModelCache() {
 }
 
 export function getTerrainHeight(x, z) {
-    const h1 = Math.sin(x * 0.015) * 3.5 + Math.cos(z * 0.015) * 3.5;
-    const h2 = Math.sin(x * 0.006 + 1.2) * 6 + Math.cos(z * 0.008) * 4;
-    const h3 = Math.sin(x * 0.03) * Math.cos(z * 0.03) * 1.5;
-    return h1 + h2 + h3;
+    // Broad, overlapping waves keep the low-poly terrain smooth while adding
+    // enough variation to distinguish hills, valleys, and flatter areas.
+    const broadHills = Math.sin(x * 0.009 + Math.cos(z * 0.007)) * 5.2;
+    const rollingHills = Math.sin(x * 0.019) * 2.4 + Math.cos(z * 0.017 + 0.8) * 2.2;
+    const softDetail = Math.sin(x * 0.032 + z * 0.021) * 0.65;
+    return broadHills + rollingHills + softDetail;
+}
+
+export function alignObjectToTerrain(object, terrainY, bounds = new THREE.Box3(), clearance = 0.02) {
+    if (!object) return 0;
+
+    object.updateMatrixWorld(true);
+    bounds.setFromObject(object);
+    const delta = terrainY + clearance - bounds.min.y;
+    object.position.y += delta;
+    object.updateMatrixWorld(true);
+    return delta;
 }
 
 export function createTerrain(scene) {
@@ -214,6 +227,7 @@ export function loadTrees(scene, count = 120) {
 
             tree.position.set(x, h, z);
             tree.rotation.y = Math.random() * Math.PI * 2;
+            alignObjectToTerrain(tree, h);
 
             scene.add(tree);
             trees.push(tree);
@@ -247,6 +261,7 @@ export function loadBushes(scene, count = 100) {
 
             bush.position.set(x, h, z);
             bush.rotation.y = Math.random() * Math.PI * 2;
+            alignObjectToTerrain(bush, h);
 
             scene.add(bush);
             bushes.push(bush);
@@ -284,10 +299,11 @@ export function loadRocks(scene, count = 40) {
                 const z = patch.z + Math.sin(angle) * r;
                 const h = getTerrainHeight(x, z);
 
-                rock.position.set(x, h - (scale * 0.2), z);
+                rock.position.set(x, h, z);
                 rock.rotation.y = Math.random() * Math.PI * 2;
                 rock.rotation.x = (Math.random() - 0.5) * 0.5;
                 rock.rotation.z = (Math.random() - 0.5) * 0.5;
+                alignObjectToTerrain(rock, h);
 
                 scene.add(rock);
                 rocks.push(rock);
@@ -307,10 +323,11 @@ export function loadRocks(scene, count = 40) {
             const z = Math.sin(angle) * radius;
             const h = getTerrainHeight(x, z);
 
-            rock.position.set(x, h - (scale * 0.2), z);
+            rock.position.set(x, h, z);
             rock.rotation.y = Math.random() * Math.PI * 2;
             rock.rotation.x = (Math.random() - 0.5) * 0.5;
             rock.rotation.z = (Math.random() - 0.5) * 0.5;
+            alignObjectToTerrain(rock, h);
 
             scene.add(rock);
             rocks.push(rock);
@@ -350,6 +367,7 @@ export function createGrass(scene, count = 2500) {
                 grassClump.rotation.y = Math.random() * Math.PI * 2;
                 grassClump.rotation.x = (Math.random() - 0.5) * 0.3;
                 grassClump.rotation.z = (Math.random() - 0.5) * 0.3;
+                alignObjectToTerrain(grassClump, h, new THREE.Box3(), 0);
 
                 scene.add(grassClump);
                 grass.push(grassClump);
