@@ -125,6 +125,8 @@ function loadOBJStructure(scene, name, x, z, scale = 1, rotationY = 0) {
 export async function loadNewHouses(scene) {
     const houseConfigs = [
         { type: 'obj', file: 'Windmill', x: -125, z: -115, scale: 1.4, rotation: Math.PI * 0.16 },
+        { type: 'obj', file: 'Barn', x: 145, z: -155, scale: 1.8, rotation: -Math.PI * 0.12 },
+        { type: 'obj', file: 'OpenBarn', x: -145, z: -155, scale: 1.8, rotation: Math.PI * 0.1 },
     ];
 
     const promises = houseConfigs.map(cfg =>

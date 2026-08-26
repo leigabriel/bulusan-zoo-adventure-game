@@ -249,7 +249,9 @@ export function loadTrees(scene, quality = 'medium') {
             { x: -42, z: 58, radius: 28 },
             { x: -26, z: 70, radius: 28 },
             { x: -20, z: 22, radius: 22 },
-            { x: -125, z: -115, radius: 28 }
+            { x: -125, z: -115, radius: 28 },
+            { x: 145, z: -155, radius: 38 },
+            { x: -145, z: -155, radius: 38 },
         ];
         const interior = [];
         const interiorBudget = interiorBudgets[quality] || interiorBudgets.medium;
