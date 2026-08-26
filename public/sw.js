@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2026-08-17-v3.1';
+const CACHE_VERSION = '2026-08-26-v3.2';
 const APP_SHELL_CACHE = `minizoo-app-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `minizoo-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `minizoo-media-${CACHE_VERSION}`;

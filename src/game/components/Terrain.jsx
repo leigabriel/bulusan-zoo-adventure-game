@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { getRiverTerrainOffset, isLandAccessible, getRiverMetrics } from './River.jsx';
 
 const TREE_MODELS = ['Tree1', 'Tree2', 'Tree3', 'Tree4'];
 const BUSH_MODELS = ['Bush1', 'Bush2', 'Bush3'];
@@ -36,7 +37,8 @@ export function getTerrainHeight(x, z) {
     const broadHills = Math.sin(x * 0.009 + Math.cos(z * 0.007)) * 5.2;
     const rollingHills = Math.sin(x * 0.019) * 2.4 + Math.cos(z * 0.017 + 0.8) * 2.2;
     const softDetail = Math.sin(x * 0.032 + z * 0.021) * 0.65;
-    return broadHills + rollingHills + softDetail;
+    const baseHeight = broadHills + rollingHills + softDetail;
+    return baseHeight + getRiverTerrainOffset(x, z);
 }
 
 export function alignObjectToTerrain(object, terrainY, bounds = new THREE.Box3(), clearance = 0.02) {
@@ -221,9 +223,10 @@ export function loadTrees(scene, count = 120) {
             const radius = isEdgeTree
                 ? 175 + Math.random() * 50
                 : 55 + Math.random() * 125;
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
-            const h = getTerrainHeight(x, z);
+             const x = Math.cos(angle) * radius;
+             const z = Math.sin(angle) * radius;
+             if (!isLandAccessible(x, z, 3)) continue;
+             const h = getTerrainHeight(x, z);
 
             tree.position.set(x, h, z);
             tree.rotation.y = Math.random() * Math.PI * 2;
@@ -257,6 +260,7 @@ export function loadBushes(scene, count = 100) {
             const radius = 30 + Math.random() * 160;
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
+            if (!isLandAccessible(x, z, 2)) continue;
             const h = getTerrainHeight(x, z);
 
             bush.position.set(x, h, z);
@@ -297,6 +301,7 @@ export function loadRocks(scene, count = 40) {
                 const r = Math.random() * patch.radius;
                 const x = patch.x + Math.cos(angle) * r;
                 const z = patch.z + Math.sin(angle) * r;
+                if (!isLandAccessible(x, z, 2)) continue;
                 const h = getTerrainHeight(x, z);
 
                 rock.position.set(x, h, z);
@@ -310,6 +315,45 @@ export function loadRocks(scene, count = 40) {
             }
         });
 
+        // --- RIVER BANK ROCKS ---
+        const riverSamples = 20;
+        const riverPoints = [
+            [-218, 112], [-178, 101], [-135, 108], [-92, 94], [-48, 101],
+            [-4, 87], [42, 98], [88, 82], [132, 91], [176, 73], [218, 82]
+        ];
+
+        for (let i = 0; i < riverSamples; i++) {
+            const baseModel = validModels[Math.floor(Math.random() * validModels.length)];
+            const rock = baseModel.clone();
+
+            // Random point along the river path
+            const segment = Math.floor(Math.random() * (riverPoints.length - 1));
+            const t = Math.random();
+            const p1 = riverPoints[segment];
+            const p2 = riverPoints[segment + 1];
+
+            const rx = p1[0] + (p2[0] - p1[0]) * t;
+            const rz = p1[1] + (p2[1] - p1[1]) * t;
+
+            const metrics = getRiverMetrics(rx, rz);
+            const side = Math.random() > 0.5 ? 1 : -1;
+            const push = metrics.width + 0.8 + Math.random() * 1.5;
+
+            const x = rx + metrics.tangent.y * push * side;
+            const z = rz - metrics.tangent.x * push * side;
+
+            const h = getTerrainHeight(x, z);
+            const scale = 1.2 + Math.random() * 1.8;
+            rock.scale.setScalar(scale);
+            rock.position.set(x, h - 0.2, z); // Embed slightly
+            rock.rotation.y = Math.random() * Math.PI * 2;
+            rock.rotation.x = (Math.random() - 0.5) * 0.8;
+            alignObjectToTerrain(rock, h);
+
+            scene.add(rock);
+            rocks.push(rock);
+        }
+
         const remaining = count - rocks.length;
         for (let i = 0; i < remaining; i++) {
             const baseModel = validModels[Math.floor(Math.random() * validModels.length)];
@@ -321,6 +365,7 @@ export function loadRocks(scene, count = 40) {
             const radius = 20 + Math.random() * 180;
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
+            if (!isLandAccessible(x, z, 2)) continue;
             const h = getTerrainHeight(x, z);
 
             rock.position.set(x, h, z);
@@ -357,9 +402,10 @@ export function createGrass(scene, count = 2500) {
                 // Spread evenly across the ENTIRE terrain map
                 const angle = Math.random() * Math.PI * 2;
                 const r = Math.pow(Math.random(), 0.5) * 235; // Keep grass within the 500x500 terrain.
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-                const h = getTerrainHeight(x, z);
+                 const x = Math.cos(angle) * r;
+                 const z = Math.sin(angle) * r;
+                 if (!isLandAccessible(x, z, 0.8)) continue;
+                 const h = getTerrainHeight(x, z);
 
                 grassClump.position.set(x, h, z);
 

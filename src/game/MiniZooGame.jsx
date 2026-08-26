@@ -6,6 +6,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
 import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache } from './components/Terrain.jsx';
 import { loadGLTFAnimals, releaseAnimalModelCache } from './components/Animals.jsx';
+import { createRiver, updateRiver, updateRiverQuality, disposeRiver, isLandAccessible, findAccessiblePosition, getBridgeHeight } from './components/River.jsx';
 import { loadNewHouses } from './components/Structures.jsx';
 import { createGLTFLoader } from './utils/gltfLoader.js';
 import {
@@ -137,12 +138,13 @@ function getStaffDialogueNode(nodeId) {
 }
 
 function chooseNextStaffPatrolTarget(homeX, homeZ) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = THREE.MathUtils.lerp(STAFF_NPC_CONFIG.patrolRadiusMin, STAFF_NPC_CONFIG.patrolRadiusMax, Math.random());
-    return {
-        x: homeX + Math.cos(angle) * radius,
-        z: homeZ + Math.sin(angle) * radius
-    };
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = THREE.MathUtils.lerp(STAFF_NPC_CONFIG.patrolRadiusMin, STAFF_NPC_CONFIG.patrolRadiusMax, Math.random());
+        const target = { x: homeX + Math.cos(angle) * radius, z: homeZ + Math.sin(angle) * radius };
+        if (isLandAccessible(target.x, target.z, STAFF_NPC_CONFIG.obstacleRadius)) return target;
+    }
+    return { x: homeX, z: homeZ };
 }
 
 function setStaffNpcAction(npc, actionName) {
@@ -520,7 +522,8 @@ function MiniZooGame() {
         controlsEnabled: false,
         cameraControlLockedUntil: 0,
         animationId: null, scene: null, camera: null, renderer: null,
-        animals: [], clouds: [], obstacles: [], animalObstacles: [], animalObstaclePool: [], cleanup: null, initialized: false,
+        animals: [], clouds: [], river: null, obstacles: [], animalObstacles: [], animalObstaclePool: [], cleanup: null, initialized: false,
+        isLandAccessible,
         playerAnchor: null,
         playerCharacter: null,
         playerCharacterBaseYOffset: 0,
@@ -966,6 +969,7 @@ function MiniZooGame() {
 
             createLighting(scene);
             createTerrain(scene);
+            state.river = createRiver(scene, getTerrainHeight, quality);
             addStatueLights(scene);
             setLoadProgress(15);
 
@@ -990,6 +994,7 @@ function MiniZooGame() {
 
             // Create collision obstacles based on the loaded meshes
             state.obstacles = [];
+            state.obstacles.push(...state.river.bridge.obstacles);
             loadedTrees.forEach(t => state.obstacles.push({ x: t.position.x, z: t.position.z, radius: t.scale.x * 0.8 }));
             loadedRocks.forEach(r => state.obstacles.push({ x: r.position.x, z: r.position.z, radius: r.scale.x * 1.1 }));
             loadedBushes.forEach(b => state.obstacles.push({ x: b.position.x, z: b.position.z, radius: b.scale.x * 0.6 }));
@@ -1024,8 +1029,11 @@ function MiniZooGame() {
             const resumePosition = session.position;
             const hasResumePosition = !!resumePosition;
 
-            const spawnX = hasResumePosition ? resumePosition.x : (STATUE_CENTER.x + PLAYER_START_OFFSET.x);
-            const spawnZ = hasResumePosition ? resumePosition.z : (STATUE_CENTER.z + PLAYER_START_OFFSET.z);
+            const requestedSpawnX = hasResumePosition ? resumePosition.x : (STATUE_CENTER.x + PLAYER_START_OFFSET.x);
+            const requestedSpawnZ = hasResumePosition ? resumePosition.z : (STATUE_CENTER.z + PLAYER_START_OFFSET.z);
+            const safeSpawn = findAccessiblePosition(requestedSpawnX, requestedSpawnZ, 1.5);
+            const spawnX = safeSpawn.x;
+            const spawnZ = safeSpawn.z;
             const terrainY = getTerrainHeight(spawnX, spawnZ) + PLAYER_HEIGHT;
             const spawnY = hasResumePosition ? Math.max(resumePosition.y, terrainY) : terrainY;
 
@@ -1058,6 +1066,7 @@ function MiniZooGame() {
             const handleMovement = createMovementHandler(state.playerAnchor, state);
             const desiredCameraPosition = new THREE.Vector3();
             const lookTarget = new THREE.Vector3();
+            let smoothedFollowY = camera.position.y;
 
             let lastRenderTime = performance.now();
             let nearbyTimer = 0;
@@ -1114,7 +1123,8 @@ function MiniZooGame() {
                 const playerPosition = state.playerAnchor ? state.playerAnchor.position : camera.position;
 
                 if (state.playerCharacter) {
-                    const characterGround = getTerrainHeight(playerPosition.x, playerPosition.z);
+                    const characterTerrainHeight = getTerrainHeight(playerPosition.x, playerPosition.z);
+                    const characterGround = getBridgeHeight(playerPosition.x, playerPosition.z, characterTerrainHeight);
                     const jumpOffset = Math.max(
                         0,
                         playerPosition.y - (characterGround + (state.playerHeight ?? PLAYER_HEIGHT))
@@ -1193,6 +1203,13 @@ function MiniZooGame() {
                             const step = Math.min(dist, npc.moveSpeed * dt);
                             npc.x += nx * step;
                             npc.z += nz * step;
+                            if (!isLandAccessible(npc.x, npc.z, npc.obstacleRadius)) {
+                                npc.x -= nx * step;
+                                npc.z -= nz * step;
+                                const nextTarget = chooseNextStaffPatrolTarget(npc.homeX, npc.homeZ);
+                                npc.targetX = nextTarget.x;
+                                npc.targetZ = nextTarget.z;
+                            }
 
                             const desiredYaw = Math.atan2(-nx, -nz) + npc.facingOffset;
                             const currentYaw = npc.model.rotation.y;
@@ -1216,22 +1233,30 @@ function MiniZooGame() {
                     const followDistance = isMobile ? 5.6 : 7.0;
                     const followHeight = isMobile ? 3.0 : 3.5;
                     const pitchLift = Math.sin(-state.pitch) * 1.3;
+                    const followYBlend = 1 - Math.exp(-10 * dt);
+                    smoothedFollowY += (playerPosition.y - smoothedFollowY) * followYBlend;
 
                     desiredCameraPosition.set(
                         playerPosition.x + Math.sin(state.yaw) * followDistance,
-                        playerPosition.y + followHeight + pitchLift,
+                        smoothedFollowY + followHeight + pitchLift,
                         playerPosition.z + Math.cos(state.yaw) * followDistance
                     );
 
-                    const minCameraY = getTerrainHeight(desiredCameraPosition.x, desiredCameraPosition.z) + 1.4;
+                    const cameraTerrainHeight = getTerrainHeight(desiredCameraPosition.x, desiredCameraPosition.z);
+                    const minCameraY = getBridgeHeight(
+                        desiredCameraPosition.x,
+                        desiredCameraPosition.z,
+                        cameraTerrainHeight
+                    ) + 1.4;
                     desiredCameraPosition.y = Math.max(desiredCameraPosition.y, minCameraY);
 
                     const cameraLerp = 1 - Math.exp(-8 * dt);
                     camera.position.lerp(desiredCameraPosition, cameraLerp);
-                    lookTarget.set(playerPosition.x, playerPosition.y + 2.1, playerPosition.z);
+                    lookTarget.set(playerPosition.x, smoothedFollowY + 2.1, playerPosition.z);
                     camera.lookAt(lookTarget);
                 } else if (state.playerAnchor) {
-                    const minEyeY = getTerrainHeight(playerPosition.x, playerPosition.z)
+                    const playerTerrainHeight = getTerrainHeight(playerPosition.x, playerPosition.z);
+                    const minEyeY = getBridgeHeight(playerPosition.x, playerPosition.z, playerTerrainHeight)
                         + (state.playerHeight ?? PLAYER_HEIGHT)
                         + FIRST_PERSON_EYE_OFFSET;
                     camera.position.set(
@@ -1252,6 +1277,8 @@ function MiniZooGame() {
                         if (distSq < updateRange * updateRange) a.update(now * 0.001, dt);
                     }
                 });
+
+                updateRiver(state.river, dt, gameStartedRef.current && state.controlsEnabled);
 
                 state.clouds.forEach(c => {
                     c.position.x += 0.02 * dt * 60;
@@ -1376,6 +1403,8 @@ function MiniZooGame() {
                     });
                     releaseAnimalModelCache();
                     releaseTerrainModelCache();
+                    disposeRiver(state.river);
+                    state.river = null;
                     renderer.dispose();
                     if (containerRef.current && renderer.domElement) {
                         containerRef.current.removeChild(renderer.domElement);
@@ -1741,6 +1770,7 @@ function MiniZooGame() {
                 if (state.scene) {
                     applySceneQuality(state.scene, newQuality);
                 }
+                updateRiverQuality(state.river, newQuality);
             }
         };
 

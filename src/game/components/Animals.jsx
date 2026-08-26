@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { alignObjectToTerrain, getTerrainHeight } from './Terrain.jsx';
+import { isLandAccessible } from './River.jsx';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
 
@@ -109,7 +110,7 @@ const ANIMAL_CONFIGS = [
     {
         file: 'monkey/scene.gltf',
         targetHeight: 1.5,
-        scale: 3,
+        scale: 1.3,
         speed: 0.04,
         runSpeed: 0.08,
         collisionRadius: 1.15,
@@ -270,7 +271,7 @@ function findSpawnPosition(spawnIndex, totalAnimals, bounds, radius, obstacles, 
         }
 
         if (Math.abs(x) > bounds - radius || Math.abs(z) > bounds - radius) continue;
-        if (!isBlockedByObstacle(x, z, radius, obstacles)) {
+        if (!isBlockedByObstacle(x, z, radius, obstacles) && isLandAccessible(x, z, radius)) {
             return { x, z };
         }
     }
@@ -278,17 +279,19 @@ function findSpawnPosition(spawnIndex, totalAnimals, bounds, radius, obstacles, 
     if (hasSpawnArea) {
         const fallbackRadius = Math.max(radius + 1, (Number.isFinite(spawnArea.radius) ? spawnArea.radius : 12) * 0.4);
         const fallbackAngle = Math.random() * Math.PI * 2;
-        return {
+        const fallback = {
             x: THREE.MathUtils.clamp(spawnArea.x + Math.cos(fallbackAngle) * fallbackRadius, -(bounds - radius), bounds - radius),
             z: THREE.MathUtils.clamp(spawnArea.z + Math.sin(fallbackAngle) * fallbackRadius, -(bounds - radius), bounds - radius),
         };
+        return isLandAccessible(fallback.x, fallback.z, radius) ? fallback : { x: 0, z: -35 };
     }
 
     // Safe fallback if all sampled points are blocked.
-    return {
+    const fallback = {
         x: Math.cos(Math.random() * Math.PI * 2) * 50,
         z: Math.sin(Math.random() * Math.PI * 2) * 50,
     };
+    return isLandAccessible(fallback.x, fallback.z, radius) ? fallback : { x: 0, z: -35 };
 }
 
 function getTerrainNormalAt(target, x, z, sample = 0.75) {
@@ -320,8 +323,6 @@ class GLTFAnimal {
         this.currentAction = null;
         this.transitionTime = 0.4;
 
-        this.group.scale.setScalar(config.scale);
-
         if (typeof config.targetHeight === 'number' && config.targetHeight > 0) {
             // Some third-party assets come with wildly different unit scales.
             // Fit to a target world height so they appear at expected size.
@@ -336,6 +337,10 @@ class GLTFAnimal {
                 : 1;
             this.group.scale.multiplyScalar(fitScale);
         }
+
+        // Apply the configured size after normalization. Otherwise targetHeight
+        // cancels config.scale, making per-animal scale changes appear to do nothing.
+        this.group.scale.multiplyScalar(config.scale);
 
         this.group.traverse(child => {
             if (child.isMesh) {
@@ -591,7 +596,7 @@ class GLTFAnimal {
             }
 
             // If they hit an object or hit the world boundary, turn around.
-            if (hitObstacle || Math.abs(nextX) > this.bounds || Math.abs(nextZ) > this.bounds) {
+            if (hitObstacle || !isLandAccessible(nextX, nextZ, this.radius) || Math.abs(nextX) > this.bounds || Math.abs(nextZ) > this.bounds) {
                 this.targetAngle += Math.PI * 0.8 + Math.random() * Math.PI * 0.4;
                 this.currentSpeed *= 0.8;
             } else {
