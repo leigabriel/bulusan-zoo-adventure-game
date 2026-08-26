@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
-import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache } from './components/Terrain.jsx';
+import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache, PLAYABLE_BOUNDARY } from './components/Terrain.jsx';
 import { loadGLTFAnimals, releaseAnimalModelCache } from './components/Animals.jsx';
 import { createRiver, updateRiver, updateRiverQuality, disposeRiver, isLandAccessible, findAccessiblePosition } from './components/River.jsx';
 import { loadNewHouses } from './components/Structures.jsx';
@@ -142,7 +142,9 @@ function chooseNextStaffPatrolTarget(homeX, homeZ) {
         const angle = Math.random() * Math.PI * 2;
         const radius = THREE.MathUtils.lerp(STAFF_NPC_CONFIG.patrolRadiusMin, STAFF_NPC_CONFIG.patrolRadiusMax, Math.random());
         const target = { x: homeX + Math.cos(angle) * radius, z: homeZ + Math.sin(angle) * radius };
-        if (isLandAccessible(target.x, target.z, STAFF_NPC_CONFIG.obstacleRadius)) return target;
+        if (Math.abs(target.x) <= PLAYABLE_BOUNDARY - STAFF_NPC_CONFIG.obstacleRadius
+            && Math.abs(target.z) <= PLAYABLE_BOUNDARY - STAFF_NPC_CONFIG.obstacleRadius
+            && isLandAccessible(target.x, target.z, STAFF_NPC_CONFIG.obstacleRadius)) return target;
     }
     return { x: homeX, z: homeZ };
 }
@@ -968,7 +970,7 @@ function MiniZooGame() {
             const staffPromise = loadStaffNpc(scene, isMobile);
             const housesPromise = loadNewHouses(scene);
 
-            const { loadPromise: treesP } = loadTrees(scene, isMobile ? 60 : 100);
+            const { loadPromise: treesP } = loadTrees(scene, isMobile && quality !== 'high' ? 'low' : quality);
             const { loadPromise: bushesP } = loadBushes(scene, isMobile ? 40 : 70);
             const { loadPromise: rocksP } = loadRocks(scene, isMobile ? 20 : 40);
 
@@ -985,7 +987,9 @@ function MiniZooGame() {
 
             // Create collision obstacles based on the loaded meshes
             state.obstacles = [];
-            loadedTrees.forEach(t => state.obstacles.push({ x: t.position.x, z: t.position.z, radius: t.scale.x * 0.8 }));
+            // Boundary trees stay outside PLAYABLE_BOUNDARY, so only interior
+            // trees need gameplay collision checks.
+            loadedTrees.filter(tree => !tree.outer).forEach(t => state.obstacles.push({ x: t.x, z: t.z, radius: t.radius }));
             loadedRocks.forEach(r => state.obstacles.push({ x: r.position.x, z: r.position.z, radius: r.scale.x * 1.1 }));
             loadedBushes.forEach(b => state.obstacles.push({ x: b.position.x, z: b.position.z, radius: b.scale.x * 0.6 }));
 
@@ -1019,8 +1023,17 @@ function MiniZooGame() {
             const resumePosition = session.position;
             const hasResumePosition = !!resumePosition;
 
-            const requestedSpawnX = hasResumePosition ? resumePosition.x : (STATUE_CENTER.x + PLAYER_START_OFFSET.x);
-            const requestedSpawnZ = hasResumePosition ? resumePosition.z : (STATUE_CENTER.z + PLAYER_START_OFFSET.z);
+            const spawnLimit = PLAYABLE_BOUNDARY - 1.5;
+            const requestedSpawnX = THREE.MathUtils.clamp(
+                hasResumePosition ? resumePosition.x : (STATUE_CENTER.x + PLAYER_START_OFFSET.x),
+                -spawnLimit,
+                spawnLimit
+            );
+            const requestedSpawnZ = THREE.MathUtils.clamp(
+                hasResumePosition ? resumePosition.z : (STATUE_CENTER.z + PLAYER_START_OFFSET.z),
+                -spawnLimit,
+                spawnLimit
+            );
             const safeSpawn = findAccessiblePosition(requestedSpawnX, requestedSpawnZ, 1.5);
             const spawnX = safeSpawn.x;
             const spawnZ = safeSpawn.z;
@@ -1196,7 +1209,9 @@ function MiniZooGame() {
                             const step = Math.min(dist, npc.moveSpeed * dt);
                             npc.x += nx * step;
                             npc.z += nz * step;
-                            if (!isLandAccessible(npc.x, npc.z, npc.obstacleRadius)) {
+                            if (Math.abs(npc.x) > PLAYABLE_BOUNDARY - npc.obstacleRadius
+                                || Math.abs(npc.z) > PLAYABLE_BOUNDARY - npc.obstacleRadius
+                                || !isLandAccessible(npc.x, npc.z, npc.obstacleRadius)) {
                                 npc.x -= nx * step;
                                 npc.z -= nz * step;
                                 const nextTarget = chooseNextStaffPatrolTarget(npc.homeX, npc.homeZ);

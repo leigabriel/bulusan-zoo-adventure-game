@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getTerrainHeight } from '../components/Terrain.jsx';
+import { getTerrainHeight, PLAYABLE_BOUNDARY } from '../components/Terrain.jsx';
 
 const WALK_SPEED = 15;
 const RUN_SPEED = 22;
@@ -95,6 +95,9 @@ export function createMovementHandler(camera, state) {
         let nextZ = camera.position.z + velocityZ * dt;
 
         const PLAYER_RADIUS = 1.5; // Width of the player's body
+        const playableLimit = PLAYABLE_BOUNDARY - PLAYER_RADIUS;
+        nextX = THREE.MathUtils.clamp(nextX, -playableLimit, playableLimit);
+        nextZ = THREE.MathUtils.clamp(nextZ, -playableLimit, playableLimit);
         const resolveObstacles = (list) => {
             if (!list || list.length === 0) return;
             for (const obs of list) {

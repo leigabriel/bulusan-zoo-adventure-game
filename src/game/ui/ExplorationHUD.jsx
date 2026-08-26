@@ -146,7 +146,6 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
 
         const MAX_SPREAD = Math.floor((bookData.length - 2) / 2);
         const scene = new THREE.Scene();
-        // Keep the game visible behind the book overlay.
         scene.background = null;
 
         const width = container.clientWidth;
@@ -282,17 +281,17 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
             tex.anisotropy = anisotropy;
             tex.colorSpace = THREE.SRGBColorSpace;
             tex.center.set(0.5, 0.5);
-            tex.rotation = Math.PI / 2;
+            // FIXED: Removed tex.rotation = Math.PI / 2; to keep right page upright
 
             textures.push(tex);
         }
 
-        // The bottom face uses the opposite UV orientation from the top face.
         const leftTextures = textures.map((texture) => {
             const leftTexture = texture.clone();
             leftTexture.needsUpdate = true;
             leftTexture.center.set(0.5, 0.5);
-            leftTexture.rotation = -Math.PI / 2;
+            // FIXED: Flipped 180 degrees so left pages aren't mirrored/upside-down
+            leftTexture.rotation = Math.PI;
             return leftTexture;
         });
 

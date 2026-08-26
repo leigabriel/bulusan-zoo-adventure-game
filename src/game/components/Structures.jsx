@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { getTerrainHeight } from './Terrain.jsx';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { alignObjectToTerrain, getTerrainHeight } from './Terrain.jsx';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
 
@@ -93,12 +95,42 @@ async function loadGLTFStructure(scene, path, name, x, z, scale = 1.0, rotationY
     }
 }
 
+function loadOBJStructure(scene, name, x, z, scale = 1, rotationY = 0) {
+    return new Promise((resolve) => {
+        const basePath = '/models/house/';
+        const materials = new MTLLoader();
+        materials.setPath(basePath);
+        materials.load(`${name}.mtl`, (mtl) => {
+            mtl.preload();
+            const loader = new OBJLoader();
+            loader.setMaterials(mtl);
+            loader.setPath(basePath);
+            loader.load(`${name}.obj`, (model) => {
+                model.traverse(fixMaterial);
+                model.scale.setScalar(scale);
+                model.rotation.y = rotationY;
+                const terrainY = getTerrainHeight(x, z);
+                model.position.set(x, terrainY, z);
+                alignObjectToTerrain(model, terrainY, new THREE.Box3(), 0.02);
+                scene.add(model);
+
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                resolve({ object: model, x, z, radius: Math.max(size.x, size.z) * 0.45 });
+            }, undefined, () => resolve(null));
+        }, undefined, () => resolve(null));
+    });
+}
+
 export async function loadNewHouses(scene) {
     const houseConfigs = [
+        { type: 'obj', file: 'Windmill', x: -125, z: -115, scale: 1.4, rotation: Math.PI * 0.16 },
     ];
 
     const promises = houseConfigs.map(cfg =>
-        loadGLTFStructure(scene, cfg.path, cfg.file, cfg.x, cfg.z, cfg.scale, cfg.rotation)
+        cfg.type === 'obj'
+            ? loadOBJStructure(scene, cfg.file, cfg.x, cfg.z, cfg.scale, cfg.rotation)
+            : loadGLTFStructure(scene, cfg.path, cfg.file, cfg.x, cfg.z, cfg.scale, cfg.rotation)
     );
 
     const results = await Promise.all(promises);

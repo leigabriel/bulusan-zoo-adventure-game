@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { alignObjectToTerrain, getTerrainHeight } from './Terrain.jsx';
+import { alignObjectToTerrain, getTerrainHeight, PLAYABLE_BOUNDARY } from './Terrain.jsx';
 import { isLandAccessible } from './River.jsx';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
@@ -395,7 +395,7 @@ class GLTFAnimal {
         this.timer = 4 + Math.random() * 5;
         this.state = 'idle';
         this.turnSpeed = 0.04;
-        this.bounds = 170;
+        this.bounds = PLAYABLE_BOUNDARY - 3;
         this.radius = config.collisionRadius ?? Math.max(1.1, config.scale * 0.65);
         this.movementStyle = config.movementStyle ?? 'default';
         this.currentSpeed = 0;

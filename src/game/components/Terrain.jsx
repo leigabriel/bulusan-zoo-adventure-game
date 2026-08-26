@@ -9,6 +9,9 @@ const GRASS_MODELS = ['Grass1', 'Grass2', 'Grass3'];
 const ROCK_MODELS = ['Rock1', 'Rock2', 'Rock3'];
 const TERRAIN_SIZE = 500;
 const TERRAIN_SEGMENTS = 140;
+// The playable area ends before the perimeter forest begins. Keeping this in
+// the terrain module lets movement, animals, and scenery use the same map edge.
+export const PLAYABLE_BOUNDARY = 194;
 
 const modelCache = new Map();
 
@@ -199,7 +202,7 @@ async function loadOBJModel(name, basePath, modelType = 'default') {
     });
 }
 
-export function loadTrees(scene, count = 120) {
+export function loadTrees(scene, quality = 'medium') {
     const trees = [];
     const promises = TREE_MODELS.map(name => loadOBJModel(name, '/models/natures/', 'tree'));
 
@@ -207,35 +210,94 @@ export function loadTrees(scene, count = 120) {
         const validModels = models.filter(m => m !== null);
         if (validModels.length === 0) return trees;
 
-        // Reuse the fixed tree budget between an edge ring and a middle forest
-        // band so density improves without increasing draw calls.
-        const edgeTreeCount = Math.ceil(count * 0.75);
-        const forestSectors = 14;
-        for (let i = 0; i < count; i++) {
-            const baseModel = validModels[Math.floor(Math.random() * validModels.length)];
-            const tree = baseModel.clone();
-            const scale = 2.5 + Math.random() * 2.5;
-            tree.scale.setScalar(scale);
+        const budgets = { low: 150, medium: 285, high: 430 };
+        const interiorBudgets = { low: 18, medium: 48, high: 88 };
+        const budget = budgets[quality] || budgets.medium;
+        const boundaryPlacements = [];
+        const layers = quality === 'low'
+            ? [{ edge: 242, spacing: 15 }, { edge: 225, spacing: 18 }, { edge: 207, spacing: 22 }]
+            : [{ edge: 244, spacing: 9 }, { edge: 232, spacing: 10 }, { edge: 218, spacing: 12 }, { edge: 204, spacing: 16 }];
 
-            const isEdgeTree = i < edgeTreeCount;
-            const angle = isEdgeTree
-                ? (Math.floor(i / Math.ceil(edgeTreeCount / forestSectors)) / forestSectors) * Math.PI * 2 + (Math.random() - 0.5) * 0.28
-                : Math.random() * Math.PI * 2;
-            const radius = isEdgeTree
-                ? 175 + Math.random() * 50
-                : 55 + Math.random() * 125;
-             const x = Math.cos(angle) * radius;
-             const z = Math.sin(angle) * radius;
-             if (!isLandAccessible(x, z, 3)) continue;
-             const h = getTerrainHeight(x, z);
+        // Sample each side independently so square corners and all four outer
+        // edges are covered, with the tightest spacing at the map boundary.
+        layers.forEach(({ edge, spacing }) => {
+            const samples = Math.ceil((edge * 2) / spacing);
+            for (let side = 0; side < 4; side += 1) {
+                for (let i = 0; i < samples; i += 1) {
+                    const along = -edge + ((i + 0.5) / samples) * edge * 2;
+                    const jitter = (Math.random() - 0.5) * spacing * 0.65;
+                    const x = side === 0 ? -edge : side === 1 ? edge : along + jitter;
+                    const z = side === 2 ? -edge : side === 3 ? edge : along + jitter;
+                    if (isLandAccessible(x, z, 2.5)) {
+                        boundaryPlacements.push({ x, z, outer: true, scale: 2.3 + Math.random() * 2.8, rotation: Math.random() * Math.PI * 2 });
+                    }
+                }
+            }
+        });
 
-            tree.position.set(x, h, z);
-            tree.rotation.y = Math.random() * Math.PI * 2;
-            alignObjectToTerrain(tree, h);
+        // Keep the quality budget predictable while preserving every side.
+        const selectedBoundary = boundaryPlacements.length <= budget
+            ? boundaryPlacements
+            : boundaryPlacements.sort((a, b) => Math.max(Math.abs(b.x), Math.abs(b.z)) - Math.max(Math.abs(a.x), Math.abs(a.z))).slice(0, budget);
 
-            scene.add(tree);
-            trees.push(tree);
+        // Interior trees add variety without obscuring the central zoo, paths,
+        // river, habitats, NPC area, or the windmill clearing.
+        const clearings = [
+            { x: 0, z: 0, radius: 78 },
+            { x: 105, z: -80, radius: 34 },
+            { x: 120, z: 90, radius: 42 },
+            { x: -42, z: 58, radius: 28 },
+            { x: -26, z: 70, radius: 28 },
+            { x: -20, z: 22, radius: 22 },
+            { x: -125, z: -115, radius: 28 }
+        ];
+        const interior = [];
+        const interiorBudget = interiorBudgets[quality] || interiorBudgets.medium;
+        let attempts = 0;
+        while (interior.length < interiorBudget && attempts < interiorBudget * 30) {
+            attempts += 1;
+            const x = THREE.MathUtils.randFloat(-180, 180);
+            const z = THREE.MathUtils.randFloat(-180, 180);
+            if (!isLandAccessible(x, z, 3)) continue;
+            if (clearings.some((clearing) => (x - clearing.x) ** 2 + (z - clearing.z) ** 2 < clearing.radius ** 2)) continue;
+            if (interior.some((tree) => (x - tree.x) ** 2 + (z - tree.z) ** 2 < 8 ** 2)) continue;
+            interior.push({ x, z, outer: false, scale: 1.6 + Math.random() * 2.3, rotation: Math.random() * Math.PI * 2 });
         }
+        const selected = selectedBoundary.concat(interior);
+        const grouped = validModels.map(() => []);
+        selected.forEach((placement) => grouped[Math.floor(Math.random() * grouped.length)].push(placement));
+
+        validModels.forEach((baseModel, modelIndex) => {
+            const modelBounds = new THREE.Box3().setFromObject(baseModel);
+            const baseMinY = modelBounds.min.y;
+            const modelPlacements = grouped[modelIndex];
+            baseModel.updateMatrixWorld(true);
+
+            baseModel.traverse((sourceMesh) => {
+                if (!sourceMesh.isMesh || modelPlacements.length === 0) return;
+                const batch = new THREE.InstancedMesh(sourceMesh.geometry, sourceMesh.material, modelPlacements.length);
+                batch.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+                batch.castShadow = false;
+                batch.receiveShadow = false;
+                const childMatrix = sourceMesh.matrixWorld.clone();
+                const rootMatrix = new THREE.Matrix4();
+                const rotation = new THREE.Matrix4();
+                const scaleMatrix = new THREE.Matrix4();
+                modelPlacements.forEach((placement, index) => {
+                    const terrainY = getTerrainHeight(placement.x, placement.z);
+                    rootMatrix.makeTranslation(placement.x, terrainY - baseMinY * placement.scale, placement.z);
+                    rotation.makeRotationY(placement.rotation);
+                    scaleMatrix.makeScale(placement.scale, placement.scale, placement.scale);
+                    batch.setMatrixAt(index, rootMatrix.clone().multiply(rotation).multiply(scaleMatrix).multiply(childMatrix));
+                });
+                batch.instanceMatrix.needsUpdate = true;
+                batch.computeBoundingSphere();
+                scene.add(batch);
+            });
+            modelPlacements.forEach((placement) => {
+                trees.push({ x: placement.x, z: placement.z, outer: placement.outer, radius: placement.scale * 0.8 });
+            });
+        });
         return trees;
     });
 
