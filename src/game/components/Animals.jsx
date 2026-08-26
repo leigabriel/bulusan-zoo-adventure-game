@@ -332,12 +332,12 @@ function findSpawnPosition(spawnIndex, totalAnimals, bounds, radius, obstacles, 
     };
 }
 
-function getTerrainNormalAt(x, z, sample = 0.75) {
+function getTerrainNormalAt(target, x, z, sample = 0.75) {
     const hL = getTerrainHeight(x - sample, z);
     const hR = getTerrainHeight(x + sample, z);
     const hD = getTerrainHeight(x, z - sample);
     const hU = getTerrainHeight(x, z + sample);
-    return new THREE.Vector3(hL - hR, 2 * sample, hD - hU).normalize();
+    return target.set(hL - hR, 2 * sample, hD - hU).normalize();
 }
 
 function getRandomSpecialInterval(config) {
@@ -355,6 +355,7 @@ class GLTFAnimal {
         this.obstacles = obstacles; // Store obstacles for AI logic
         this.soundVolume = initialVolume;
         this.dynamicBox = new THREE.Box3();
+        this.terrainNormal = new THREE.Vector3();
         this.mixer = null;
         this.actions = {};
         this.currentAction = null;
@@ -645,7 +646,7 @@ class GLTFAnimal {
 
         const h = getTerrainHeight(this.pos.x, this.pos.z);
         this.group.position.set(this.pos.x, h + this.baseYOffset, this.pos.z);
-        const terrainNormal = getTerrainNormalAt(this.pos.x, this.pos.z);
+        const terrainNormal = getTerrainNormalAt(this.terrainNormal, this.pos.x, this.pos.z);
         const targetPitch = THREE.MathUtils.clamp(Math.atan2(-terrainNormal.z, terrainNormal.y), -0.28, 0.28);
         const targetRoll = THREE.MathUtils.clamp(Math.atan2(terrainNormal.x, terrainNormal.y), -0.28, 0.28);
         const slopeLerp = Math.min(1, dt * 6);
@@ -684,8 +685,7 @@ class GLTFAnimal {
             ? rawGroundingDelta
             : THREE.MathUtils.clamp(rawGroundingDelta, -0.02, 0);
         this.group.position.y += groundingDelta;
-        this.dynamicBox.setFromObject(this.group);
-        const desiredGroundY = this.dynamicBox.min.y;
+        const desiredGroundY = this.dynamicBox.min.y + groundingDelta;
 
         if (this.shadow) {
             const airHeight = Math.max(0, this.group.position.y - desiredGroundY);

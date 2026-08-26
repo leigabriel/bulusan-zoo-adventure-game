@@ -299,14 +299,16 @@ function HowToPlayContent() {
 function CreditsContent() {
     return (
         <div className="space-y-4 text-center text-sm text-slate-700">
-            <p className="font-semibold italic">Built with the following tools and creative resources.</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-                {['Three.js', 'Sketchfab', 'Quaternius'].map((credit) => (
-                    <div key={credit} className="rounded-2xl border-2 border-slate-100 bg-white p-4 font-black text-emerald-800 shadow-sm">
-                        {credit}
-                    </div>
-                ))}
-            </div>
+            <p className="font-semibold italic">Character and environment assets provided by Quaternius.</p>
+            <a
+                href="https://quaternius.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-2xl border-2 border-slate-100 bg-white p-4 font-black text-emerald-800 shadow-sm underline decoration-emerald-300 underline-offset-4 transition-colors hover:bg-emerald-50"
+            >
+                Quaternius<br />
+                <span className="text-xs font-bold normal-case tracking-normal">https://quaternius.com/</span>
+            </a>
         </div>
     );
 }
@@ -358,6 +360,7 @@ function Character3DPreview({ modelFile }) {
         if (!modelFile || !containerRef.current) return;
 
         const container = containerRef.current;
+        let disposed = false;
         let width = container.clientWidth || 300;
         let height = container.clientHeight || 400;
 
@@ -370,6 +373,8 @@ function Character3DPreview({ modelFile }) {
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
         renderer.setSize(width, height);
         container.appendChild(renderer.domElement);
 
@@ -381,13 +386,6 @@ function Character3DPreview({ modelFile }) {
         const fill = new THREE.DirectionalLight(0xffffff, 1.2);
         fill.position.set(-5, 2, -3);
         scene.add(fill);
-
-        // Add a stage disc
-        const stageGeom = new THREE.CylinderGeometry(1.2, 1.2, 0.1, 32);
-        const stageMat = new THREE.MeshStandardMaterial({ color: 0x065f46, roughness: 0.5 });
-        const stage = new THREE.Mesh(stageGeom, stageMat);
-        stage.position.y = -0.05;
-        scene.add(stage);
 
         let modelGroup = null;
 
@@ -409,7 +407,7 @@ function Character3DPreview({ modelFile }) {
 
             // Leave room for the model's idle pose and rotation. This keeps
             // hats, hands, and feet inside the frame on portrait screens too.
-            camera.position.set(0, center.y + size.y * 0.03, distance * 1.8);
+                    camera.position.set(0, center.y + size.y * 0.03, distance * 2.4);
             camera.lookAt(center.x, center.y + size.y * 0.02, center.z);
             camera.updateProjectionMatrix();
         };
@@ -432,9 +430,18 @@ function Character3DPreview({ modelFile }) {
 
         resolveAssetUrl(`/models/characters/${modelFile}`)
             .then((url) => {
-                if (!url) return;
+                if (!url || disposed) return;
                 const loader = createGLTFLoader();
                 loader.load(url, (gltf) => {
+                    if (disposed) {
+                        gltf.scene.traverse((child) => {
+                            if (!child.isMesh) return;
+                            child.geometry?.dispose();
+                            const materials = Array.isArray(child.material) ? child.material : [child.material];
+                            materials.forEach((material) => material?.dispose());
+                        });
+                        return;
+                    }
                     modelGroup = gltf.scene;
 
                     // Normalize model size
@@ -445,9 +452,6 @@ function Character3DPreview({ modelFile }) {
                     modelGroup.scale.set(scale, scale, scale);
                     const fittedBox = new THREE.Box3().setFromObject(modelGroup);
                     modelGroup.position.y -= fittedBox.min.y;
-
-                    scene.add(modelGroup);
-                    fitCamera();
 
                     if (gltf.animations && gltf.animations.length > 0) {
                         mixer = new THREE.AnimationMixer(modelGroup);
@@ -464,19 +468,28 @@ function Character3DPreview({ modelFile }) {
                         }
                     }
 
+                    // Fit after applying the idle pose so animated limbs do not clip the preview.
+                    mixer?.update(0.1);
+                    const posedBox = new THREE.Box3().setFromObject(modelGroup);
+                    modelGroup.position.y -= posedBox.min.y;
+                    scene.add(modelGroup);
+                    fitCamera();
+
                     const clock = new THREE.Clock();
                     const animate = () => {
+                        if (disposed) return;
                         if (modelGroup) modelGroup.rotation.y += 0.004;
                         if (mixer && clock) mixer.update(clock.getDelta());
                         renderer.render(scene, camera);
                         animationId = requestAnimationFrame(animate);
                     };
                     animate();
-                });
+                }, undefined, () => { });
             })
             .catch(() => { });
 
         return () => {
+            disposed = true;
             if (animationId) cancelAnimationFrame(animationId);
             if (mixer) {
                 mixer.stopAllAction();
@@ -497,8 +510,6 @@ function Character3DPreview({ modelFile }) {
                     materials.forEach((material) => material?.dispose());
                 });
             }
-            stageGeom.dispose();
-            stageMat.dispose();
         };
     }, [modelFile]);
 
@@ -753,14 +764,9 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
                         </button>
                     </div>
 
-                    <div className="w-full h-full max-h-[58vh] relative z-10 flex items-center justify-center overflow-hidden">
+                    <div className="w-full h-full min-h-0 relative z-10 flex items-center justify-center overflow-hidden">
                         {previewChar && <Character3DPreview modelFile={previewChar.file} />}
                     </div>
-                </div>
-
-                {/* Character Name Badge - More subtle and cleaner */}
-                <div className="mb-6 sm:mb-8 bg-emerald-950/90 text-white px-6 py-1.5 rounded-full shadow-xl border border-emerald-400/20 z-30 shrink-0 backdrop-blur-sm">
-                    <h2 className="text-sm sm:text-base font-black uppercase tracking-[0.2em]">{previewChar?.label}</h2>
                 </div>
             </div>
 
@@ -784,7 +790,6 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
                     <div className="flex items-center justify-center gap-2">
                         <span className="hidden sm:inline">START EXPLORING</span>
                         <span className="sm:hidden">START</span>
-                        <span className="text-xl">🚀</span>
                     </div>
                 </GameButton>
             </div>
@@ -812,7 +817,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
         }
         playGameButtonSfx('confirm');
         setStarting(true);
-        window.setTimeout(onStart, 380);
+        onStart();
     }, [onStart]);
 
     const selectedChar = characterOptions.find((c) => c.id === selectedCharacterId);
@@ -839,7 +844,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
 
                 {/* --- TOP SECTION: TITLE --- */}
                 <div className="w-full flex flex-col items-center pt-0 shrink-0 scale-[0.4] sm:scale-90 md:scale-110 origin-top mb-2 sm:mb-4">
-                    <WoodenTitle titlePart1="Bulusan" titlePart2="Zoo Adventure" />
+                    <WoodenTitle titlePart1="Bulusan" titlePart2="Zootopia Adventure Game" />
                 </div>
 
                 {/* --- SPACER / CENTER AREA --- */}
@@ -945,7 +950,7 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                 confirmVariant="danger"
             />
 
-            <div className="pointer-events-none absolute inset-x-3 bottom-1 z-40 flex justify-between text-[8px] font-black uppercase tracking-[0.18em] text-emerald-950/70 sm:inset-x-6 sm:bottom-3 sm:text-[10px]">
+            <div className="pointer-events-none absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.35rem)] z-40 flex justify-between text-[8px] font-black uppercase tracking-[0.18em] text-emerald-950/70 sm:inset-x-6 sm:bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:text-[10px]">
                 <span>2026</span>
                 <span>Version 3.1.0</span>
             </div>
@@ -1367,6 +1372,32 @@ export function JumpButton({ jumpRef, isTouchDevice }) {
                 className="pointer-events-auto inline-flex h-16 w-16 items-center justify-center rounded-full border border-white/45 bg-amber-400/95 text-sm font-black uppercase tracking-[0.08em] text-slate-900 shadow-lg active:scale-95 sm:h-16 sm:w-16 sm:text-sm touch-manipulation"
             >
                 Jump
+            </button>
+        </div>
+    );
+}
+
+export function RunButton({ isTouchDevice, onRunStart, onRunEnd }) {
+    const detectedTouch = useIsTouchDevice();
+    const isTouch = typeof isTouchDevice === 'boolean' ? isTouchDevice : detectedTouch;
+    if (!isTouch) return null;
+
+    return (
+        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+5.7rem)] right-2.5 z-70 sm:right-3">
+            <button
+                type="button"
+                aria-label="Hold to run"
+                onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.currentTarget.setPointerCapture?.(event.pointerId);
+                    onRunStart?.();
+                }}
+                onPointerUp={onRunEnd}
+                onPointerCancel={onRunEnd}
+                onPointerLeave={onRunEnd}
+                className="pointer-events-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/45 bg-emerald-500/95 text-xs font-black uppercase tracking-[0.08em] text-white shadow-lg active:scale-95 sm:h-14 sm:w-14 touch-none select-none"
+            >
+                Run
             </button>
         </div>
     );

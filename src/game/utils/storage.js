@@ -27,7 +27,7 @@ const DEFAULT_PROGRESS = {
     lastKnownPosition: null,
     lastYaw: 0,
     lastPitch: 0,
-    lastCameraMode: 'first',
+    lastCameraMode: 'third',
     lastCharacterId: null
 };
 

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { getTerrainHeight } from '../components/Terrain.jsx';
 
 const WALK_SPEED = 20;
+const RUN_SPEED = 32;
 const ACCELERATION = 12;
 const DECELERATION = 8;
 const JUMP_FORCE = 12;
@@ -35,7 +36,7 @@ export function createMovementHandler(camera, state) {
         const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
         lastTime = currentTime;
 
-        const maxSpeed = WALK_SPEED;
+        const maxSpeed = state.keys.shift ? RUN_SPEED : WALK_SPEED;
 
         // Forward direction in world space (negative Z is forward when looking down -Z)
         forward.set(-Math.sin(state.yaw), 0, -Math.cos(state.yaw));
@@ -134,7 +135,7 @@ export function createMovementHandler(camera, state) {
         const speed = Math.sqrt(velocityX * velocityX + velocityZ * velocityZ);
         state.playerMoveSpeed = speed;
         state.playerIsMoving = speed > 0.55;
-        state.playerIsRunning = false;
+        state.playerIsRunning = Boolean(state.keys.shift && hasInput && speed > 0.55);
         camera.position.x = nextX;
         camera.position.z = nextZ;
 
@@ -236,12 +237,18 @@ export function setupKeyboardControls(state) {
         }
     };
 
+    const handleBlur = () => {
+        state.keys.shift = false;
+    };
+
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
 
     return () => {
         document.removeEventListener("keydown", handleKeyDown);
         document.removeEventListener("keyup", handleKeyUp);
+        window.removeEventListener("blur", handleBlur);
     };
 }
 
@@ -462,6 +469,7 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
         resetJoystick();
         resetLook();
         jumpTouchId = null;
+        state.keys.shift = false;
     };
 
     const opts = { passive: false };
@@ -473,10 +481,6 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
     window.addEventListener("orientationchange", handleViewportChange);
     window.addEventListener("resize", handleViewportChange);
 
-    document.addEventListener("touchstart", handleTouchStart, opts);
-    document.addEventListener("touchmove", handleTouchMove, opts);
-    document.addEventListener("touchend", handleTouchEnd, opts);
-
     return () => {
         window.removeEventListener("touchstart", handleTouchStart, opts);
         window.removeEventListener("touchmove", handleTouchMove, opts);
@@ -484,14 +488,10 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
         window.removeEventListener("touchcancel", handleTouchCancel, opts);
         window.removeEventListener("orientationchange", handleViewportChange);
         window.removeEventListener("resize", handleViewportChange);
-
-        document.removeEventListener("touchstart", handleTouchStart, opts);
-        document.removeEventListener("touchmove", handleTouchMove, opts);
-        document.removeEventListener("touchend", handleTouchEnd, opts);
-
         resetJoystick();
         resetLook();
         jumpTouchId = null;
+        state.keys.shift = false;
     };
 }
 

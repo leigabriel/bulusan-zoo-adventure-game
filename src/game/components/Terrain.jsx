@@ -348,7 +348,7 @@ export function createGrass(scene, count = 2500) {
     const grass = [];
     const promises = GRASS_MODELS.map(name => loadOBJModel(name, '/models/natures/', 'grass'));
 
-    Promise.all(promises).then(models => {
+    return Promise.all(promises).then(async (models) => {
         const validModels = models.filter(m => m !== null);
 
         if (validModels.length > 0) {
@@ -376,11 +376,15 @@ export function createGrass(scene, count = 2500) {
 
                 scene.add(grassClump);
                 grass.push(grassClump);
+
+                // Yield during bulk cloning so the loading screen and browser stay responsive.
+                if (i > 0 && i % 40 === 0) {
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                }
             }
         }
+        return grass;
     });
-
-    return grass;
 }
 
 export function createClouds(scene, count = 18) {

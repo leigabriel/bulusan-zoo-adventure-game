@@ -34,6 +34,7 @@ import {
     RotateDeviceOverlay,
     Hotbar,
     SketchbookModal,
+    RunButton,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
 import { LoadingScreen } from '../components/loading-screen.jsx';
@@ -43,8 +44,6 @@ import {
     feedAnimal,
     isAnimalFed,
     markAnimalDiscovered,
-    getCompletedTasksCount,
-    getTotalTasks,
     resetAllFeedingTasks,
     getPlayerSession,
     savePlayerSession,
@@ -458,8 +457,10 @@ function MiniZooGame() {
     const hasShownStatueEntryRef = useRef(false);
     const soundEnabledRef = useRef(getSfxVolume() > 0);
     const gameStartedRef = useRef(false);
-    const cameraModeRef = useRef('first');
+    const cameraModeRef = useRef('third');
     const showNpcDialogueRef = useRef(false);
+    const nearbyAnimalRef = useRef(null);
+    const nearbyStaffRef = useRef(false);
     const lastTapRef = useRef(0);
     const graphicsQualityRef = useRef((getSettings().graphicsQuality || 'medium'));
     const fpsLimitRef = useRef((getSettings().fpsLimit || 60));
@@ -482,7 +483,7 @@ function MiniZooGame() {
     const [showResetTasksModal, setShowResetTasksModal] = useState(false);
     const [showWelcome, setShowWelcome] = useState(false);
     const [selectedCharacterId, setSelectedCharacterId] = useState(() => getStoredCharacterId());
-    const [cameraMode, setCameraMode] = useState('first');
+    const [cameraMode, setCameraMode] = useState('third');
     const [characterReady, setCharacterReady] = useState(false);
     const [showAllFedCelebration, setShowAllFedCelebration] = useState(false);
     const [showCertificate, setShowCertificate] = useState(false);
@@ -513,7 +514,7 @@ function MiniZooGame() {
         playerMoveSpeed: 0,
         playerIsMoving: false,
         playerIsRunning: false,
-        currentCameraMode: 'first',
+        currentCameraMode: 'third',
         controlsEnabled: false,
         cameraControlLockedUntil: 0,
         animationId: null, scene: null, camera: null, renderer: null,
@@ -525,6 +526,8 @@ function MiniZooGame() {
         playerMixer: null,
         playerActions: {},
         currentPlayerAction: null,
+        currentPlayerActionName: null,
+        playerVictoryUntil: 0,
         staffNpc: null,
     });
 
@@ -743,9 +746,10 @@ function MiniZooGame() {
         setCameraMode((prev) => (prev === 'first' ? 'third' : 'first'));
     }, []);
 
-    const playPlayerAction = useCallback((name) => {
+    const playPlayerAction = useCallback((name, options = {}) => {
         const state = gameStateRef.current;
         const actions = state.playerActions || {};
+        if (state.currentPlayerActionName === name) return;
         const actionKeys = Object.keys(actions);
         if (actionKeys.length === 0) return;
 
@@ -769,9 +773,27 @@ function MiniZooGame() {
         nextAction.enabled = true;
         nextAction.setEffectiveWeight(1);
         nextAction.fadeIn(0.24);
+        const isVictory = name === 'victory' || options.loopOnce;
+        nextAction.setLoop(isVictory ? THREE.LoopOnce : THREE.LoopRepeat, isVictory ? 1 : Infinity);
+        nextAction.clampWhenFinished = isVictory;
         nextAction.play();
         state.currentPlayerAction = nextAction;
+        state.currentPlayerActionName = name;
+        state.playerVictoryUntil = isVictory
+            ? performance.now() + Math.max(0.1, nextAction.getClip().duration) * 1000
+            : 0;
     }, []);
+
+    const handleRunInput = useCallback((running) => {
+        gameStateRef.current.keys.shift = running;
+    }, []);
+
+    const playVictoryAnimation = useCallback(() => {
+        const state = gameStateRef.current;
+        if (state.playerActions?.victory) {
+            playPlayerAction('victory', { loopOnce: true });
+        }
+    }, [playPlayerAction]);
 
     const disposePlayerCharacter = useCallback(() => {
         const state = gameStateRef.current;
@@ -781,6 +803,8 @@ function MiniZooGame() {
         }
         state.playerActions = {};
         state.currentPlayerAction = null;
+        state.currentPlayerActionName = null;
+        state.playerVictoryUntil = 0;
         if (state.playerShadow) {
             state.playerShadow.parent?.remove(state.playerShadow);
             state.playerShadow.geometry?.dispose();
@@ -993,7 +1017,7 @@ function MiniZooGame() {
             state.currentCameraMode = cameraModeRef.current;
             state.controlsEnabled = false;
 
-            createGrass(scene, isMobile ? 260 : 900);
+            await createGrass(scene, isMobile ? 260 : 900);
             setLoadProgress(55);
 
             const initialSfxVolume = getSfxVolume();
@@ -1073,8 +1097,8 @@ function MiniZooGame() {
                         characterGround + state.playerCharacterBaseYOffset + jumpOffset,
                         playerPosition.z
                     );
-                    const facingOffset = cameraModeRef.current === 'third' ? Math.PI : 0;
-                    const desiredCharacterYaw = state.yaw + facingOffset;
+                    // Keep movement unchanged while showing the character's back in third person.
+                    const desiredCharacterYaw = state.yaw + (cameraModeRef.current === 'third' ? Math.PI : 0);
                     const currentY = state.playerCharacter.rotation.y;
                     const angleDelta = Math.atan2(Math.sin(desiredCharacterYaw - currentY), Math.cos(desiredCharacterYaw - currentY));
                     state.playerCharacter.rotation.y += angleDelta * Math.min(1, dt * 10);
@@ -1088,10 +1112,15 @@ function MiniZooGame() {
                 }
 
                 if (state.playerMixer) {
-                    if (!state.playerIsMoving) {
-                        playPlayerAction('idle');
-                    } else {
-                        playPlayerAction('walk');
+                    const victoryPlaying = state.playerVictoryUntil > now;
+                    if (!victoryPlaying) {
+                        if (!state.playerIsMoving) {
+                            playPlayerAction('idle');
+                        } else if (state.playerIsRunning) {
+                            playPlayerAction('run');
+                        } else {
+                            playPlayerAction('walk');
+                        }
                     }
                     state.playerMixer.update(dt);
                 }
@@ -1236,13 +1265,21 @@ function MiniZooGame() {
                 nearbyTimer += dt;
                 if (nearbyTimer > nearbyInterval) {
                     nearbyTimer = 0;
-                    setNearbyAnimal(checkNearbyAnimals(playerPosition, state.animals));
+                    const nextNearbyAnimal = checkNearbyAnimals(playerPosition, state.animals);
+                    if (nextNearbyAnimal !== nearbyAnimalRef.current) {
+                        nearbyAnimalRef.current = nextNearbyAnimal;
+                        setNearbyAnimal(nextNearbyAnimal);
+                    }
                 }
 
                 staffCheckTimer += dt;
                 if (staffCheckTimer >= 0.2) {
                     staffCheckTimer = 0;
-                    setNearbyStaff(checkNearbyStaff(playerPosition, state.staffNpc));
+                    const nextNearbyStaff = checkNearbyStaff(playerPosition, state.staffNpc);
+                    if (nextNearbyStaff !== nearbyStaffRef.current) {
+                        nearbyStaffRef.current = nextNearbyStaff;
+                        setNearbyStaff(nextNearbyStaff);
+                    }
                 }
 
                 renderer.render(scene, camera);
@@ -1317,7 +1354,6 @@ function MiniZooGame() {
             };
 
             state.initialized = true;
-            await new Promise(resolve => setTimeout(resolve, 300));
             setIsLoading(false);
         } catch (err) {
             console.error('Game init failed:', err);
@@ -1339,6 +1375,8 @@ function MiniZooGame() {
             : null;
 
         gameStartedRef.current = true;
+        nearbyAnimalRef.current = null;
+        nearbyStaffRef.current = false;
         soundEnabledRef.current = getSfxVolume() > 0;
         setPlayerName(getStoredPlayerName());
         setShowMenu(false);
@@ -1429,7 +1467,7 @@ function MiniZooGame() {
         setShowWelcome(false);
         setSelectedCharacterId(null);
         setCharacterReady(false);
-        setCameraMode('first');
+         setCameraMode('third');
         setShowAllFedCelebration(false);
         setShowCertificate(false);
         setNearbyStaff(false);
@@ -1461,7 +1499,8 @@ function MiniZooGame() {
         feedAnimal(info.name);
         setTasks(getTasks());
         setFeedingSuccess({ visible: true, animalName: info.name });
-    }, [nearbyAnimal]);
+        playVictoryAnimation();
+    }, [nearbyAnimal, playVictoryAnimation]);
 
     const handleFeedFromModal = useCallback(() => {
         if (!selectedAnimal) return;
@@ -1478,12 +1517,13 @@ function MiniZooGame() {
         feedAnimal(selectedAnimal.name);
         setTasks(getTasks());
         setFeedingSuccess({ visible: true, animalName: selectedAnimal.name });
+        playVictoryAnimation();
         if (animalModalPlacement === 'center') {
             setAnimalModalPlacement('bottom');
             setSelectedAnimal(null);
             setIsCompactAnimalPopupDismissed(false);
         }
-    }, [selectedAnimal, animalModalPlacement]);
+    }, [selectedAnimal, animalModalPlacement, playVictoryAnimation]);
 
     const handleHideFeedSuccess = useCallback(() => setFeedingSuccess({ visible: false, animalName: '' }), []);
 
@@ -1497,6 +1537,7 @@ function MiniZooGame() {
         state.keys.a = false;
         state.keys.s = false;
         state.keys.d = false;
+        state.keys.shift = false;
         setNpcDialogueNodeId('root');
         setShowNpcDialogue(true);
     }, [nearbyStaff, gameStarted, characterReady]);
@@ -1528,6 +1569,7 @@ function MiniZooGame() {
         state.keys.a = false;
         state.keys.s = false;
         state.keys.d = false;
+        state.keys.shift = false;
         setBookOpen(true);
     }, [gameStarted, characterReady]);
 
@@ -1593,6 +1635,7 @@ function MiniZooGame() {
                 feedAnimal(info.name);
                 setTasks(getTasks());
                 setFeedingSuccess({ visible: true, animalName: info.name });
+                playVictoryAnimation();
             }
             if (key === 'v' && gameStarted && characterReady) {
                 cycleCameraMode();
@@ -1616,7 +1659,7 @@ function MiniZooGame() {
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [nearbyAnimal, nearbyStaff, selectedAnimal, showNpcDialogue, gameStarted, settingsOpen, tasksOpen, animalModalPlacement, characterReady, cycleCameraMode, openNpcDialogue, closeNpcDialogue, bookOpen]);
+    }, [nearbyAnimal, nearbyStaff, selectedAnimal, showNpcDialogue, gameStarted, settingsOpen, tasksOpen, animalModalPlacement, characterReady, cycleCameraMode, openNpcDialogue, closeNpcDialogue, bookOpen, playVictoryAnimation]);
 
     useEffect(() => {
         gameStartedRef.current = gameStarted;
@@ -1749,6 +1792,8 @@ function MiniZooGame() {
                 welcomeTimerRef.current = null;
             }
             gameStartedRef.current = false;
+            nearbyAnimalRef.current = null;
+            nearbyStaffRef.current = false;
             soundEnabledRef.current = false;
             stopGameplaySounds(false);
             ambienceRef.current = null;
@@ -1832,8 +1877,8 @@ function MiniZooGame() {
         };
     }, [gameStarted, playAmbience, stopAmbience]);
 
-    const completedCount = getCompletedTasksCount();
-    const totalCount = getTotalTasks();
+    const completedCount = tasks.reduce((count, task) => count + (task.completed ? 1 : 0), 0);
+    const totalCount = tasks.length;
 
     useEffect(() => {
         if (!gameStarted) {
@@ -1903,6 +1948,7 @@ function MiniZooGame() {
                         isTouchDevice={isTouchDevice}
                     />
                     <Joystick baseRef={baseRef} stickRef={stickRef} isTouchDevice={isTouchDevice} />
+                    <RunButton isTouchDevice={isTouchDevice} onRunStart={() => handleRunInput(true)} onRunEnd={() => handleRunInput(false)} />
                     <JumpButton jumpRef={jumpRef} isTouchDevice={isTouchDevice} />
                     <Hotbar onOpenBook={openBook} bookOpen={bookOpen} />
                     <SketchbookModal isOpen={bookOpen} onClose={closeBook} />
