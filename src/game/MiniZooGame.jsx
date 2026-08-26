@@ -6,9 +6,10 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
 import { createTerrain, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache } from './components/Terrain.jsx';
 import { loadGLTFAnimals, releaseAnimalModelCache } from './components/Animals.jsx';
-import { createRiver, updateRiver, updateRiverQuality, disposeRiver, isLandAccessible, findAccessiblePosition, getBridgeHeight } from './components/River.jsx';
+import { createRiver, updateRiver, updateRiverQuality, disposeRiver, isLandAccessible, findAccessiblePosition } from './components/River.jsx';
 import { loadNewHouses } from './components/Structures.jsx';
 import { createGLTFLoader } from './utils/gltfLoader.js';
+import { applyHumanSkinColor } from './utils/characterMaterials.js';
 import {
     createMovementHandler,
     setupKeyboardControls,
@@ -890,6 +891,7 @@ function MiniZooGame() {
             });
 
             const model = gltf.scene;
+            applyHumanSkinColor(model);
             model.traverse((child) => {
                 if (!child.isMesh) return;
                 child.castShadow = false;
@@ -994,7 +996,6 @@ function MiniZooGame() {
 
             // Create collision obstacles based on the loaded meshes
             state.obstacles = [];
-            state.obstacles.push(...state.river.bridge.obstacles);
             loadedTrees.forEach(t => state.obstacles.push({ x: t.position.x, z: t.position.z, radius: t.scale.x * 0.8 }));
             loadedRocks.forEach(r => state.obstacles.push({ x: r.position.x, z: r.position.z, radius: r.scale.x * 1.1 }));
             loadedBushes.forEach(b => state.obstacles.push({ x: b.position.x, z: b.position.z, radius: b.scale.x * 0.6 }));
@@ -1123,8 +1124,7 @@ function MiniZooGame() {
                 const playerPosition = state.playerAnchor ? state.playerAnchor.position : camera.position;
 
                 if (state.playerCharacter) {
-                    const characterTerrainHeight = getTerrainHeight(playerPosition.x, playerPosition.z);
-                    const characterGround = getBridgeHeight(playerPosition.x, playerPosition.z, characterTerrainHeight);
+                    const characterGround = getTerrainHeight(playerPosition.x, playerPosition.z);
                     const jumpOffset = Math.max(
                         0,
                         playerPosition.y - (characterGround + (state.playerHeight ?? PLAYER_HEIGHT))
@@ -1242,12 +1242,7 @@ function MiniZooGame() {
                         playerPosition.z + Math.cos(state.yaw) * followDistance
                     );
 
-                    const cameraTerrainHeight = getTerrainHeight(desiredCameraPosition.x, desiredCameraPosition.z);
-                    const minCameraY = getBridgeHeight(
-                        desiredCameraPosition.x,
-                        desiredCameraPosition.z,
-                        cameraTerrainHeight
-                    ) + 1.4;
+                    const minCameraY = getTerrainHeight(desiredCameraPosition.x, desiredCameraPosition.z) + 1.4;
                     desiredCameraPosition.y = Math.max(desiredCameraPosition.y, minCameraY);
 
                     const cameraLerp = 1 - Math.exp(-8 * dt);
@@ -1255,8 +1250,7 @@ function MiniZooGame() {
                     lookTarget.set(playerPosition.x, smoothedFollowY + 2.1, playerPosition.z);
                     camera.lookAt(lookTarget);
                 } else if (state.playerAnchor) {
-                    const playerTerrainHeight = getTerrainHeight(playerPosition.x, playerPosition.z);
-                    const minEyeY = getBridgeHeight(playerPosition.x, playerPosition.z, playerTerrainHeight)
+                    const minEyeY = getTerrainHeight(playerPosition.x, playerPosition.z)
                         + (state.playerHeight ?? PLAYER_HEIGHT)
                         + FIRST_PERSON_EYE_OFFSET;
                     camera.position.set(

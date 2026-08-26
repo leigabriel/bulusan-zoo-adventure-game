@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2026-08-26-v3.2';
+const CACHE_VERSION = '2026-08-26-v3.3';
 const APP_SHELL_CACHE = `minizoo-app-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `minizoo-static-${CACHE_VERSION}`;
 const MEDIA_CACHE = `minizoo-media-${CACHE_VERSION}`;
@@ -49,7 +49,7 @@ async function cacheFirst(request, cacheName) {
 
   const network = await fetch(request);
   if (network.ok) {
-    cache.put(request, network.clone());
+    cache.put(request, network.clone()).catch(() => {});
   }
   return network;
 }
@@ -61,7 +61,7 @@ async function staleWhileRevalidate(request, cacheName) {
   const networkPromise = fetch(request)
     .then((network) => {
       if (network.ok) {
-        cache.put(request, network.clone());
+        cache.put(request, network.clone()).catch(() => {});
       }
       return network;
     })

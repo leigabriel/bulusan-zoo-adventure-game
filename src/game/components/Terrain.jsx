@@ -8,6 +8,7 @@ const BUSH_MODELS = ['Bush1', 'Bush2', 'Bush3'];
 const GRASS_MODELS = ['Grass1', 'Grass2', 'Grass3'];
 const ROCK_MODELS = ['Rock1', 'Rock2', 'Rock3'];
 const TERRAIN_SIZE = 500;
+const TERRAIN_SEGMENTS = 140;
 
 const modelCache = new Map();
 
@@ -53,7 +54,7 @@ export function alignObjectToTerrain(object, terrainY, bounds = new THREE.Box3()
 }
 
 export function createTerrain(scene) {
-    const terrainGeo = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, 100, 100);
+    const terrainGeo = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, TERRAIN_SEGMENTS, TERRAIN_SEGMENTS);
     const posAttr = terrainGeo.attributes.position;
 
     const colors = [];

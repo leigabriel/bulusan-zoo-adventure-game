@@ -8,6 +8,7 @@ import { CustomEase } from 'gsap/CustomEase';
 import { resolveAssetUrl } from '../utils/localAssets.js';
 import { ActionButton, GameButton, IconButton, ModalShell, SideSheet, SurfacePanel, cx } from './UIComponents.jsx';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
+import { applyHumanSkinColor } from '../utils/characterMaterials.js';
 
 let sketchbookEaseRegistered = false;
 function ensureSketchbookEase() {
@@ -444,14 +445,19 @@ function Character3DPreview({ modelFile }) {
                     }
                     modelGroup = gltf.scene;
 
-                    // Normalize model size
-                    const box = new THREE.Box3().setFromObject(modelGroup);
+            applyHumanSkinColor(modelGroup);
+
+            // Normalize model size and center its pivot for the preview camera.
+            const box = new THREE.Box3().setFromObject(modelGroup);
                     const size = box.getSize(new THREE.Vector3());
                     const targetHeight = 1.65;
-                    const scale = targetHeight / Math.max(size.y, 0.001);
-                    modelGroup.scale.set(scale, scale, scale);
-                    const fittedBox = new THREE.Box3().setFromObject(modelGroup);
-                    modelGroup.position.y -= fittedBox.min.y;
+            const scale = targetHeight / Math.max(size.y, 0.001);
+            modelGroup.scale.set(scale, scale, scale);
+            const fittedBox = new THREE.Box3().setFromObject(modelGroup);
+            const fittedCenter = fittedBox.getCenter(new THREE.Vector3());
+            modelGroup.position.x -= fittedCenter.x;
+            modelGroup.position.z -= fittedCenter.z;
+            modelGroup.position.y -= fittedBox.min.y;
 
                     if (gltf.animations && gltf.animations.length > 0) {
                         mixer = new THREE.AnimationMixer(modelGroup);
@@ -471,6 +477,9 @@ function Character3DPreview({ modelFile }) {
                     // Fit after applying the idle pose so animated limbs do not clip the preview.
                     mixer?.update(0.1);
                     const posedBox = new THREE.Box3().setFromObject(modelGroup);
+                    const posedCenter = posedBox.getCenter(new THREE.Vector3());
+                    modelGroup.position.x -= posedCenter.x;
+                    modelGroup.position.z -= posedCenter.z;
                     modelGroup.position.y -= posedBox.min.y;
                     scene.add(modelGroup);
                     fitCamera();
@@ -762,7 +771,7 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
                         </button>
                     </div>
 
-                    <div className="w-full h-full min-h-0 relative z-10 flex translate-y-14 items-center justify-center overflow-hidden sm:translate-y-20">
+                    <div className="w-full h-full min-h-0 relative z-10 flex items-center justify-center overflow-hidden">
                         {previewChar && <Character3DPreview modelFile={previewChar.file} />}
                     </div>
                 </div>

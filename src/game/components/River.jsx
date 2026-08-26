@@ -8,16 +8,14 @@ const RIVER_POINTS = [
 ].map(([x, z]) => new THREE.Vector2(x, z));
 const RIVER_WIDTH = 7.2;
 const BANK_BLEND = 3.8;
+const SHORE_WIDTH = 1.6;
 const CHANNEL_DEPTH = 2.2;
-const BRIDGE_S = 5;
-const BRIDGE_HALF_LENGTH = 4.2;
-const BRIDGE_HALF_WIDTH = RIVER_WIDTH + 2.3;
-const BRIDGE_ARCH_HEIGHT = 0.9;
+const WATER_CLEARANCE = 0.04;
 
 const QUALITY_CONFIG = {
-    low: { samples: 30, bankSegments: 1, ripples: false },
-    medium: { samples: 60, bankSegments: 2, ripples: true },
-    high: { samples: 110, bankSegments: 3, ripples: true }
+    low: { samples: 45, bankSegments: 2, ripples: false },
+    medium: { samples: 90, bankSegments: 3, ripples: true },
+    high: { samples: 160, bankSegments: 4, ripples: true }
 };
 
 let pathSamples = null;
@@ -26,19 +24,15 @@ function buildPathSamples() {
     if (pathSamples) return pathSamples;
     pathSamples = [];
     let distance = 0;
-    for (let i = 0; i < RIVER_POINTS.length - 1; i += 1) {
-        const a = RIVER_POINTS[i];
-        const b = RIVER_POINTS[i + 1];
-        const length = a.distanceTo(b);
-        const steps = Math.max(4, Math.ceil(length / 5));
-        for (let step = 0; step < steps; step += 1) {
-            const t = step / steps;
-            const point = a.clone().lerp(b, t);
-            pathSamples.push({ point, distance: distance + length * t });
-        }
-        distance += length;
+    const steps = 240;
+    let previousPoint = sampleSmoothPath(0);
+    pathSamples.push({ point: previousPoint, distance });
+    for (let step = 1; step <= steps; step += 1) {
+        const point = sampleSmoothPath(step / steps);
+        distance += point.distanceTo(previousPoint);
+        pathSamples.push({ point, distance });
+        previousPoint = point;
     }
-    pathSamples.push({ point: RIVER_POINTS[RIVER_POINTS.length - 1].clone(), distance });
     return pathSamples;
 }
 
@@ -69,7 +63,7 @@ export function getRiverMetrics(x, z) {
 export function getRiverTerrainOffset(x, z) {
     const metrics = getRiverMetrics(x, z);
     const edge = metrics.width + BANK_BLEND;
-    if (metrics.lateral >= edge || isBridgeArea(metrics)) return 0;
+    if (metrics.lateral >= edge) return 0;
 
     const centerBlend = 1 - THREE.MathUtils.smoothstep(metrics.lateral, metrics.width, edge);
 
@@ -80,27 +74,13 @@ export function getRiverTerrainOffset(x, z) {
     return (-CHANNEL_DEPTH + bedNoise) * centerBlend;
 }
 
-function isBridgeArea(metrics) {
-    const bridgeDistance = closestPathPoint(RIVER_POINTS[BRIDGE_S].x, RIVER_POINTS[BRIDGE_S].y).distance;
-    return Math.abs(metrics.distance - bridgeDistance) < BRIDGE_HALF_LENGTH
-        && metrics.lateral < RIVER_WIDTH + 2.5;
-}
-
 export function isRiverArea(x, z, padding = 0) {
     const metrics = getRiverMetrics(x, z);
-    return metrics.lateral < metrics.width + padding && !isBridgeArea(metrics);
+    return metrics.lateral < metrics.width + padding;
 }
 
 export function isLandAccessible(x, z, radius = 0) {
     return !isRiverArea(x, z, radius);
-}
-
-export function getBridgeHeight(x, z, terrainHeight) {
-    const metrics = getRiverMetrics(x, z);
-    if (!isBridgeArea(metrics)) return terrainHeight;
-
-    const across = THREE.MathUtils.clamp(metrics.lateral / BRIDGE_HALF_WIDTH, 0, 1);
-    return terrainHeight + 0.04 + BRIDGE_ARCH_HEIGHT * (1 - across * across);
 }
 
 export function findAccessiblePosition(x, z, radius = 0) {
@@ -117,7 +97,7 @@ function makeRibbonGeometry(samples, width, heightFn, segments = 1) {
     for (let i = 0; i <= samples; i += 1) {
         const t = i / samples;
         const point = sampleSmoothPath(t);
-        const next = sampleSmoothPath(Math.min(1, t + 0.002));
+        const next = t < 1 ? sampleSmoothPath(t + 0.002) : sampleSmoothPath(t - 0.002);
         const tangent = next.clone().sub(point).normalize();
         const side = new THREE.Vector2(-tangent.y, tangent.x);
         const rowWidth = typeof width === 'function' ? width(t, point) : width;
@@ -146,39 +126,6 @@ function makeRibbonGeometry(samples, width, heightFn, segments = 1) {
     return geometry;
 }
 
-function makeBridgeDeckGeometry(width, length, thickness, archHeight, lengthSegments = 4) {
-    const positions = [];
-    const indices = [];
-    const acrossSegments = 8;
-    const rowSize = acrossSegments + 1;
-
-    for (let zIndex = 0; zIndex <= lengthSegments; zIndex += 1) {
-        const z = (zIndex / lengthSegments - 0.5) * length;
-        for (let xIndex = 0; xIndex <= acrossSegments; xIndex += 1) {
-            const x = (xIndex / acrossSegments - 0.5) * width;
-            const across = Math.abs(x) / (width / 2);
-            const arch = archHeight * (1 - across * across);
-            positions.push(x, thickness / 2 + arch, z);
-        }
-    }
-
-    for (let zIndex = 0; zIndex < lengthSegments; zIndex += 1) {
-        for (let xIndex = 0; xIndex < acrossSegments; xIndex += 1) {
-            const a = zIndex * rowSize + xIndex;
-            const b = a + 1;
-            const c = a + rowSize;
-            const d = c + 1;
-            indices.push(a, c, b, b, c, d);
-        }
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    return geometry;
-}
-
 function sampleSmoothPath(t) {
     const scaled = THREE.MathUtils.clamp(t, 0, 1) * (RIVER_POINTS.length - 1);
     const index = Math.min(RIVER_POINTS.length - 2, Math.floor(scaled));
@@ -196,7 +143,7 @@ function sampleSmoothPath(t) {
 }
 
 function createWaterMaterial(quality) {
-    if (quality === 'low') return new THREE.MeshBasicMaterial({ color: 0x20b9d0, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
+    if (quality === 'low') return new THREE.MeshBasicMaterial({ color: 0x20b9d0, side: THREE.DoubleSide });
     return new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
@@ -234,18 +181,19 @@ function createWaterMaterial(quality) {
                 float foam = (1.0 - edgeMask) * 0.12 * (0.5 + 0.5 * sin(uTime * 3.0 + vUv.x * 50.0));
                 color += foam;
 
-                gl_FragColor = vec4(color, 0.88);
-            }`,
-        transparent: true,
+                 gl_FragColor = vec4(color, 1.0);
+             }`,
+        transparent: false,
         side: THREE.DoubleSide,
-        depthWrite: false
+        depthWrite: true
     });
 }
 
 function getWaterHeight(baseTerrainHeight, x, z) {
-    // getTerrainHeight already contains the river cut. Remove that cut before
-    // placing the surface, otherwise depth testing lets the terrain hide water.
-    return baseTerrainHeight(x, z) - getRiverTerrainOffset(x, z) - 0.2;
+    // The player stands on the riverbed returned by getTerrainHeight. Keep the
+    // water just above that same surface so it cannot float above or submerge
+    // the character while crossing the river.
+    return baseTerrainHeight(x, z) + WATER_CLEARANCE;
 }
 
 export function createRiver(scene, baseTerrainHeight, quality = 'medium') {
@@ -260,66 +208,17 @@ export function createRiver(scene, baseTerrainHeight, quality = 'medium') {
 
     const bankMaterial = new THREE.MeshStandardMaterial({ color: 0xba945d, roughness: 0.9, side: THREE.DoubleSide });
 
-    const bankHeightFn = (x, z, across, t) => {
-        const groundLevel = waterHeight(x, z) + 0.2;
-        const width = riverWidthAt(t);
-        const totalWidth = width + BANK_BLEND;
-        const lateral = Math.abs(across) * totalWidth;
-        const edge = width + BANK_BLEND;
-        const centerBlend = 1 - THREE.MathUtils.smoothstep(lateral, width, edge);
-        return groundLevel - CHANNEL_DEPTH * centerBlend;
-    };
+    const bankHeightFn = (x, z) => baseTerrainHeight(x, z) + 0.015;
 
     const banks = new THREE.Mesh(
-        makeRibbonGeometry(config.samples, (t) => riverWidthAt(t) + BANK_BLEND, bankHeightFn, config.bankSegments + 1),
+        makeRibbonGeometry(config.samples, (t) => riverWidthAt(t) + SHORE_WIDTH, bankHeightFn, config.bankSegments + 1),
         bankMaterial
     );
     banks.renderOrder = 1;
     root.add(banks);
 
-    const bridge = createBridge(baseTerrainHeight);
-    root.add(bridge.object);
     scene.add(root);
-    return { root, water, banks, bridge, quality, time: 0, baseTerrainHeight };
-}
-
-function createBridge(baseTerrainHeight) {
-    const metrics = getRiverMetrics(RIVER_POINTS[BRIDGE_S].x, RIVER_POINTS[BRIDGE_S].y);
-    const deckWidth = BRIDGE_HALF_WIDTH * 2;
-    const deckLength = BRIDGE_HALF_LENGTH * 2;
-    const deckHeight = 0.38;
-    const bankHeight = baseTerrainHeight(metrics.point.x, metrics.point.y)
-        - getRiverTerrainOffset(metrics.point.x, metrics.point.y);
-    // Put the top of the deck just above the bank surface so the player walks
-    // onto the bridge instead of floating above it or hitting a step.
-    const y = bankHeight + 0.04 - deckHeight / 2;
-    const group = new THREE.Group();
-    group.name = 'RiverBridge';
-    group.position.set(metrics.point.x, y, metrics.point.y);
-    group.rotation.y = Math.atan2(metrics.tangent.x, metrics.tangent.y);
-    const deck = new THREE.Mesh(
-        makeBridgeDeckGeometry(deckWidth, deckLength, deckHeight, BRIDGE_ARCH_HEIGHT),
-        new THREE.MeshStandardMaterial({ color: 0x9b5d31, roughness: 0.9, side: THREE.DoubleSide })
-    );
-    deck.castShadow = true;
-    group.add(deck);
-    const railMaterial = new THREE.MeshStandardMaterial({ color: 0x6f4327, roughness: 0.95 });
-    [-1, 1].forEach((side) => {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.15, deckLength), railMaterial);
-        rail.position.set(side * (RIVER_WIDTH + 1.65), 0.68, 0);
-        group.add(rail);
-    });
-    const supports = [-(RIVER_WIDTH + 0.5), RIVER_WIDTH + 0.5].map((x) => {
-        const support = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.1, deckLength - 0.8), railMaterial);
-        support.position.set(x, -0.52, 0);
-        group.add(support);
-        return support;
-    });
-    const obstacles = [
-        { x: metrics.point.x + metrics.tangent.y * (RIVER_WIDTH + 1.65), z: metrics.point.y - metrics.tangent.x * (RIVER_WIDTH + 1.65), radius: 0.8 },
-        { x: metrics.point.x - metrics.tangent.y * (RIVER_WIDTH + 1.65), z: metrics.point.y + metrics.tangent.x * (RIVER_WIDTH + 1.65), radius: 0.8 }
-    ];
-    return { object: group, obstacles, supports };
+    return { root, water, banks, quality, time: 0, baseTerrainHeight };
 }
 
 export function updateRiver(river, dt, active = true) {
@@ -335,18 +234,10 @@ export function updateRiverQuality(river, quality) {
     const oldWaterGeometry = river.water.geometry;
     const oldBankGeometry = river.banks.geometry;
     const riverWidthAt = (t) => RIVER_WIDTH + Math.sin(t * buildPathSamples()[buildPathSamples().length - 1].distance * 0.035) * 0.7;
-    const bankHeightFn = (x, z, across, t) => {
-        const groundLevel = getWaterHeight(river.baseTerrainHeight, x, z) + 0.2;
-        const width = riverWidthAt(t);
-        const totalWidth = width + BANK_BLEND;
-        const lateral = Math.abs(across) * totalWidth;
-        const edge = width + BANK_BLEND;
-        const centerBlend = 1 - THREE.MathUtils.smoothstep(lateral, width, edge);
-        return groundLevel - CHANNEL_DEPTH * centerBlend;
-    };
+    const bankHeightFn = (x, z) => river.baseTerrainHeight(x, z) + 0.015;
 
     river.water.geometry = makeRibbonGeometry(next.samples, riverWidthAt, (x, z) => getWaterHeight(river.baseTerrainHeight, x, z), quality === 'high' ? 3 : 2);
-    river.banks.geometry = makeRibbonGeometry(next.samples, (t) => riverWidthAt(t) + BANK_BLEND, bankHeightFn, next.bankSegments + 1);
+    river.banks.geometry = makeRibbonGeometry(next.samples, (t) => riverWidthAt(t) + SHORE_WIDTH, bankHeightFn, next.bankSegments + 1);
     oldWaterGeometry.dispose();
     oldBankGeometry.dispose();
     if (quality === 'low' && old.isShaderMaterial) {
@@ -369,4 +260,10 @@ export function disposeRiver(river) {
     river.root?.parent?.remove(river.root);
 }
 
-export const RIVER_CONSTANTS = { width: RIVER_WIDTH, channelDepth: CHANNEL_DEPTH, bankBlend: BANK_BLEND };
+export const RIVER_CONSTANTS = {
+    width: RIVER_WIDTH,
+    channelDepth: CHANNEL_DEPTH,
+    bankBlend: BANK_BLEND,
+    shoreWidth: SHORE_WIDTH,
+    waterClearance: WATER_CLEARANCE
+};

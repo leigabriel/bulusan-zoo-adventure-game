@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { getTerrainHeight } from '../components/Terrain.jsx';
-import { getBridgeHeight } from '../components/River.jsx';
 
 const WALK_SPEED = 15;
 const RUN_SPEED = 22;
@@ -148,8 +147,7 @@ export function createMovementHandler(camera, state) {
         // Terrain and Platform following
         const playerHeight = state.playerHeight ?? PLAYER_HEIGHT;
         const terrainHeight = getTerrainHeight(camera.position.x, camera.position.z);
-        const groundHeight = getBridgeHeight(camera.position.x, camera.position.z, terrainHeight);
-        let groundLevel = groundHeight + playerHeight;
+        const groundLevel = terrainHeight + playerHeight;
 
         if (state.isGrounded) {
             camera.position.y = groundLevel;
