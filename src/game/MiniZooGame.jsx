@@ -490,6 +490,7 @@ function MiniZooGame() {
     const [npcDialogueNodeId, setNpcDialogueNodeId] = useState('root');
     const [bookOpen, setBookOpen] = useState(false);
     const bookOpenRef = useRef(false);
+    const cameraTransitionRef = useRef({ active: false, startedAt: 0 });
 
     const [nearbyAnimal, setNearbyAnimal] = useState(null);
     const [tasks, setTasks] = useState(getTasks());
@@ -726,6 +727,7 @@ function MiniZooGame() {
         cameraModeRef.current = cameraMode;
         const state = gameStateRef.current;
         state.currentCameraMode = cameraMode;
+        cameraTransitionRef.current = { active: true, startedAt: performance.now() };
         if (state.playerCharacter) {
             state.playerCharacter.visible = cameraMode !== 'first';
         }
@@ -1053,7 +1055,11 @@ function MiniZooGame() {
 
             const handleMovement = createMovementHandler(state.playerAnchor, state);
             const desiredCameraPosition = new THREE.Vector3();
+            const firstPersonCameraPosition = new THREE.Vector3();
             const lookTarget = new THREE.Vector3();
+            const targetCameraQuaternion = new THREE.Quaternion();
+            const previousCameraQuaternion = new THREE.Quaternion();
+            const targetCameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
             let smoothedFollowY = camera.position.y;
 
             let lastRenderTime = performance.now();
@@ -1216,6 +1222,14 @@ function MiniZooGame() {
                     camera.updateProjectionMatrix();
                 }
 
+                const cameraTransition = cameraTransitionRef.current;
+                const cameraTransitionProgress = cameraTransition.active
+                    ? Math.min(1, (now - cameraTransition.startedAt) / 650)
+                    : 1;
+                const cameraTransitionBlend = cameraTransitionProgress < 0.5
+                    ? 4 * cameraTransitionProgress ** 3
+                    : 1 - ((-2 * cameraTransitionProgress + 2) ** 3) / 2;
+
                 if (cameraModeRef.current === 'third' && state.playerAnchor) {
                     const followDistance = isMobile ? 5.6 : 7.0;
                     const followHeight = isMobile ? 3.0 : 3.5;
@@ -1235,17 +1249,34 @@ function MiniZooGame() {
                     const cameraLerp = 1 - Math.exp(-8 * dt);
                     camera.position.lerp(desiredCameraPosition, cameraLerp);
                     lookTarget.set(playerPosition.x, smoothedFollowY + 2.1, playerPosition.z);
+                    previousCameraQuaternion.copy(camera.quaternion);
                     camera.lookAt(lookTarget);
+                    if (cameraTransition.active) {
+                        targetCameraQuaternion.copy(camera.quaternion);
+                        camera.quaternion.copy(previousCameraQuaternion).slerp(targetCameraQuaternion, cameraTransitionBlend);
+                    }
                 } else if (state.playerAnchor) {
                     const minEyeY = getTerrainHeight(playerPosition.x, playerPosition.z)
                         + (state.playerHeight ?? PLAYER_HEIGHT)
                         + FIRST_PERSON_EYE_OFFSET;
-                    camera.position.set(
+                    firstPersonCameraPosition.set(
                         playerPosition.x,
                         Math.max(playerPosition.y + FIRST_PERSON_EYE_OFFSET, minEyeY),
                         playerPosition.z
                     );
-                    camera.rotation.set(state.pitch, state.yaw, 0, 'YXZ');
+                    targetCameraEuler.set(state.pitch, state.yaw, 0, 'YXZ');
+                    targetCameraQuaternion.setFromEuler(targetCameraEuler);
+                    if (cameraTransition.active) {
+                        camera.position.lerp(firstPersonCameraPosition, 1 - Math.exp(-7 * dt));
+                        camera.quaternion.slerp(targetCameraQuaternion, cameraTransitionBlend);
+                    } else {
+                        camera.position.copy(firstPersonCameraPosition);
+                        camera.quaternion.copy(targetCameraQuaternion);
+                    }
+                }
+
+                if (cameraTransition.active && cameraTransitionProgress >= 1) {
+                    cameraTransition.active = false;
                 }
 
                 state.animals.forEach(a => {
@@ -1259,7 +1290,8 @@ function MiniZooGame() {
                     }
                 });
 
-                updateRiver(state.river, dt, gameStartedRef.current && state.controlsEnabled);
+                // World animation continues while input is locked by the book overlay.
+                updateRiver(state.river, dt, gameStartedRef.current);
 
                 state.clouds.forEach(c => {
                     c.position.x += 0.02 * dt * 60;
@@ -1428,7 +1460,8 @@ function MiniZooGame() {
         setShowMenu(false);
         setGameStarted(true);
         setTasks(getTasks());
-        setCameraMode(session.cameraMode);
+        // Third person is the default exploration view.
+        setCameraMode('third');
         setSelectedCharacterId(storedCharacterOption?.id || null);
         setCharacterReady(false);
         setShowWelcome(true);
@@ -1624,6 +1657,7 @@ function MiniZooGame() {
     const openBook = useCallback(() => {
         if (!gameStarted || !characterReady) return;
         closeInterfaces();
+        setCameraMode('first');
         const state = gameStateRef.current;
         state.controlsEnabled = false;
         state.mX = 0;
@@ -1638,6 +1672,7 @@ function MiniZooGame() {
 
     const closeBook = useCallback(() => {
         setBookOpen(false);
+        setCameraMode('third');
         const state = gameStateRef.current;
         if (gameStarted && characterReady) {
             state.controlsEnabled = true;
