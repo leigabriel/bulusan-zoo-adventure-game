@@ -114,13 +114,50 @@ export function SurfacePanel({ children, className = '', ...props }) {
         <div
             data-ui-panel="true"
             className={cx(
-                'rounded-[1.5rem] border-2 border-emerald-100 bg-white shadow-[0_12px_0_0_rgba(5,46,22,0.1)]',
+                'rounded-3xl border-2 border-emerald-100 bg-white shadow-[0_12px_0_0_rgba(5,46,22,0.1)]',
                 className,
             )}
             {...props}
         >
             {children}
         </div>
+    );
+}
+
+export function PaginationControls({
+    page,
+    pageCount,
+    onPageChange,
+    previousLabel = 'Previous',
+    nextLabel = 'Next',
+    className = '',
+}) {
+    if (pageCount <= 1) return null;
+
+    return (
+        <nav className={cx('flex shrink-0 items-center justify-between gap-3', className)} aria-label="Pagination">
+            <ActionButton
+                size="sm"
+                variant="secondary"
+                disabled={page <= 0}
+                onClick={() => onPageChange(page - 1)}
+                aria-label="Previous page"
+            >
+                <span aria-hidden="true">&lsaquo;</span> {previousLabel}
+            </ActionButton>
+            <span className="min-w-16 rounded-full bg-emerald-950 px-3 py-1.5 text-center text-xs font-black text-white shadow-[0_3px_0_0_#022c22]" aria-live="polite">
+                {page + 1} / {pageCount}
+            </span>
+            <ActionButton
+                size="sm"
+                variant="primary"
+                disabled={page >= pageCount - 1}
+                onClick={() => onPageChange(page + 1)}
+                aria-label="Next page"
+            >
+                {nextLabel} <span aria-hidden="true">&rsaquo;</span>
+            </ActionButton>
+        </nav>
     );
 }
 
@@ -145,22 +182,22 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md', clos
                 type="button"
                 aria-label="Close modal"
                 onClick={closeOnBackdrop ? onClose : undefined}
-                className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[4px]"
+                className="absolute inset-0 bg-emerald-950/40 backdrop-blur-xs"
             />
 
             <SurfacePanel
                 className={cx(
-                    'relative z-121 w-full overflow-hidden',
+                    'relative z-121 flex max-h-[85dvh] w-full flex-col overflow-hidden',
                     maxWidth[size] || maxWidth.md,
                 )}
             >
-                <div className="max-h-[85dvh] overflow-y-auto p-4 sm:p-8" data-ui-scrollable="true">
-                    <div className="mb-4 sm:mb-6 flex items-center justify-between gap-3">
-                        {title ? <h2 className="text-xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">{title}</h2> : <span />}
-                        <IconButton onClick={onClose} aria-label="Close">
-                            <span className="text-xl font-bold leading-none">&times;</span>
-                        </IconButton>
-                    </div>
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-emerald-50 p-4 sm:px-8 sm:py-5">
+                    {title ? <h2 className="text-xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">{title}</h2> : <span />}
+                    <IconButton onClick={onClose} aria-label="Close">
+                        <span className="text-xl font-bold leading-none">&times;</span>
+                    </IconButton>
+                </div>
+                <div className="min-h-0 overflow-y-auto p-4 sm:p-6" data-ui-scrollable="true">
                     {children}
                 </div>
             </SurfacePanel>
@@ -179,7 +216,7 @@ export function SideSheet({ isOpen, onClose, title, side = 'left', children }) {
                 aria-label="Close panel"
                 onClick={onClose}
                 className={cx(
-                    'fixed inset-0 z-90 bg-emerald-950/40 backdrop-blur-[4px] transition-opacity',
+                    'fixed inset-0 z-90 bg-emerald-950/40 backdrop-blur-xs transition-opacity',
                     isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
                 )}
             />

@@ -4,7 +4,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import * as THREE from 'three';
 import { resolveAssetUrl } from '../utils/localAssets.js';
-import { ActionButton, GameButton, IconButton, ModalShell, SideSheet, SurfacePanel, cx } from './UIComponents.jsx';
+import { ActionButton, GameButton, IconButton, ModalShell, PaginationControls, SurfacePanel, cx } from './UIComponents.jsx';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
 import { applyHumanSkinColor } from '../utils/characterMaterials.js';
 import { ANIMAL_METADATA } from '../data/animalMetadata.js';
@@ -72,15 +72,6 @@ function persistSettings(updated) {
     }
 }
 
-function isUISoundEnabled() {
-    try {
-        const settings = readSettings();
-        return (settings.uiVolume ?? 1.0) > 0;
-    } catch {
-        return true;
-    }
-}
-
 function getUIButtonAudioTemplate(kind = 'tap') {
     const src = SFX_FILES[kind] || SFX_FILES.tap;
     if (!uiAudioTemplates[src]) {
@@ -115,41 +106,6 @@ function useIsTouchDevice() {
     }, []);
 
     return isTouch;
-}
-
-function useFullscreen() {
-    const [isFullscreen, setIsFullscreen] = useState(() => !!document.fullscreenElement);
-
-    useEffect(() => {
-        const onChange = () => setIsFullscreen(!!document.fullscreenElement);
-        document.addEventListener('fullscreenchange', onChange);
-        return () => document.removeEventListener('fullscreenchange', onChange);
-    }, []);
-
-    const toggleFullscreen = useCallback(() => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(() => { });
-            return;
-        }
-        document.exitFullscreen().catch(() => { });
-    }, []);
-
-    return { isFullscreen, toggleFullscreen };
-}
-
-async function requestLandscapeOrientation() {
-    try {
-        if (!document.fullscreenElement) {
-            await document.documentElement.requestFullscreen();
-        }
-        if (screen.orientation && typeof screen.orientation.lock === 'function') {
-            await screen.orientation.lock('landscape');
-            return true;
-        }
-        return false;
-    } catch {
-        return false;
-    }
 }
 
 function ToggleRow({ label, description, enabled, onToggle }) {
@@ -215,7 +171,7 @@ function SelectRow({ label, options = [], value, onChange }) {
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-1">
                 {label}
             </span>
-            <div className="flex gap-2" role="radiogroup">
+            <div className="flex flex-wrap gap-2" role="radiogroup">
                 {options.map((opt) => {
                     const isSelected = value === opt.value;
                     return (
@@ -226,7 +182,7 @@ function SelectRow({ label, options = [], value, onChange }) {
                             aria-checked={isSelected}
                             onClick={() => onChange(opt.value)}
                             className={cx(
-                                'flex-1 rounded-xl py-2 text-xs font-black uppercase tracking-wider transition-all',
+                                'min-w-24 flex-1 rounded-xl px-2 py-2 text-xs font-black uppercase tracking-wider transition-all',
                                 isSelected
                                     ? 'bg-emerald-500 text-white shadow-[0_4px_0_0_#065f46]'
                                     : 'bg-emerald-50 text-emerald-700 shadow-[0_4px_0_0_#d1fae5] hover:bg-emerald-100'
@@ -250,45 +206,42 @@ function ProgressChip({ completed, total, className = '' }) {
 }
 
 function HowToPlayContent() {
+    const [page, setPage] = useState(0);
+    const usesTouchControls = Capacitor.isNativePlatform() || /android/i.test(navigator.userAgent || '');
+    const pages = usesTouchControls
+        ? [
+            { label: 'Move', color: 'text-emerald-600', icon: '🕹️', iconClass: 'bg-emerald-100', text: 'Drag the joystick on the lower left. Your explorer runs automatically in the direction you move.' },
+            { label: 'Look & Jump', color: 'text-amber-600', icon: '👆', iconClass: 'bg-amber-100', text: 'Swipe an open area to look around. Tap Jump on the lower right to clear obstacles.' },
+            { label: 'Care & Explore', color: 'text-sky-600', icon: '🍎', iconClass: 'bg-sky-100', text: 'Approach an animal, then hold Feed. Use the book and camera buttons at the bottom of the screen.' },
+            { label: 'Ranger & Goal', color: 'text-emerald-700', icon: '🏅', iconClass: 'bg-lime-100', text: 'Tap Talk near Ranger Lino. Feed every safe animal to earn your completion certificate.' },
+        ]
+        : [
+            { label: 'Move & Look', color: 'text-emerald-600', icon: 'WASD', iconClass: 'bg-emerald-100 text-xs', text: 'Use W, A, S, and D to move. Hold the left mouse button and drag to look around. Your explorer runs automatically.' },
+            { label: 'Jump & View', color: 'text-amber-600', icon: 'SPACE', iconClass: 'bg-amber-100 text-[9px]', text: 'Press Space to jump. Press V to switch between first-person and third-person views.' },
+            { label: 'Interact', color: 'text-sky-600', icon: 'F / T', iconClass: 'bg-sky-100 text-xs', text: 'Hold F near an animal to feed it. Press T or E near Ranger Lino to talk.' },
+            { label: 'Menus & Goal', color: 'text-emerald-700', icon: 'ESC', iconClass: 'bg-lime-100 text-xs', text: 'Press Escape to close open panels. Feed every safe animal to earn your completion certificate.' },
+        ];
+    const current = pages[page];
+
     return (
-        <div className="space-y-4 text-sm text-slate-700">
-            <p className="font-semibold text-center italic">Explore Bulusan Zootopia Adventure, feed the animals, and complete your zoo mission!</p>
-
-            <div className="grid gap-3">
-                <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
-                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-600 mb-2">How to Move</p>
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0">🕹️</div>
-                        <p className="font-bold text-slate-800 leading-tight">Use the Joystick on the left to walk around the zoo.</p>
-                    </div>
-                </div>
-
-                <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
-                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-600 mb-2">How to Jump</p>
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">🦘</div>
-                        <p className="font-bold text-slate-800 leading-tight">Tap the Jump button on the right to leap over obstacles.</p>
-                    </div>
-                </div>
-
-                <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm">
-                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-sky-600 mb-2">Interactions</p>
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center shrink-0">🍎</div>
-                        <p className="font-bold text-slate-800 leading-tight">Walk near an animal to see the Feed and Info buttons.</p>
+        <div className="flex min-h-64 flex-col gap-4 text-sm text-slate-700">
+            <p className="font-semibold text-center italic">{usesTouchControls ? 'Android touch controls' : 'Desktop keyboard and mouse controls'}</p>
+            <div className="flex flex-1 items-center rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm sm:p-6">
+                <div className="flex items-center gap-4">
+                    <div className={cx('flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl', current.iconClass)}>{current.icon}</div>
+                    <div>
+                        <p className={cx('mb-2 text-[10px] font-black uppercase tracking-[0.15em]', current.color)}>{current.label}</p>
+                        <p className="font-bold leading-relaxed text-slate-800">{current.text}</p>
                     </div>
                 </div>
             </div>
-
-            <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 text-center">
-                <p className="font-black text-emerald-800 uppercase tracking-widest text-xs">Your Goal</p>
-                <p className="mt-1 font-bold text-emerald-900 leading-snug">Feed every animal to unlock your completion certificate!</p>
-            </div>
+            <PaginationControls page={page} pageCount={pages.length} onPageChange={setPage} />
         </div>
     );
 }
 
 function CreditsContent() {
+    const [page, setPage] = useState(0);
     const modelCredits = [
         ['Rabbit', 'Tiko', 'https://sketchfab.com/3d-models/rabbit-caba07ca532947858ab66b65879cc105', 'CC-BY-4.0'],
         ['Realsitic Monkey', 'TdoubleU8', 'https://sketchfab.com/3d-models/realsitic-monkey-50e4b1da03494429b1265fc095f2c530', 'CC-BY-4.0'],
@@ -297,32 +250,32 @@ function CreditsContent() {
         ['Birds', 'Zacxophone', 'https://sketchfab.com/3d-models/birds-3a9bb97be78944f9bffc23fb25c2154e', 'Sketchfab Standard'],
         ['Low Poly Bird (Animated)', 'Charlie Tinley', 'https://sketchfab.com/3d-models/low-poly-bird-animated-82ada91f0ac64ab595fbc3dc994a3590', 'CC-BY-4.0'],
     ];
+    const pageCount = 1 + Math.ceil(modelCredits.length / 2);
+    const visibleCredits = page === 0 ? [] : modelCredits.slice((page - 1) * 2, (page - 1) * 2 + 2);
 
     return (
-        <div className="space-y-4 text-center text-sm text-slate-700">
-            <p className="font-semibold italic">Character and environment assets provided by Quaternius.</p>
-            <a
-                href="https://quaternius.com/"
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-2xl border-2 border-slate-100 bg-white p-4 font-black text-emerald-800 shadow-sm underline decoration-emerald-300 underline-offset-4 transition-colors hover:bg-emerald-50"
-            >
-                Quaternius<br />
-                <span className="text-xs font-bold normal-case tracking-normal">https://quaternius.com/</span>
-            </a>
-            <div className="space-y-2 text-left">
-                <h3 className="text-center text-xs font-black uppercase tracking-widest text-emerald-800">Animal Model Licenses</h3>
-                <p className="text-center text-xs font-semibold text-slate-500">
-                    CC-BY-4.0 models require author credit and allow commercial use. The Birds model is under the Sketchfab Standard license and is used under its basic restrictions.
-                </p>
-                {modelCredits.map(([title, author, source, license]) => (
+        <div className="flex min-h-72 flex-col gap-3 text-center text-sm text-slate-700">
+            <div className="flex-1 space-y-2 text-left">
+                {page === 0 ? (
+                    <div className="grid h-full content-center gap-4 text-center">
+                        <p className="font-semibold italic">Character and environment assets provided by Quaternius.</p>
+                        <a href="https://quaternius.com/" target="_blank" rel="noreferrer" className="mx-auto inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-500 px-6 text-sm font-black uppercase tracking-wider text-white shadow-[0_4px_0_0_#065f46] transition-all active:translate-y-1 active:shadow-none">
+                            Quaternius Link
+                        </a>
+                        <p className="text-xs font-semibold text-slate-500">Additional animal model licenses are listed on the following pages.</p>
+                    </div>
+                ) : (
+                    <><h3 className="text-center text-xs font-black uppercase tracking-widest text-emerald-800">Animal Model Licenses</h3><p className="text-center text-xs font-semibold text-slate-500">CC-BY-4.0 models require author credit. The Birds model uses the Sketchfab Standard license.</p></>
+                )}
+                {visibleCredits.map(([title, author, source, license]) => (
                     <div key={source} className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
                         <p className="font-black text-slate-800">{title}</p>
                         <p className="text-xs font-semibold">By {author} | {license}</p>
-                        <a href={source} target="_blank" rel="noreferrer" className="break-all text-xs text-emerald-700 underline">{source}</a>
+                        <a href={source} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-9 items-center justify-center rounded-lg bg-emerald-500 px-4 text-[10px] font-black uppercase tracking-wider text-white shadow-[0_3px_0_0_#065f46] transition-all active:translate-y-0.5 active:shadow-none">Link</a>
                     </div>
                 ))}
             </div>
+            <PaginationControls page={page} pageCount={pageCount} onPageChange={setPage} />
         </div>
     );
 }
@@ -405,24 +358,13 @@ function Character3DPreview({ modelFile }) {
 
         const fitCamera = () => {
             if (!modelGroup) return;
-            const box = new THREE.Box3().setFromObject(modelGroup);
-            const size = box.getSize(new THREE.Vector3());
-            const center = box.getCenter(new THREE.Vector3());
-
             const fov = camera.fov * (Math.PI / 180);
-            let distance = Math.abs(size.y / Math.tan(fov / 2));
-
-            // Fit both the height and width, including portrait mobile screens.
             const aspect = Math.max(width / height, 0.1);
-            const verticalDistance = (size.y * 0.5) / Math.tan(fov / 2);
-            const horizontalFov = 2 * Math.atan(Math.tan(fov / 2) * aspect);
-            const horizontalDistance = (Math.max(size.x, size.z) * 0.5) / Math.tan(horizontalFov / 2);
-            distance = Math.max(verticalDistance, horizontalDistance);
-
-            // Leave room for the model's idle pose and rotation. This keeps
-            // hats, hands, and feet inside the frame on portrait screens too.
-                    camera.position.set(0, center.y + size.y * 0.03, distance * 3.1);
-                    camera.lookAt(center.x, center.y + size.y * 0.08, center.z);
+            const targetHeight = 1.65;
+            const baseDistance = (targetHeight * 0.68) / Math.tan(fov / 2);
+            const narrowScreenAdjustment = aspect < 0.7 ? 0.7 / aspect : 1;
+            camera.position.set(0, targetHeight * 0.52, baseDistance * narrowScreenAdjustment);
+            camera.lookAt(0, targetHeight * 0.5, 0);
             camera.updateProjectionMatrix();
         };
 
@@ -458,19 +400,19 @@ function Character3DPreview({ modelFile }) {
                     }
                     modelGroup = gltf.scene;
 
-            applyHumanSkinColor(modelGroup);
+                    applyHumanSkinColor(modelGroup);
 
-            // Normalize model size and center its pivot for the preview camera.
-            const box = new THREE.Box3().setFromObject(modelGroup);
+                    // Every preview uses the same world-space height and camera framing.
+                    const box = new THREE.Box3().setFromObject(modelGroup);
                     const size = box.getSize(new THREE.Vector3());
                     const targetHeight = 1.65;
-            const scale = targetHeight / Math.max(size.y, 0.001);
-            modelGroup.scale.set(scale, scale, scale);
-            const fittedBox = new THREE.Box3().setFromObject(modelGroup);
-            const fittedCenter = fittedBox.getCenter(new THREE.Vector3());
-            modelGroup.position.x -= fittedCenter.x;
-            modelGroup.position.z -= fittedCenter.z;
-            modelGroup.position.y -= fittedBox.min.y;
+                    const scale = targetHeight / Math.max(size.y, 0.001);
+                    modelGroup.scale.set(scale, scale, scale);
+                    const fittedBox = new THREE.Box3().setFromObject(modelGroup);
+                    const fittedCenter = fittedBox.getCenter(new THREE.Vector3());
+                    modelGroup.position.x -= fittedCenter.x;
+                    modelGroup.position.z -= fittedCenter.z;
+                    modelGroup.position.y -= fittedBox.min.y;
 
                     if (gltf.animations && gltf.animations.length > 0) {
                         mixer = new THREE.AnimationMixer(modelGroup);
@@ -487,13 +429,7 @@ function Character3DPreview({ modelFile }) {
                         }
                     }
 
-                    // Fit after applying the idle pose so animated limbs do not clip the preview.
                     mixer?.update(0.1);
-                    const posedBox = new THREE.Box3().setFromObject(modelGroup);
-                    const posedCenter = posedBox.getCenter(new THREE.Vector3());
-                    modelGroup.position.x -= posedCenter.x;
-                    modelGroup.position.z -= posedCenter.z;
-                    modelGroup.position.y -= posedBox.min.y;
                     scene.add(modelGroup);
                     fitCamera();
 
@@ -546,14 +482,7 @@ function Character3DPreview({ modelFile }) {
 function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = true, cameraMode, onCameraModeChange }) {
     const [settings, setSettings] = useState(() => readSettings());
     const [playerName, setPlayerName] = useState(() => readPlayerName());
-    const [showAudioSubSettings, setShowAudioSubSettings] = useState(false);
-    const [howToPlayOpen, setHowToPlayOpen] = useState(false);
-
-    const toggle = useCallback((key) => {
-        const next = { ...settings, [key]: settings[key] === false };
-        setSettings(next);
-        persistSettings(next);
-    }, [settings]);
+    const [activeSection, setActiveSection] = useState(null);
 
     const handleSaveName = useCallback(() => {
         savePlayerName(playerName);
@@ -567,150 +496,137 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = 
 
     if (!isOpen) return null;
 
-    return (
-        <>
-            <ModalShell isOpen={isOpen} onClose={onClose} title="Game Settings" size="md">
-                <div className="space-y-6">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {showNameInput && (
-                            <div className="rounded-2xl border-2 border-slate-100 bg-white p-4 shadow-sm sm:col-span-2">
-                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2" htmlFor="settings-player-name">
-                                    Player Name
-                                </label>
-                                <input
-                                    id="settings-player-name"
-                                    type="text"
-                                    maxLength={24}
-                                    value={playerName}
-                                    onChange={(e) => setPlayerName(e.target.value)}
-                                    onBlur={handleSaveName}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveName();
-                                    }}
-                                    className="block w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-base font-black text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white"
-                                    placeholder="Your name"
-                                />
-                            </div>
-                        )}
+    const updateSetting = (key, value) => {
+        const next = { ...settings, [key]: value };
+        setSettings(next);
+        persistSettings(next);
+    };
+    const sectionTitles = {
+        graphics: 'Graphics',
+        audio: 'Audio',
+        sensitivity: 'Sensitivity',
+        perspective: 'View Perspective',
+        progress: 'Quit / Reset Progress',
+    };
 
-                        <SelectRow
-                            label="Graphics"
-                            options={[
-                                { label: 'Low', value: 'low' },
-                                { label: 'Med', value: 'medium' },
-                                { label: 'High', value: 'high' }
-                            ]}
-                            value={settings.graphicsQuality || 'medium'}
-                            onChange={(val) => {
-                                const next = { ...settings, graphicsQuality: val };
-                                setSettings(next);
-                                persistSettings(next);
-                            }}
-                        />
+    if (activeSection) {
+        return (
+            <ModalShell isOpen={true} onClose={() => setActiveSection(null)} title={sectionTitles[activeSection]} size="md">
+                <div className="flex min-h-52 flex-col gap-4">
+                    <ActionButton variant="secondary" size="sm" className="self-start" onClick={() => setActiveSection(null)}>
+                        <span aria-hidden="true">&lsaquo;</span> Settings
+                    </ActionButton>
 
-                        <SelectRow
-                            label="FPS Limit"
-                            options={[
-                                { label: '30', value: 30 },
-                                { label: '60', value: 60 },
-                                { label: '120', value: 120 }
-                            ]}
-                            value={settings.fpsLimit ?? 60}
-                            onChange={(val) => {
-                                const next = { ...settings, fpsLimit: val };
-                                setSettings(next);
-                                persistSettings(next);
-                            }}
-                        />
-
-                        <div className="sm:col-span-2">
+                    {activeSection === 'graphics' ? (
+                        <div className="grid flex-1 content-center gap-4 sm:grid-cols-2">
                             <SelectRow
-                                label="View Perspective"
+                                label="Graphics Quality"
                                 options={[
-                                    { label: 'First Person', value: 'first' },
-                                    { label: 'Third Person', value: 'third' }
+                                    { label: 'Low', value: 'low' },
+                                    { label: 'Medium', value: 'medium' },
+                                    { label: 'High', value: 'high' },
                                 ]}
-                                value={cameraMode}
-                                onChange={onCameraModeChange}
+                                value={settings.graphicsQuality || 'medium'}
+                                onChange={(value) => updateSetting('graphicsQuality', value)}
+                            />
+                            <SelectRow
+                                label="FPS Limit"
+                                options={[
+                                    { label: '30', value: 30 },
+                                    { label: '60', value: 60 },
+                                    { label: '120', value: 120 },
+                                ]}
+                                value={settings.fpsLimit ?? 60}
+                                onChange={(value) => updateSetting('fpsLimit', value)}
                             />
                         </div>
+                    ) : null}
 
-                        <div className="sm:col-span-2">
+                    {activeSection === 'audio' ? (
+                        <div className="grid flex-1 content-center gap-3 sm:grid-cols-2">
+                            <VolumeSliderRow label="Music" description="Background" value={settings.musicVolume ?? 0.5} onChange={(value) => handleVolumeChange('musicVolume', value)} />
+                            <VolumeSliderRow label="Ambience" description="Nature" value={settings.ambienceVolume ?? 1} onChange={(value) => handleVolumeChange('ambienceVolume', value)} />
+                            <VolumeSliderRow label="SFX" description="Animals" value={settings.sfxVolume ?? 1} onChange={(value) => handleVolumeChange('sfxVolume', value)} />
+                            <VolumeSliderRow label="UI" description="Buttons" value={settings.uiVolume ?? 1} onChange={(value) => handleVolumeChange('uiVolume', value)} />
+                        </div>
+                    ) : null}
+
+                    {activeSection === 'sensitivity' ? (
+                        <div className="grid flex-1 content-center">
                             <SelectRow
                                 label="Look Sensitivity"
                                 options={[
                                     { label: 'Slow', value: 0.5 },
-                                    { label: 'Normal', value: 1.0 },
-                                    { label: 'Fast', value: 1.8 }
+                                    { label: 'Normal', value: 1 },
+                                    { label: 'Fast', value: 1.8 },
                                 ]}
-                                value={settings.sensitivity ?? 1.0}
-                                onChange={(val) => {
-                                    const next = { ...settings, sensitivity: val };
-                                    setSettings(next);
-                                    persistSettings(next);
+                                value={settings.sensitivity ?? 1}
+                                onChange={(value) => updateSetting('sensitivity', value)}
+                            />
+                        </div>
+                    ) : null}
+
+                    {activeSection === 'perspective' ? (
+                        <div className="grid flex-1 content-center">
+                            <SelectRow
+                                label="Camera View"
+                                options={[
+                                    { label: 'First Person', value: 'first' },
+                                    { label: 'Third Person', value: 'third' },
+                                ]}
+                                value={cameraMode || settings.cameraMode || 'third'}
+                                onChange={(value) => {
+                                    updateSetting('cameraMode', value);
+                                    onCameraModeChange?.(value);
                                 }}
                             />
                         </div>
-                    </div>
+                    ) : null}
 
-                    <div className="space-y-3">
-                        <button
-                            type="button"
-                            onClick={() => setShowAudioSubSettings(!showAudioSubSettings)}
-                            className="flex w-full items-center justify-between rounded-2xl border-2 border-slate-100 bg-white px-4 py-3 shadow-sm transition-all active:translate-y-px"
-                        >
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Audio Settings</span>
-                            <span className={cx("text-xl transition-transform duration-200", showAudioSubSettings ? "rotate-180" : "")}>
-                                {showAudioSubSettings ? '−' : '+'}
-                            </span>
-                        </button>
-
-                        {showAudioSubSettings && (
-                            <div className="grid grid-cols-1 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <VolumeSliderRow
-                                    label="Music"
-                                    description="Background"
-                                    value={settings.musicVolume ?? 0.5}
-                                    onChange={(v) => handleVolumeChange('musicVolume', v)}
-                                />
-                                <VolumeSliderRow
-                                    label="Ambience"
-                                    description="Nature"
-                                    value={settings.ambienceVolume ?? 1.0}
-                                    onChange={(v) => handleVolumeChange('ambienceVolume', v)}
-                                />
-                                <VolumeSliderRow
-                                    label="SFX"
-                                    description="Animals"
-                                    value={settings.sfxVolume ?? 1.0}
-                                    onChange={(v) => handleVolumeChange('sfxVolume', v)}
-                                />
-                                <VolumeSliderRow
-                                    label="UI"
-                                    description="Buttons"
-                                    value={settings.uiVolume ?? 1.0}
-                                    onChange={(v) => handleVolumeChange('uiVolume', v)}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t-2 border-slate-50">
-                        {onResetTasks && (
-                            <ActionButton variant="warning" className="h-14 text-base" onClick={onResetTasks}>
-                                Reset Progress
-                            </ActionButton>
-                        )}
-
-                        {onQuit && (
-                            <ActionButton variant="danger" className="h-14 text-base" onClick={onQuit}>
-                                Quit Game
-                            </ActionButton>
-                        )}
-                    </div>
+                    {activeSection === 'progress' ? (
+                        <div className="grid flex-1 content-center gap-3 sm:grid-cols-2">
+                            {onResetTasks ? <ActionButton variant="warning" className="h-14" onClick={() => { onClose(); onResetTasks(); }}>Reset Progress</ActionButton> : null}
+                            {onQuit ? <ActionButton variant="danger" className="h-14" onClick={onQuit}>Quit Game</ActionButton> : null}
+                        </div>
+                    ) : null}
                 </div>
             </ModalShell>
-        </>
+        );
+    }
+
+    const categories = [
+        { id: 'resume', label: 'Resume', icon: '▶', className: 'bg-emerald-500 text-white shadow-[0_5px_0_0_#065f46]' },
+        { id: 'graphics', label: 'Graphics', icon: '▦', className: 'bg-sky-500 text-white shadow-[0_5px_0_0_#075985]' },
+        { id: 'audio', label: 'Audio', icon: '♪', className: 'bg-violet-500 text-white shadow-[0_5px_0_0_#5b21b6]' },
+        { id: 'sensitivity', label: 'Sensitivity', icon: '⌁', className: 'bg-amber-400 text-amber-950 shadow-[0_5px_0_0_#92400e]' },
+        { id: 'perspective', label: 'View Perspective', icon: '◉', className: 'bg-teal-500 text-white shadow-[0_5px_0_0_#115e59]' },
+        ...(onResetTasks || onQuit ? [{ id: 'progress', label: 'Quit / Reset', icon: '!', className: 'bg-rose-500 text-white shadow-[0_5px_0_0_#9f1239]' }] : []),
+    ];
+
+    return (
+        <ModalShell isOpen={isOpen} onClose={onClose} title="Game Settings" size="md">
+            <div className="space-y-4">
+                {showNameInput ? (
+                    <div className="rounded-2xl border-2 border-emerald-100 bg-emerald-50 p-3 shadow-sm">
+                        <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700" htmlFor="settings-player-name">Player Name</label>
+                        <input id="settings-player-name" type="text" maxLength={24} value={playerName} onChange={(event) => setPlayerName(event.target.value)} onBlur={handleSaveName} onKeyDown={(event) => { if (event.key === 'Enter') handleSaveName(); }} className="block w-full rounded-xl border-2 border-emerald-100 bg-white px-4 py-2 text-base font-black text-slate-800 outline-none focus:border-emerald-400" placeholder="Your name" />
+                    </div>
+                ) : null}
+                <div className="grid grid-cols-2 gap-3">
+                    {categories.map((category) => (
+                        <button
+                            key={category.id}
+                            type="button"
+                            onClick={() => category.id === 'resume' ? onClose() : setActiveSection(category.id)}
+                            className={cx('flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center font-black uppercase tracking-wide transition-all active:translate-y-1 active:shadow-none sm:min-h-24', category.className)}
+                        >
+                            <span className="text-xl leading-none sm:text-2xl" aria-hidden="true">{category.icon}</span>
+                            <span className="text-[10px] leading-tight sm:text-xs">{category.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </ModalShell>
     );
 }
 
@@ -720,26 +636,17 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
         return index !== -1 ? index : 0;
     });
 
-    useEffect(() => {
-        if (isOpen) {
-            const index = characterOptions.findIndex((c) => c.id === selectedCharacterId);
-            if (index !== -1) setSelectedIndex(index);
-        }
-    }, [isOpen, selectedCharacterId, characterOptions]);
-
     if (!isOpen) return null;
 
     const previewChar = characterOptions[selectedIndex];
-
-    const handleNext = () => {
-        playGameButtonSfx('tap');
-        setSelectedIndex((prev) => (prev + 1) % characterOptions.length);
-    };
-
-    const handlePrev = () => {
-        playGameButtonSfx('tap');
-        setSelectedIndex((prev) => (prev - 1 + characterOptions.length) % characterOptions.length);
-    };
+    const buttonColors = [
+        'bg-sky-500 text-white shadow-[0_5px_0_0_#075985]',
+        'bg-amber-400 text-amber-950 shadow-[0_5px_0_0_#92400e]',
+        'bg-rose-500 text-white shadow-[0_5px_0_0_#9f1239]',
+        'bg-violet-500 text-white shadow-[0_5px_0_0_#5b21b6]',
+        'bg-orange-400 text-orange-950 shadow-[0_5px_0_0_#9a3412]',
+        'bg-teal-500 text-white shadow-[0_5px_0_0_#115e59]',
+    ];
 
     const handleLaunch = () => {
         playGameButtonSfx('confirm');
@@ -748,73 +655,54 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
     };
 
     return (
-        <div className="fixed inset-0 z-125 flex flex-col bg-linear-to-b from-[#c6fe69] to-[#70e000] safe-area-inset font-['Qilka',sans-serif] overflow-hidden">
-
-            {/* --- TOP BAR --- */}
-            <div className="flex justify-between items-center p-4 sm:p-8 shrink-0 relative z-30">
-                <div className="flex flex-col">
-                    <h1 className="text-xl sm:text-4xl font-black text-emerald-950 uppercase leading-none tracking-tight">
-                        Select Your Hero
-                    </h1>
+        <div className="fixed inset-0 z-125 flex flex-col overflow-hidden bg-green-400 font-['Qilka',sans-serif] safe-area-inset">
+            <header className="relative z-20 flex shrink-0 items-center justify-between gap-3 px-3 py-2 sm:px-6 sm:py-4">
+                <ActionButton variant="secondary" size="sm" onClick={onClose} className="min-w-20 sm:min-w-28">
+                    <span aria-hidden="true">&lsaquo;</span> Back
+                </ActionButton>
+                <div className="min-w-0 text-right">
+                    <h1 className="text-lg font-black uppercase leading-none tracking-tight text-emerald-950 sm:text-3xl">Select Your Character</h1>
+                    <p className="mt-1 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-900/70 sm:text-xs">Choose a name, then start</p>
                 </div>
-                <div className="bg-emerald-950 text-[#c6fe69] px-4 py-1 rounded-full text-sm sm:text-xl font-black shadow-lg">
-                    {selectedIndex + 1} / {characterOptions.length}
-                </div>
-            </div>
+            </header>
 
-            {/* --- MAIN SELECTION AREA --- */}
-            <div className="flex-1 relative flex flex-col items-center justify-center min-h-0">
-                {/* Radial Stage Effect */}
-                {/* 3D Character Stage */}
-                <div className="flex-1 min-h-0 w-full max-w-6xl relative flex items-center justify-center">
-
-                    {/* Navigation - Floating - Smaller Buttons */}
-                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 sm:px-12 z-40 pointer-events-none">
-                        <button
-                            onClick={handlePrev}
-                            className="pointer-events-auto bg-white/95 backdrop-blur-md text-slate-900 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-[0_4px_0_0_#cbd5e1] active:translate-y-0.5 active:shadow-none transition-all hover:bg-white"
-                        >
-                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M15 19l-7-7 7-7"></path></svg>
-                        </button>
-
-                        <button
-                            onClick={handleNext}
-                            className="pointer-events-auto bg-white/95 backdrop-blur-md text-slate-900 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-[0_4px_0_0_#cbd5e1] active:translate-y-0.5 active:shadow-none transition-all hover:bg-white"
-                        >
-                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M9 5l7 7-7 7"></path></svg>
-                        </button>
+            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(9.5rem,0.72fr)] gap-2 px-2 pb-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)] sm:gap-5 sm:px-6 sm:pb-6">
+                <section className="relative min-h-0 overflow-hidden rounded-3xl border-2 border-emerald-200/80 bg-white/35 shadow-[0_8px_0_0_rgba(6,78,59,.18)]" aria-label={`${previewChar?.label || 'Character'} preview`}>
+                    <div className="pointer-events-none absolute inset-x-[15%] bottom-3 h-8 rounded-[50%] bg-emerald-950/15 blur-md" aria-hidden="true" />
+                    <div className="absolute inset-0 min-h-0 overflow-hidden">
+                        {previewChar ? <Character3DPreview modelFile={previewChar.file} /> : null}
                     </div>
-
-                    <div className="w-full h-full min-h-0 relative z-10 flex items-center justify-center overflow-hidden">
-                        {previewChar && <Character3DPreview modelFile={previewChar.file} />}
+                    <div className="pointer-events-none absolute inset-x-2 bottom-2 flex justify-center">
+                        <span className="max-w-full truncate rounded-full bg-emerald-950/90 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow-lg sm:px-5 sm:py-2 sm:text-sm">{previewChar?.label}</span>
                     </div>
-                </div>
-            </div>
+                </section>
 
-            {/* --- FOOTER ACTIONS --- */}
-            <div className="p-4 sm:p-8 flex items-center justify-between gap-4 shrink-0 bg-white/10 backdrop-blur-md border-t border-emerald-950/10">
-                <GameButton
-                    onClick={onClose}
-                    color="slate"
-                    size="lg"
-                    className="flex-1 sm:flex-none sm:min-w-48 text-sm sm:text-lg"
-                >
-                    BACK
-                </GameButton>
-
-                <GameButton
-                    onClick={handleLaunch}
-                    color="dark"
-                    size="lg"
-                    className="flex-1 sm:flex-none sm:min-w-64 text-sm sm:text-lg"
-                >
-                    <div className="flex items-center justify-center gap-2">
-                        <span className="hidden sm:inline">START EXPLORING</span>
-                        <span className="sm:hidden">START</span>
+                <section className="flex min-h-0 flex-col rounded-3xl border-2 border-emerald-700/20 bg-emerald-50/80 p-2 shadow-[0_8px_0_0_rgba(6,78,59,.18)] backdrop-blur-sm sm:p-4" aria-label="Characters">
+                    <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2 sm:gap-3">
+                        {characterOptions.map((character, index) => {
+                            const selected = index === selectedIndex;
+                            return (
+                                <button
+                                    key={character.id}
+                                    type="button"
+                                    onClick={() => setSelectedIndex(index)}
+                                    aria-pressed={selected}
+                                    className={cx(
+                                        'min-h-10 rounded-xl px-1.5 py-1 text-[9px] font-black uppercase leading-tight tracking-wide transition-all active:translate-y-1 active:shadow-none sm:min-h-12 sm:rounded-2xl sm:px-3 sm:text-xs',
+                                        buttonColors[index % buttonColors.length],
+                                        selected && 'ring-4 ring-white outline-2 outline-emerald-950',
+                                    )}
+                                >
+                                    {character.label}
+                                </button>
+                            );
+                        })}
                     </div>
-                </GameButton>
+                    <GameButton onClick={handleLaunch} color="dark" size="md" className="mt-3 w-full shrink-0 text-xs sm:text-base">
+                        Select Character
+                    </GameButton>
+                </section>
             </div>
-
         </div>
     );
 }
@@ -823,7 +711,7 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
    REDESIGNED MAIN MENU - REAL 3D BUTTONS & AESTHETIC BUSHES
    ========================================================================== */
 
-export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCharacterId, onCharacterPicked }) {
+export function MainMenu({ onStart, onMenuInteraction, isVisible, characterOptions = [], selectedCharacterId, onCharacterPicked }) {
  const [starting, setStarting] = useState(false);
  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
     const [creditsOpen, setCreditsOpen] = useState(false);
@@ -841,12 +729,10 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
         onStart();
     }, [onStart]);
 
-    const selectedChar = characterOptions.find((c) => c.id === selectedCharacterId);
-
     if (!isVisible) return null;
 
     return (
-        <div className="fixed inset-0 z-40 flex flex-col items-center overflow-hidden font-['Qilka',sans-serif] select-none touch-none bg-emerald-900">
+        <div onPointerDownCapture={onMenuInteraction} className="fixed inset-0 z-40 flex flex-col items-center overflow-hidden font-['Qilka',sans-serif] select-none touch-none bg-emerald-900">
             {/* ---------------- BACKGROUND DECORATION (FILLS EVERYTHING) ---------------- */}
             <div className="absolute -inset-x-20 inset-y-0 z-0 bg-linear-to-b from-[#70e0ff] via-[#a2d2ff] to-[#c6fe69] pointer-events-none" aria-hidden="true">
                 <div className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0)_70%)] animate-pulse" />
@@ -939,15 +825,17 @@ export function MainMenu({ onStart, isVisible, characterOptions = [], selectedCh
                 <CreditsContent />
             </ModalShell>
 
-            <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            {settingsOpen ? <SettingsModal isOpen={true} onClose={() => setSettingsOpen(false)} /> : null}
 
-            <CharacterSelectModal
-                isOpen={charSelectOpen}
-                onClose={() => setCharSelectOpen(false)}
-                characterOptions={characterOptions}
-                selectedCharacterId={selectedCharacterId}
-                onSelect={onCharacterPicked}
-            />
+            {charSelectOpen ? (
+                <CharacterSelectModal
+                    isOpen={true}
+                    onClose={() => setCharSelectOpen(false)}
+                    characterOptions={characterOptions}
+                    selectedCharacterId={selectedCharacterId}
+                    onSelect={onCharacterPicked}
+                />
+            ) : null}
 
             <ConfirmModal
                 isOpen={showExitConfirm}
@@ -1022,7 +910,7 @@ const WoodenTitle = ({ titlePart1, titlePart2, className = '' }) => {
     );
 };
 
-export function GameHUD({ playerName, onMenuClick, onTasksClick, onBook, onCamera, completedTasks, totalTasks, isTouchDevice = false }) {
+export function GameHUD({ playerName, onMenuClick, onTasksClick, onBook, onCamera }) {
     const menuIcon = '/ui-buttons/settings-button.png';
     const taskIcon = '/ui-buttons/task-list-button.png';
 
@@ -1075,9 +963,11 @@ export function GameHUD({ playerName, onMenuClick, onTasksClick, onBook, onCamer
 }
 
 export function SettingsPanel({ isOpen, onClose, onQuit, onResetTasks, cameraMode, onCameraModeChange }) {
+    if (!isOpen) return null;
+
     return (
         <SettingsModal
-            isOpen={isOpen}
+            isOpen={true}
             onClose={onClose}
             onQuit={onQuit}
             onResetTasks={onResetTasks}
@@ -1089,63 +979,56 @@ export function SettingsPanel({ isOpen, onClose, onQuit, onResetTasks, cameraMod
 }
 
 export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick }) {
+    const [page, setPage] = useState(0);
+    const pageSize = 4;
     const completedCount = tasks.filter((task) => task.completed).length;
     const progressPercent = (completedCount / (tasks.length || 1)) * 100;
+    const pageCount = Math.max(1, Math.ceil(tasks.length / pageSize));
+    const currentPage = Math.min(page, pageCount - 1);
+    const visibleTasks = tasks.slice(currentPage * pageSize, currentPage * pageSize + pageSize);
+
+    if (!isOpen) return null;
 
     return (
-        <SideSheet isOpen={isOpen} onClose={onClose} title="Zoo Missions" side="right">
-            <div className="space-y-4">
-                <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-300 bg-linear-to-br from-emerald-950 via-emerald-800 to-teal-700 p-4 text-white shadow-[0_8px_0_0_#a7f3d0]">
-                    <div className="pointer-events-none absolute -right-5 -top-7 text-6xl opacity-20">★</div>
-                    <div className="relative flex items-center justify-between gap-2 mb-2">
-                        <div>
-                            <span className="block text-[10px] font-black uppercase tracking-widest text-emerald-300">Zoo Mission</span>
-                            <span className="text-sm font-black">Feed every friend!</span>
-                        </div>
-                        <span className="rounded-full bg-lime-300 px-3 py-1 text-sm font-black text-emerald-950 shadow-sm">{completedCount} / {tasks.length}</span>
+        <div className="fixed inset-0 z-95" data-ui-modal="true" role="dialog" aria-modal="true" aria-label="Zoo task checklist">
+            <button type="button" className="absolute inset-0 bg-emerald-950/20 backdrop-blur-[1px]" onClick={onClose} aria-label="Close task checklist" />
+            <section className="absolute right-[max(.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+.5rem)] flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] w-[min(28rem,calc(100vw-1rem))] flex-col rounded-sm border-2 border-slate-500 bg-[#fffef7] p-3 text-slate-800 shadow-[7px_8px_0_rgba(15,23,42,.25)] sm:p-5">
+                <header className="flex shrink-0 items-start justify-between gap-3 border-b-2 border-slate-300 pb-2">
+                    <div>
+                        <p className="text-xl font-black uppercase tracking-[0.08em] sm:text-2xl">Checklist</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Feed every zoo friend</p>
                     </div>
-                    <div className="h-3 w-full overflow-hidden rounded-full border border-white/20 bg-emerald-950/50">
-                        <div
-                            className="h-full rounded-full bg-linear-to-r from-lime-300 to-amber-300 transition-all duration-500 ease-out shadow-[0_0_12px_rgba(253,224,71,0.65)]"
-                            style={{ width: `${progressPercent}%` }}
-                        />
+                    <div className="flex items-center gap-2">
+                        <span className="rounded-lg border-2 border-slate-400 bg-white px-2 py-1 text-xs font-black">{completedCount} / {tasks.length}</span>
+                        <IconButton onClick={onClose} aria-label="Close checklist" className="h-9 w-9"><span className="text-lg leading-none">&times;</span></IconButton>
                     </div>
+                </header>
+
+                <div className="mt-2 h-2 shrink-0 overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${progressPercent}%` }} />
                 </div>
 
-                <div className="space-y-3" data-ui-scrollable="true">
-                    {tasks.map((task, index) => (
-                        <button
-                            key={task.id}
-                            type="button"
-                            data-ui-button="true"
-                            onClick={() => onTaskClick?.(task)}
-                            className={cx(
-                                'group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border-2 px-3 py-3 text-left transition-all active:scale-[0.98] hover:-translate-y-0.5',
-                                task.completed
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-[0_4px_0_0_#d1fae5]'
-                                    : 'border-slate-100 bg-white text-slate-800 shadow-[0_4px_0_0_#f1f5f9] hover:border-amber-200 hover:bg-amber-50',
-                            )}
-                        >
-                            <div className="flex min-w-0 items-center gap-3">
-                                <div className={cx(
-                                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-sm font-black shadow-inner",
-                                    task.completed ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-700"
-                                )}>
-                                    {task.completed ? '✓' : index + 1}
-                                </div>
-                                <span className="truncate text-sm font-black tracking-tight sm:text-base">{task.name}</span>
-                            </div>
-                            <span className={cx(
-                                "shrink-0 rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-widest",
-                                task.completed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                            )}>
-                                {task.completed ? 'Done!' : 'Feed'}
-                            </span>
-                        </button>
+                <ol className="mt-2 grid min-h-0 flex-1 auto-rows-fr gap-1.5">
+                    {visibleTasks.map((task, index) => (
+                        <li key={task.id}>
+                            <button
+                                type="button"
+                                onClick={() => onTaskClick?.(task)}
+                                className={cx(
+                                    'flex h-full min-h-10 w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-amber-50 active:bg-amber-100',
+                                    task.completed && 'text-slate-400',
+                                )}
+                            >
+                                <span className={cx('flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 text-xs font-black', task.completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-400 bg-white')}>{task.completed ? '✓' : currentPage * pageSize + index + 1}</span>
+                                <span className={cx('min-w-0 flex-1 text-xs font-black leading-tight sm:text-sm', task.completed && 'line-through')}>{task.name}</span>
+                                <span className="shrink-0 text-[9px] font-black uppercase tracking-wider">{task.completed ? 'Done' : 'Feed'}</span>
+                            </button>
+                        </li>
                     ))}
-                </div>
-            </div>
-        </SideSheet>
+                </ol>
+                <PaginationControls page={currentPage} pageCount={pageCount} onPageChange={setPage} className="mt-3" />
+            </section>
+        </div>
     );
 }
 
@@ -1167,7 +1050,7 @@ export function NPCInteractionPrompt({ visible, onInteract, npcName = 'Zoo Staff
 
 export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, choices = [], onSelectChoice, missionSteps = [], animalEntries = [], onOpenAnimalBook }) {
     const [transitioning, setTransitioning] = useState(false);
-    const [selectedAnimal, setSelectedAnimal] = useState(null);
+    const [animalPage, setAnimalPage] = useState(0);
     const [pressedChoice, setPressedChoice] = useState(null);
     const transitioningRef = useRef(false);
     const lastMessage = `${message}|${choices.map((choice) => choice.id).join(',')}`;
@@ -1178,7 +1061,7 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
         const timer = window.setTimeout(() => {
             transitioningRef.current = false;
             setTransitioning(false);
-            setSelectedAnimal(null);
+            setAnimalPage(0);
             setPressedChoice(null);
         }, 260);
         return () => window.clearTimeout(timer);
@@ -1186,6 +1069,7 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
 
     if (!isOpen) return null;
     const isAnimalPage = choices.length === 1 && choices[0]?.id === 'back' && animalEntries.length > 0;
+    const selectedAnimal = animalEntries[animalPage] || null;
     const choose = (choice) => {
         if (transitioning || transitioningRef.current) return;
         setPressedChoice(choice.id);
@@ -1220,13 +1104,10 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
                     ) : null}
                     {isAnimalPage ? (
                         <div className="ranger-animal-browser mt-4">
-                            <div className="ranger-animal-list" aria-label="Discovered animals">
-                                <p className="ranger-list-label">Discovered</p>
-                                {animalEntries.map((animal) => <button type="button" key={animal.name} onClick={() => setSelectedAnimal(animal)} className={cx('ranger-animal-list-button', selectedAnimal?.name === animal.name && 'ranger-animal-list-button-active')}><span>{animal.emoji}</span><span>{animal.name}</span></button>)}
-                            </div>
                             <div className="ranger-animal-detail">
-                                {selectedAnimal ? <><div className="flex items-start gap-3"><span className="ranger-detail-emoji">{selectedAnimal.emoji}</span><div><h3 className="text-lg font-black text-emerald-950 sm:text-2xl">{selectedAnimal.name}</h3><p className="text-[10px] font-bold italic text-slate-500 sm:text-xs">{selectedAnimal.scientific}</p></div></div><div className="mt-4 grid gap-2 text-xs font-semibold leading-relaxed text-slate-700"><p><b>Habitat:</b> {selectedAnimal.habitat}</p><p><b>Diet:</b> {selectedAnimal.diet}</p><p><b>Fun fact:</b> {selectedAnimal.fact}</p></div><button type="button" className="mt-4 font-black text-amber-700 underline" onClick={onOpenAnimalBook}>Open in Animal Book</button></> : <div className="ranger-detail-empty"><span>🐾</span><p>Choose an animal to learn more!</p></div>}
+                                {selectedAnimal ? <><div className="flex items-start gap-3"><span className="ranger-detail-emoji">{selectedAnimal.emoji}</span><div><h3 className="text-lg font-black text-emerald-950 sm:text-2xl">{selectedAnimal.name}</h3><p className="text-[10px] font-bold italic text-slate-500 sm:text-xs">{selectedAnimal.scientific}</p></div></div><div className="mt-4 grid gap-2 text-xs font-semibold leading-relaxed text-slate-700"><p><b>Habitat:</b> {selectedAnimal.habitat}</p><p><b>Diet:</b> {selectedAnimal.diet}</p><p><b>Fun fact:</b> {selectedAnimal.fact}</p></div><button type="button" className="mt-4 font-black text-amber-700 underline" onClick={onOpenAnimalBook}>Open in Animal Book</button></> : <div className="ranger-detail-empty"><span>🐾</span><p>No animals discovered yet.</p></div>}
                             </div>
+                            <PaginationControls page={animalPage} pageCount={animalEntries.length} onPageChange={setAnimalPage} />
                         </div>
                     ) : null}
                     {!isAnimalPage ? <div className="ranger-choice-grid mt-4">{choices.map((choice, index) => <button type="button" key={choice.id} disabled={transitioning} onClick={() => choose(choice)} className={cx('ranger-choice-button', choice.accent && 'ranger-choice-accent', pressedChoice === choice.id && 'ranger-choice-pressed')}><span className="ranger-choice-icon">{choice.icon || index + 1}</span><span>{choice.label}</span><span className="ranger-choice-arrow">›</span></button>)}</div> : null}
@@ -1362,32 +1243,6 @@ export function JumpButton({ jumpRef, isTouchDevice }) {
     );
 }
 
-export function RunButton({ isTouchDevice, onRunStart, onRunEnd }) {
-    const detectedTouch = useIsTouchDevice();
-    const isTouch = typeof isTouchDevice === 'boolean' ? isTouchDevice : detectedTouch;
-    if (!isTouch) return null;
-
-    return (
-        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+6.8rem)] right-2.5 z-70 sm:right-3">
-            <button
-                type="button"
-                aria-label="Hold to run"
-                onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.currentTarget.setPointerCapture?.(event.pointerId);
-                    onRunStart?.();
-                }}
-                onPointerUp={onRunEnd}
-                onPointerCancel={onRunEnd}
-                onPointerLeave={onRunEnd}
-                className="pointer-events-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/45 bg-emerald-500/95 text-xs font-black uppercase tracking-[0.08em] text-white shadow-lg active:scale-95 sm:h-14 sm:w-14 touch-none select-none"
-            >
-                Run
-            </button>
-        </div>
-    );
-}
-
 export function HoldToFeedControl({
     visible,
     animalName,
@@ -1428,11 +1283,11 @@ export function HoldToFeedControl({
                 )}
             >
                 <span
-                    className="absolute inset-[-4px] rounded-full"
+                    className="absolute -inset-1 rounded-full"
                     style={{ background: `conic-gradient(${completed ? '#22c55e' : '#facc15'} ${percentage}%, rgba(255,255,255,.25) ${percentage}% 100%)`, zIndex: 0 }}
                     aria-hidden="true"
                 />
-                <span className="absolute inset-[5px] rounded-full bg-emerald-950/90" aria-hidden="true" />
+                <span className="absolute inset-1.25 rounded-full bg-emerald-950/90" aria-hidden="true" />
                 {completed ? <span className="relative z-10 text-4xl font-black text-white">✓</span> : <img className="relative z-10 h-12 w-12 sm:h-14 sm:w-14" src="/ui-buttons/feed-button.png" alt="" />}
             </button>
             <span className="mt-1 rounded-full bg-emerald-950/85 px-2 py-1 text-center text-[9px] font-black uppercase tracking-wide text-white shadow-lg">{label}</span>

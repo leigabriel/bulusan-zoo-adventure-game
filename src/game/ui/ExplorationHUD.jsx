@@ -436,7 +436,8 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
 
             <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-4 sm:px-12 z-50">
                 <button
-                    className={`pointer-events-auto flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-white/90 text-slate-800 text-2xl sm:text-4xl font-bold shadow-xl transition-all active:scale-95 ${spread === 0 || isAnimating ? 'opacity-0 disabled pointer-events-none' : 'opacity-100 hover:bg-white'}`}
+                    disabled={spread === 0 || isAnimating}
+                    className={`pointer-events-auto flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-white/95 text-slate-800 text-2xl sm:text-4xl font-bold shadow-[0_6px_0_0_#cbd5e1] transition-all active:translate-y-1 active:shadow-none ${spread === 0 || isAnimating ? 'opacity-0 pointer-events-none' : 'opacity-100 hover:bg-white'}`}
                     onClick={() => {
                         onPageTurn?.();
                         bookApiRef.current?.turnBackward();
@@ -446,7 +447,8 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
                     &#10094;
                 </button>
                 <button
-                    className={`pointer-events-auto flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-white/90 text-slate-800 text-2xl sm:text-4xl font-bold shadow-xl transition-all active:scale-95 ${spread >= maxSpread || isAnimating ? 'opacity-0 disabled pointer-events-none' : 'opacity-100 hover:bg-white'}`}
+                    disabled={spread >= maxSpread || isAnimating}
+                    className={`pointer-events-auto flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-white/95 text-slate-800 text-2xl sm:text-4xl font-bold shadow-[0_6px_0_0_#cbd5e1] transition-all active:translate-y-1 active:shadow-none ${spread >= maxSpread || isAnimating ? 'opacity-0 pointer-events-none' : 'opacity-100 hover:bg-white'}`}
                     onClick={() => {
                         onPageTurn?.();
                         bookApiRef.current?.turnForward();
@@ -455,6 +457,10 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
                 >
                     &#10095;
                 </button>
+            </div>
+
+            <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 -translate-x-1/2 rounded-full bg-emerald-950/90 px-4 py-2 text-xs font-black text-white shadow-[0_4px_0_0_rgba(0,0,0,.3)]" aria-live="polite">
+                {spread + 1} / {maxSpread + 1}
             </div>
 
             <button

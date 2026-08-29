@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { getTerrainHeight, PLAYABLE_BOUNDARY, TIGER_ENCLOSURE } from '../components/Terrain.jsx';
 
-const WALK_SPEED = 15;
-const RUN_SPEED = 22;
+const MOVEMENT_SPEED = 22;
 const ACCELERATION = 12;
 const DECELERATION = 8;
 const JUMP_FORCE = 12;
@@ -24,10 +23,18 @@ export function createMovementHandler(camera, state) {
 
     return function handleMovement() {
         if (state.controlsEnabled === false) {
+            velocityX = 0;
+            velocityZ = 0;
+            state.playerMoveSpeed = 0;
+            state.playerIsMoving = false;
+            lastTime = performance.now();
             return;
         }
 
         if (state.cameraControlLockedUntil && performance.now() < state.cameraControlLockedUntil) {
+            state.playerMoveSpeed = 0;
+            state.playerIsMoving = false;
+            lastTime = performance.now();
             return;
         }
 
@@ -35,8 +42,6 @@ export function createMovementHandler(camera, state) {
         const currentTime = performance.now();
         const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
         lastTime = currentTime;
-
-        const maxSpeed = state.keys.shift ? RUN_SPEED : WALK_SPEED;
 
         // Forward direction in world space (negative Z is forward when looking down -Z)
         forward.set(-Math.sin(state.yaw), 0, -Math.cos(state.yaw));
@@ -79,8 +84,8 @@ export function createMovementHandler(camera, state) {
             targetVZ /= inputMag;
         }
 
-        targetVX *= maxSpeed;
-        targetVZ *= maxSpeed;
+        targetVX *= MOVEMENT_SPEED;
+        targetVZ *= MOVEMENT_SPEED;
 
         // Smooth acceleration/deceleration
         const hasInput = inputMag > 0.1;
@@ -91,8 +96,10 @@ export function createMovementHandler(camera, state) {
         velocityZ += (targetVZ - velocityZ) * lerpFactor;
 
         // --- NEW: COLLISION DETECTION WITH OBSTACLES ---
-        let nextX = camera.position.x + velocityX * dt;
-        let nextZ = camera.position.z + velocityZ * dt;
+        const previousX = camera.position.x;
+        const previousZ = camera.position.z;
+        let nextX = previousX + velocityX * dt;
+        let nextZ = previousZ + velocityZ * dt;
 
         const PLAYER_RADIUS = 1.5; // Width of the player's body
         const playableLimit = PLAYABLE_BOUNDARY - PLAYER_RADIUS;
@@ -134,10 +141,11 @@ export function createMovementHandler(camera, state) {
         resolveObstacles(state.animalObstacles);
 
         // Apply corrected positions
-        const speed = Math.sqrt(velocityX * velocityX + velocityZ * velocityZ);
+        const movedX = nextX - previousX;
+        const movedZ = nextZ - previousZ;
+        const speed = dt > 0 ? Math.sqrt(movedX * movedX + movedZ * movedZ) / dt : 0;
         state.playerMoveSpeed = speed;
         state.playerIsMoving = speed > 0.55;
-        state.playerIsRunning = Boolean(state.keys.shift && hasInput && speed > 0.55);
         camera.position.x = nextX;
         camera.position.z = nextZ;
 
@@ -220,7 +228,12 @@ export function setupKeyboardControls(state) {
     };
 
     const handleBlur = () => {
-        state.keys.shift = false;
+        state.keys.w = false;
+        state.keys.a = false;
+        state.keys.s = false;
+        state.keys.d = false;
+        state.keys[" "] = false;
+        state.keys.space = false;
     };
 
     document.addEventListener("keydown", handleKeyDown);
@@ -451,7 +464,6 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
         resetJoystick();
         resetLook();
         jumpTouchId = null;
-        state.keys.shift = false;
     };
 
     const opts = { passive: false };
@@ -473,7 +485,6 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
         resetJoystick();
         resetLook();
         jumpTouchId = null;
-        state.keys.shift = false;
     };
 }
 
