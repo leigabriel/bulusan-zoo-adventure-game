@@ -35,8 +35,7 @@ const DEFAULT_PROGRESS = {
     lastKnownPosition: null,
     lastYaw: 0,
     lastPitch: 0,
-    lastCameraMode: 'third',
-    lastCharacterId: null
+    lastCameraMode: 'third'
 };
 
 function isFiniteNumber(value) {
@@ -127,8 +126,7 @@ export function getPlayerSession() {
         position: normalizePosition(progress.lastKnownPosition),
         yaw: isFiniteNumber(progress.lastYaw) ? progress.lastYaw : 0,
         pitch: isFiniteNumber(progress.lastPitch) ? progress.lastPitch : 0,
-        cameraMode: normalizeCameraMode(progress.lastCameraMode),
-        characterId: typeof progress.lastCharacterId === 'string' ? progress.lastCharacterId : null
+        cameraMode: normalizeCameraMode(progress.lastCameraMode)
     };
 }
 
@@ -148,10 +146,6 @@ export function savePlayerSession(session) {
     if ('cameraMode' in session) {
         updates.lastCameraMode = normalizeCameraMode(session.cameraMode);
     }
-    if ('characterId' in session) {
-        updates.lastCharacterId = typeof session.characterId === 'string' ? session.characterId : null;
-    }
-
     return saveProgress(updates);
 }
 

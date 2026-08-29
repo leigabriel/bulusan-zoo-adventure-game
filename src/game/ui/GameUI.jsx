@@ -8,11 +8,10 @@ import { ActionButton, GameButton, IconButton, ModalShell, PaginationControls, S
 import { createGLTFLoader } from '../utils/gltfLoader.js';
 import { applyHumanSkinColor } from '../utils/characterMaterials.js';
 import { ANIMAL_METADATA } from '../data/animalMetadata.js';
+import { getPlayerProfile, isPlayerProfileComplete, PLAYER_GENDERS, savePlayerProfile } from '../utils/playerProfile.js';
 
 const SETTINGS_KEY = 'minizoo_settings';
 const SETTINGS_CHANGE_EVENT = 'minizoo-settings-changed';
-const PLAYER_NAME_KEY = 'minizoo_player_name';
-const PLAYER_NAME_CHANGE_EVENT = 'minizoo-player-name-changed';
 
 const SFX_FILES = {
     tap: '/audio/click.mp3',
@@ -23,27 +22,6 @@ const SFX_FILES = {
 };
 
 const uiAudioTemplates = {};
-
-function readPlayerName() {
-    try {
-        return (localStorage.getItem(PLAYER_NAME_KEY) || '').trim();
-    } catch {
-        return '';
-    }
-}
-
-function savePlayerName(name) {
-    const cleaned = String(name || '').trim().slice(0, 24);
-    if (!cleaned) return '';
-
-    try {
-        localStorage.setItem(PLAYER_NAME_KEY, cleaned);
-        window.dispatchEvent(new Event(PLAYER_NAME_CHANGE_EVENT));
-    } catch {
-    }
-
-    return cleaned;
-}
 
 const UI_DEFAULT_SETTINGS = {
     ambienceVolume: 1.0,
@@ -479,14 +457,9 @@ function Character3DPreview({ modelFile }) {
     );
 }
 
-function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = true, cameraMode, onCameraModeChange }) {
+function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, cameraMode, onCameraModeChange }) {
     const [settings, setSettings] = useState(() => readSettings());
-    const [playerName, setPlayerName] = useState(() => readPlayerName());
     const [activeSection, setActiveSection] = useState(null);
-
-    const handleSaveName = useCallback(() => {
-        savePlayerName(playerName);
-    }, [playerName]);
 
     const handleVolumeChange = (key, val) => {
         const next = { ...settings, [key]: val };
@@ -606,12 +579,6 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = 
     return (
         <ModalShell isOpen={isOpen} onClose={onClose} title="Game Settings" size="md">
             <div className="space-y-4">
-                {showNameInput ? (
-                    <div className="rounded-2xl border-2 border-emerald-100 bg-emerald-50 p-3 shadow-sm">
-                        <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700" htmlFor="settings-player-name">Player Name</label>
-                        <input id="settings-player-name" type="text" maxLength={24} value={playerName} onChange={(event) => setPlayerName(event.target.value)} onBlur={handleSaveName} onKeyDown={(event) => { if (event.key === 'Enter') handleSaveName(); }} className="block w-full rounded-xl border-2 border-emerald-100 bg-white px-4 py-2 text-base font-black text-slate-800 outline-none focus:border-emerald-400" placeholder="Your name" />
-                    </div>
-                ) : null}
                 <div className="grid grid-cols-2 gap-3">
                     {categories.map((category) => (
                         <button
@@ -630,80 +597,47 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, showNameInput = 
     );
 }
 
-function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedCharacterId, onSelect }) {
-    const [selectedIndex, setSelectedIndex] = useState(() => {
-        const index = characterOptions.findIndex((c) => c.id === selectedCharacterId);
-        return index !== -1 ? index : 0;
-    });
+export function PlayerDetailsModal({ isOpen, onClose, onSave, required = false }) {
+    const storedProfile = getPlayerProfile();
+    const [name, setName] = useState(storedProfile.name);
+    const [gender, setGender] = useState(storedProfile.gender);
+    const [error, setError] = useState('');
 
     if (!isOpen) return null;
 
-    const previewChar = characterOptions[selectedIndex];
-    const buttonColors = [
-        'bg-sky-500 text-white shadow-[0_5px_0_0_#075985]',
-        'bg-amber-400 text-amber-950 shadow-[0_5px_0_0_#92400e]',
-        'bg-rose-500 text-white shadow-[0_5px_0_0_#9f1239]',
-        'bg-violet-500 text-white shadow-[0_5px_0_0_#5b21b6]',
-        'bg-orange-400 text-orange-950 shadow-[0_5px_0_0_#9a3412]',
-        'bg-teal-500 text-white shadow-[0_5px_0_0_#115e59]',
-    ];
-
-    const handleLaunch = () => {
+    const submit = () => {
+        const profile = savePlayerProfile({ name, gender });
+        if (!profile) {
+            setError('Enter your IGN and choose a gender.');
+            return;
+        }
         playGameButtonSfx('confirm');
-        onSelect(previewChar);
-        onClose();
+        onSave?.(profile);
+        onClose?.();
     };
 
     return (
-        <div className="fixed inset-0 z-125 flex flex-col overflow-hidden bg-green-400 font-['Qilka',sans-serif] safe-area-inset">
-            <header className="relative z-20 flex shrink-0 items-center justify-between gap-3 px-3 py-2 sm:px-6 sm:py-4">
-                <ActionButton variant="secondary" size="sm" onClick={onClose} className="min-w-20 sm:min-w-28">
-                    <span aria-hidden="true">&lsaquo;</span> Back
-                </ActionButton>
-                <div className="min-w-0 text-right">
-                    <h1 className="text-lg font-black uppercase leading-none tracking-tight text-emerald-950 sm:text-3xl">Select Your Character</h1>
-                    <p className="mt-1 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-900/70 sm:text-xs">Choose a name, then start</p>
+        <ModalShell isOpen={true} onClose={onClose} closeOnBackdrop={!required} showClose={!required} title={storedProfile.name ? 'Player Details' : 'Welcome, Explorer!'} size="md">
+            <div className="space-y-4">
+                <div>
+                    <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700" htmlFor="player-ign">In-game Name</label>
+                    <input id="player-ign" type="text" maxLength={24} value={name} onChange={(event) => { setName(event.target.value); setError(''); }} className="block w-full rounded-xl border-2 border-emerald-100 bg-emerald-50 px-4 py-3 text-base font-black text-slate-800 outline-none focus:border-emerald-400 focus:bg-white" placeholder="Enter your IGN" autoFocus />
                 </div>
-            </header>
-
-            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(9.5rem,0.72fr)] gap-2 px-2 pb-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)] sm:gap-5 sm:px-6 sm:pb-6">
-                <section className="relative min-h-0 overflow-hidden rounded-3xl border-2 border-emerald-200/80 bg-white/35 shadow-[0_8px_0_0_rgba(6,78,59,.18)]" aria-label={`${previewChar?.label || 'Character'} preview`}>
-                    <div className="pointer-events-none absolute inset-x-[15%] bottom-3 h-8 rounded-[50%] bg-emerald-950/15 blur-md" aria-hidden="true" />
-                    <div className="absolute inset-0 min-h-0 overflow-hidden">
-                        {previewChar ? <Character3DPreview modelFile={previewChar.file} /> : null}
+                <fieldset>
+                    <legend className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Gender</legend>
+                    <div className="grid grid-cols-2 gap-3">
+                        {PLAYER_GENDERS.map((option) => (
+                            <button key={option.id} type="button" aria-pressed={gender === option.id} onClick={() => { setGender(option.id); setError(''); }} className={cx('min-h-20 rounded-2xl text-sm font-black uppercase tracking-wider transition-all active:translate-y-1 active:shadow-none', option.id === 'boy' ? 'bg-sky-500 text-white shadow-[0_5px_0_0_#075985]' : 'bg-rose-400 text-white shadow-[0_5px_0_0_#9f1239]', gender === option.id && 'ring-4 ring-emerald-950/80 ring-offset-2')}>
+                                <span className="block text-2xl" aria-hidden="true">{option.id === 'boy' ? '♂' : '♀'}</span>
+                                {option.label}
+                            </button>
+                        ))}
                     </div>
-                    <div className="pointer-events-none absolute inset-x-2 bottom-2 flex justify-center">
-                        <span className="max-w-full truncate rounded-full bg-emerald-950/90 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow-lg sm:px-5 sm:py-2 sm:text-sm">{previewChar?.label}</span>
-                    </div>
-                </section>
-
-                <section className="flex min-h-0 flex-col rounded-3xl border-2 border-emerald-700/20 bg-emerald-50/80 p-2 shadow-[0_8px_0_0_rgba(6,78,59,.18)] backdrop-blur-sm sm:p-4" aria-label="Characters">
-                    <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2 sm:gap-3">
-                        {characterOptions.map((character, index) => {
-                            const selected = index === selectedIndex;
-                            return (
-                                <button
-                                    key={character.id}
-                                    type="button"
-                                    onClick={() => setSelectedIndex(index)}
-                                    aria-pressed={selected}
-                                    className={cx(
-                                        'min-h-10 rounded-xl px-1.5 py-1 text-[9px] font-black uppercase leading-tight tracking-wide transition-all active:translate-y-1 active:shadow-none sm:min-h-12 sm:rounded-2xl sm:px-3 sm:text-xs',
-                                        buttonColors[index % buttonColors.length],
-                                        selected && 'ring-4 ring-white outline-2 outline-emerald-950',
-                                    )}
-                                >
-                                    {character.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <GameButton onClick={handleLaunch} color="dark" size="md" className="mt-3 w-full shrink-0 text-xs sm:text-base">
-                        Select Character
-                    </GameButton>
-                </section>
+                </fieldset>
+                {error ? <p className="text-center text-xs font-black text-rose-600" role="alert">{error}</p> : null}
+                <ActionButton className="w-full" size="lg" onClick={submit}>Save Player</ActionButton>
             </div>
-        </div>
+        </ModalShell>
     );
 }
 
@@ -711,23 +645,36 @@ function CharacterSelectModal({ isOpen, onClose, characterOptions, selectedChara
    REDESIGNED MAIN MENU - REAL 3D BUTTONS & AESTHETIC BUSHES
    ========================================================================== */
 
-export function MainMenu({ onStart, onMenuInteraction, isVisible, characterOptions = [], selectedCharacterId, onCharacterPicked }) {
+export function MainMenu({ onStart, onMenuInteraction, onProfileSaved, isVisible }) {
  const [starting, setStarting] = useState(false);
  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
     const [creditsOpen, setCreditsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [charSelectOpen, setCharSelectOpen] = useState(false);
+    const [playerDetailsOpen, setPlayerDetailsOpen] = useState(false);
+    const [profileRequired, setProfileRequired] = useState(false);
+    const startAfterProfileRef = useRef(false);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
 
     const handleStart = useCallback(() => {
-        if (!readPlayerName()) {
-            setSettingsOpen(true);
+        if (!isPlayerProfileComplete()) {
+            startAfterProfileRef.current = true;
+            setProfileRequired(true);
+            setPlayerDetailsOpen(true);
             return;
         }
         playGameButtonSfx('confirm');
         setStarting(true);
         onStart();
     }, [onStart]);
+
+    const handleProfileSaved = useCallback((profile) => {
+        onProfileSaved?.(profile);
+        if (startAfterProfileRef.current) {
+            startAfterProfileRef.current = false;
+            setStarting(true);
+            onStart();
+        }
+    }, [onProfileSaved, onStart]);
 
     if (!isVisible) return null;
 
@@ -782,11 +729,11 @@ export function MainMenu({ onStart, onMenuInteraction, isVisible, characterOptio
                         </button>
 
                         <button
-                            onClick={() => setCharSelectOpen(true)}
+                            onClick={() => { setProfileRequired(false); setPlayerDetailsOpen(true); }}
                             className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
-                            title="Characters"
+                            title="Player Details"
                         >
-                            <img src="/ui-buttons/character-button.png" alt="Characters" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
+                            <img src="/ui-buttons/character-button.png" alt="Player Details" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
                         </button>
 
                         <button
@@ -827,15 +774,7 @@ export function MainMenu({ onStart, onMenuInteraction, isVisible, characterOptio
 
             {settingsOpen ? <SettingsModal isOpen={true} onClose={() => setSettingsOpen(false)} /> : null}
 
-            {charSelectOpen ? (
-                <CharacterSelectModal
-                    isOpen={true}
-                    onClose={() => setCharSelectOpen(false)}
-                    characterOptions={characterOptions}
-                    selectedCharacterId={selectedCharacterId}
-                    onSelect={onCharacterPicked}
-                />
-            ) : null}
+            {playerDetailsOpen ? <PlayerDetailsModal isOpen={true} required={profileRequired} onClose={() => setPlayerDetailsOpen(false)} onSave={handleProfileSaved} /> : null}
 
             <ConfirmModal
                 isOpen={showExitConfirm}
@@ -910,7 +849,7 @@ const WoodenTitle = ({ titlePart1, titlePart2, className = '' }) => {
     );
 };
 
-export function GameHUD({ playerName, onMenuClick, onTasksClick, onBook, onCamera }) {
+export function GameHUD({ playerName, onMenuClick, onPlayerDetails, onTasksClick, onBook, onCamera }) {
     const menuIcon = '/ui-buttons/settings-button.png';
     const taskIcon = '/ui-buttons/task-list-button.png';
 
@@ -929,12 +868,12 @@ export function GameHUD({ playerName, onMenuClick, onTasksClick, onBook, onCamer
                         <img src={menuIcon} alt="" className="h-full w-full object-contain group-hover:scale-110 transition-transform" />
                     </button>
 
-                    <div className="hud-player-pill flex min-w-0 items-center gap-2 rounded-2xl border-2 border-white/50 bg-emerald-950/80 px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-md shadow-xl">
+                    <button type="button" onClick={onPlayerDetails} aria-label="Edit player details" className="hud-player-pill flex min-w-0 items-center gap-2 rounded-2xl border-2 border-white/50 bg-emerald-950/80 px-3 py-1.5 text-left backdrop-blur-md shadow-xl transition-transform active:scale-95 sm:px-4 sm:py-2">
                         <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                         <p className="max-w-20 sm:max-w-50 truncate text-[10px] sm:text-xs font-black uppercase tracking-widest text-white">
                             {playerName || 'Explorer'}
                         </p>
-                    </div>
+                    </button>
                 </div>
 
                 <div className="pointer-events-auto fixed bottom-[calc(env(safe-area-inset-bottom)+0.55rem)] left-1/2 z-65 flex -translate-x-1/2 items-center gap-0.5 rounded-2xl border-2 border-amber-200 bg-[#fff8df]/95 p-0.5 shadow-lg backdrop-blur-sm sm:gap-1 sm:p-1" data-ui-hud="true" aria-label="Exploration tools">
@@ -971,7 +910,6 @@ export function SettingsPanel({ isOpen, onClose, onQuit, onResetTasks, cameraMod
             onClose={onClose}
             onQuit={onQuit}
             onResetTasks={onResetTasks}
-            showNameInput={false}
             cameraMode={cameraMode}
             onCameraModeChange={onCameraModeChange}
         />
@@ -1090,7 +1028,7 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
                 </header>
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-7 sm:py-5" data-ui-scrollable="true">
                     <div className="ranger-speech-bubble ranger-guide-message">
-                        <span className="ranger-message-label">Ranger Lino says</span>
+                        <span className="ranger-message-label">{npcName || 'Zoo Ranger'} says</span>
                         <p className="text-sm font-bold leading-relaxed text-emerald-950 sm:text-base">{message}</p>
                     </div>
                     {missionSteps.length > 0 && choices.some((choice) => choice.id === 'mission') ? null : null}

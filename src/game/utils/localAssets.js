@@ -7,12 +7,10 @@ const pendingAssetRequests = new Map();
 let dbPromise = null;
 
 const CHARACTER_MODELS = [
-  'Casual3_Female.gltf',
-  'Casual3_Male.gltf',
-  'Cowboy_Female.gltf',
-  'Cowboy_Male.gltf',
-  'Kimono_Female.gltf',
-  'Kimono_Male.gltf',
+  'boy-character.gltf',
+  'girl-character.gltf',
+  'ranger-lino.gltf',
+  'ranger-lina.gltf',
 ];
 
 const ANIMAL_MODELS = [

@@ -161,7 +161,7 @@ export function PaginationControls({
     );
 }
 
-export function ModalShell({ isOpen, onClose, title, children, size = 'md', closeOnBackdrop = true }) {
+export function ModalShell({ isOpen, onClose, title, children, size = 'md', closeOnBackdrop = true, showClose = true }) {
     if (!isOpen) return null;
 
     const maxWidth = {
@@ -193,9 +193,7 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md', clos
             >
                 <div className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-emerald-50 p-4 sm:px-8 sm:py-5">
                     {title ? <h2 className="text-xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">{title}</h2> : <span />}
-                    <IconButton onClick={onClose} aria-label="Close">
-                        <span className="text-xl font-bold leading-none">&times;</span>
-                    </IconButton>
+                    {showClose ? <IconButton onClick={onClose} aria-label="Close"><span className="text-xl font-bold leading-none">&times;</span></IconButton> : null}
                 </div>
                 <div className="min-h-0 overflow-y-auto p-4 sm:p-6" data-ui-scrollable="true">
                     {children}
