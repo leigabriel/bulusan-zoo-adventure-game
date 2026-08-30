@@ -161,8 +161,38 @@ export function PaginationControls({
     );
 }
 
+/**
+ * Hook to manage mounted and active state for smooth enter/exit modal transitions.
+ */
+export function useModalTransition(isOpen, duration = 250) {
+    const [mounted, setMounted] = React.useState(isOpen);
+    const [active, setActive] = React.useState(false);
+
+    React.useEffect(() => {
+        if (isOpen) {
+            setMounted(true);
+            const timer = requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setActive(true);
+                });
+            });
+            return () => cancelAnimationFrame(timer);
+        } else {
+            setActive(false);
+            const timer = setTimeout(() => {
+                setMounted(false);
+            }, duration);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, duration]);
+
+    return { mounted, active };
+}
+
 export function ModalShell({ isOpen, onClose, title, children, size = 'md', closeOnBackdrop = true, showClose = true }) {
-    if (!isOpen) return null;
+    const { mounted, active } = useModalTransition(isOpen, 250);
+
+    if (!mounted) return null;
 
     const maxWidth = {
         sm: 'max-w-sm',
@@ -182,12 +212,16 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md', clos
                 type="button"
                 aria-label="Close modal"
                 onClick={closeOnBackdrop ? onClose : undefined}
-                className="absolute inset-0 bg-emerald-950/40 backdrop-blur-xs"
+                className={cx(
+                    'absolute inset-0 bg-emerald-950/40 backdrop-blur-xs transition-opacity duration-250 ease-out',
+                    active ? 'opacity-100' : 'opacity-0'
+                )}
             />
 
             <SurfacePanel
                 className={cx(
-                    'relative z-121 flex max-h-[85dvh] w-full flex-col overflow-hidden',
+                    'relative z-121 flex max-h-[85dvh] w-full flex-col overflow-hidden transition-all duration-250 ease-out transform',
+                    active ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4',
                     maxWidth[size] || maxWidth.md,
                 )}
             >

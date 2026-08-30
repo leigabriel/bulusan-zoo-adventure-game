@@ -6,7 +6,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
 import { createTerrain, createFence, createTigerEnclosure, loadTrees, loadBushes, loadRocks, createGrass, updateGrass, createClouds, getTerrainHeight, releaseTerrainModelCache, PLAYABLE_BOUNDARY } from './components/Terrain.jsx';
 import { loadGLTFAnimals, loadAmbientBirds, releaseAnimalModelCache } from './components/Animals.jsx';
-import { createRiver, updateRiver, updateRiverQuality, disposeRiver, getRiverMetrics, isLandAccessible, findAccessiblePosition } from './components/River.jsx';
+import { createRiver, updateRiver, updateRiverQuality, disposeRiver, getRiverMetrics, isLandAccessible, findAccessiblePosition, isRiverArea } from './components/River.jsx';
 import { loadNewHouses } from './components/Structures.jsx';
 import { createGLTFLoader } from './utils/gltfLoader.js';
 import { applyHumanSkinColor } from './utils/characterMaterials.js';
@@ -37,8 +37,9 @@ import {
     AnimalCaution,
     playGameButtonSfx
 } from './ui/GameUI.jsx';
-import { AnimalBookModal, CameraPreview } from './ui/ExplorationHUD.jsx';
+import { AnimalBookModal, CameraModeOverlay, CameraPreview } from './ui/ExplorationHUD.jsx';
 import { LoadingScreen } from '../components/loading-screen.jsx';
+import { cx } from './ui/UIComponents.jsx';
 
 import {
     getTasks,
@@ -63,16 +64,16 @@ import {
 import { getPlayerModel, getPlayerProfile, PLAYER_PROFILE_CHANGE_EVENT } from './utils/playerProfile.js';
 
 const PLAYER_HEIGHT = 0.2;
-const PLAYER_CHARACTER_TARGET_HEIGHT = 1.6;
+const PLAYER_CHARACTER_TARGET_HEIGHT = 1.5;
 const FIRST_PERSON_EYE_OFFSET = 4.5;
 const FIRST_PERSON_FOV = 70;
-const THIRD_PERSON_FOV = 65;
+const THIRD_PERSON_FOV = 70;
 const STATUE_CENTER = { x: 0, z: 0 };
 const PLAYER_START_OFFSET = { x: 14, z: 10 };
 const SETTINGS_CHANGE_EVENT = 'minizoo-settings-changed';
 const STAFF_NPC_CONFIGS = [{
     id: 'lino', name: 'Ranger Lino', role: 'Zoo Mission Guide', file: 'ranger-lino.gltf', position: { x: -20, z: 22 },
-    interactionRadius: 12,
+    interactionRadius: 6.5,
     obstacleRadius: 2.4,
     targetHeight: 1.75,
     patrolRadiusMin: 3.5,
@@ -83,7 +84,7 @@ const STAFF_NPC_CONFIGS = [{
     facingOffset: Math.PI,
 }, {
     id: 'lina', name: 'Ranger Lina', role: 'Zoo Care Ranger', file: 'ranger-lina.gltf', position: { x: 22, z: 18 },
-    interactionRadius: 12, obstacleRadius: 2.4, targetHeight: 1.75,
+    interactionRadius: 6.5, obstacleRadius: 2.4, targetHeight: 1.75,
     patrolRadiusMin: 3.5, patrolRadiusMax: 8.5, moveSpeed: 0.75,
     turnSpeed: 4.2, stopDistance: 0.45, facingOffset: Math.PI,
 }];
@@ -183,7 +184,7 @@ function setStaffNpcAction(npc, actionName) {
 let SMOKE_PUFF_TEXTURE = null;
 function getSmokePuffTexture() {
     if (SMOKE_PUFF_TEXTURE) return SMOKE_PUFF_TEXTURE;
-    const size = 128;
+    const size = 256;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -191,21 +192,29 @@ function getSmokePuffTexture() {
 
     ctx.clearRect(0, 0, size, size);
 
-    function drawCloudCluster(ox, oy, fillStyle, strokeStyle, lineWidth) {
+    function drawCartoonCircularPuff(ox, oy, fillStyle, strokeStyle, strokeWidth) {
         ctx.fillStyle = fillStyle;
         ctx.strokeStyle = strokeStyle;
-        ctx.lineWidth = lineWidth;
+        ctx.lineWidth = strokeWidth;
         ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
 
-        const circles = [
-            { x: ox, y: oy, r: 28 },
-            { x: ox - 20, y: oy + 8, r: 20 },
-            { x: ox + 20, y: oy + 8, r: 20 },
-            { x: ox - 10, y: oy - 16, r: 18 },
-            { x: ox + 10, y: oy - 16, r: 18 },
-        ];
+        const mainRadius = 48;
+        const outerRadius = 40;
+        const count = 7;
+        const circles = [{ x: ox, y: oy, r: mainRadius }];
 
-        if (lineWidth > 0) {
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            const dist = 34;
+            circles.push({
+                x: ox + Math.cos(angle) * dist,
+                y: oy + Math.sin(angle) * dist,
+                r: outerRadius
+            });
+        }
+
+        if (strokeWidth > 0) {
             ctx.beginPath();
             circles.forEach((c) => {
                 ctx.moveTo(c.x + c.r, c.y);
@@ -221,8 +230,12 @@ function getSmokePuffTexture() {
         });
     }
 
-    drawCloudCluster(size / 2, size / 2 + 5, '#ffffff', 'rgba(100, 116, 139, 0.65)', 8);
-    drawCloudCluster(size / 2, size / 2 + 5, '#ffffff', '#ffffff', 0);
+    const cx = size / 2;
+    const cy = size / 2;
+    // Outer bold cartoon stroke (slate gray outline)
+    drawCartoonCircularPuff(cx, cy, '#ffffff', 'rgba(100, 116, 139, 0.75)', 12);
+    // Inner solid white fill
+    drawCartoonCircularPuff(cx, cy, '#ffffff', '#ffffff', 0);
 
     SMOKE_PUFF_TEXTURE = new THREE.CanvasTexture(canvas);
     SMOKE_PUFF_TEXTURE.colorSpace = THREE.SRGBColorSpace;
@@ -231,9 +244,9 @@ function getSmokePuffTexture() {
 }
 
 function createRunSmokeSystem(scene) {
-    const poolSize = 16;
+    const poolSize = 20;
     const puffs = [];
-    const geometry = new THREE.PlaneGeometry(0.85, 0.85);
+    const geometry = new THREE.PlaneGeometry(1.85, 1.85);
     const texture = getSmokePuffTexture();
 
     for (let i = 0; i < poolSize; i++) {
@@ -248,7 +261,7 @@ function createRunSmokeSystem(scene) {
         mesh.visible = false;
         mesh.renderOrder = 4;
         scene.add(mesh);
-        puffs.push({ mesh, material, life: 0, maxLife: 0.35, initialScale: 1, active: false });
+        puffs.push({ mesh, material, life: 0, maxLife: 0.4, initialScale: 1, active: false });
     }
 
     let spawnTimer = 0;
@@ -257,22 +270,31 @@ function createRunSmokeSystem(scene) {
         update: (dt, playerPos, isRunning, camera) => {
             if (isRunning) {
                 spawnTimer += dt;
-                if (spawnTimer >= 0.08) {
+                if (spawnTimer >= 0.065) {
                     spawnTimer = 0;
                     const puff = puffs.find((p) => !p.active);
                     if (puff) {
+                        const inRiver = isRiverArea(playerPos.x, playerPos.z, 0.4);
                         puff.active = true;
                         puff.life = 0;
-                        puff.maxLife = 0.28 + Math.random() * 0.15;
-                        puff.initialScale = 0.4 + Math.random() * 0.3;
+                        puff.maxLife = inRiver ? (0.28 + Math.random() * 0.18) : (0.35 + Math.random() * 0.2);
+                        puff.initialScale = inRiver ? (0.85 + Math.random() * 0.4) : (0.75 + Math.random() * 0.45);
                         puff.mesh.position.set(
-                            playerPos.x + (Math.random() - 0.5) * 0.3,
-                            playerPos.y + 0.15,
-                            playerPos.z + (Math.random() - 0.5) * 0.3
+                            playerPos.x + (Math.random() - 0.5) * 0.4,
+                            playerPos.y + (inRiver ? 0.08 : 0.2),
+                            playerPos.z + (Math.random() - 0.5) * 0.4
                         );
-                        puff.mesh.scale.setScalar(0.1);
+                        puff.mesh.scale.setScalar(0.2);
                         puff.mesh.visible = true;
                         puff.material.opacity = 0.95;
+
+                        if (inRiver) {
+                            // Cartoon splash blue tint when running at/in the river
+                            puff.material.color.set('#38bdf8');
+                        } else {
+                            // Classic white cartoon smoke puff on land
+                            puff.material.color.set('#ffffff');
+                        }
                     }
                 }
             }
@@ -286,12 +308,12 @@ function createRunSmokeSystem(scene) {
                     puff.mesh.visible = false;
                     return;
                 }
-                const popScale = Math.sin(Math.min(1, progress * 2.5) * Math.PI * 0.5);
-                const currentScale = (puff.initialScale + progress * 0.7) * popScale;
+                const popScale = Math.sin(Math.min(1, progress * 2.2) * Math.PI * 0.5);
+                const currentScale = (puff.initialScale + progress * 1.35) * popScale;
                 puff.mesh.scale.setScalar(currentScale);
-                puff.mesh.position.y += dt * 0.8;
+                puff.mesh.position.y += dt * 0.95;
 
-                puff.material.opacity = progress > 0.6 ? (1 - progress) / 0.4 : 0.95;
+                puff.material.opacity = progress > 0.45 ? ((1 - progress) / 0.55) * 0.9 : 0.9;
 
                 if (camera) {
                     puff.mesh.quaternion.copy(camera.quaternion);
@@ -570,6 +592,7 @@ function MiniZooGame() {
     const soundEnabledRef = useRef(getSfxVolume() > 0);
     const gameStartedRef = useRef(false);
     const cameraModeRef = useRef('third');
+    const preCameraModeRef = useRef('third');
     const showNpcDialogueRef = useRef(false);
     const nearbyAnimalRef = useRef(null);
     const nearbyStaffRef = useRef(null);
@@ -588,6 +611,10 @@ function MiniZooGame() {
     const [_loadProgress, setLoadProgress] = useState(0);
     const [gameStarted, setGameStarted] = useState(false);
     const [showMenu, setShowMenu] = useState(true);
+
+    const isEnteringGameRef = useRef(false);
+    const [isEnteringGame, setIsEnteringGame] = useState(false);
+    const [enterFadeActive, setEnterFadeActive] = useState(false);
 
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [tasksOpen, setTasksOpen] = useState(false);
@@ -616,6 +643,7 @@ function MiniZooGame() {
     const [feedingSuccess, setFeedingSuccess] = useState({ visible: false, animalName: '' });
     const [discoveredAnimals, setDiscoveredAnimals] = useState(() => [...new Set(getProgress().animalsDiscovered.map((name) => getAnimalBookEntry(name)?.name || name))]);
     const [photoPreview, setPhotoPreview] = useState('');
+    const [isCameraModeOpen, setIsCameraModeOpen] = useState(false);
     const [cameraFlash, setCameraFlash] = useState(false);
     const [feedingProgress, setFeedingProgress] = useState(0);
     const [isFeeding, setIsFeeding] = useState(false);
@@ -624,7 +652,8 @@ function MiniZooGame() {
     const feedingTimerRef = useRef(null);
     const feedingFrameRef = useRef(null);
     const feedingStartedAtRef = useRef(0);
-    const interfaceOpen = settingsOpen || playerDetailsOpen || tasksOpen || showNpcDialogue || bookOpen || photoPreview || showQuitModal || showResetTasksModal || showAllFedCelebration || showCertificate;
+    const modalOpen = settingsOpen || playerDetailsOpen || tasksOpen || showNpcDialogue || bookOpen || photoPreview || showQuitModal || showResetTasksModal || showAllFedCelebration || showCertificate;
+    const interfaceOpen = modalOpen || isCameraModeOpen;
 
     // Added obstacles array to state to hold tree/rock/bush positions
     const gameStateRef = useRef({
@@ -710,7 +739,10 @@ function MiniZooGame() {
             const dx = pos.x - ap.x;
             const dz = pos.z - ap.z;
             const distSq = dx * dx + dz * dz;
-            if (distSq < 15 * 15 && distSq < nearestDistSq) {
+            const animalRadius = animal.radius || animal.config?.collisionRadius || 1.2;
+            const maxInteractDist = Math.max(5.5, animalRadius + 2.5);
+            const maxInteractDistSq = maxInteractDist * maxInteractDist;
+            if (distSq <= maxInteractDistSq && distSq < nearestDistSq) {
                 nearest = animal;
                 nearestDistSq = distSq;
             }
@@ -726,7 +758,8 @@ function MiniZooGame() {
             const dx = playerPosition.x - staffNpc.x;
             const dz = playerPosition.z - staffNpc.z;
             const distance = dx * dx + dz * dz;
-            if (distance <= staffNpc.interactionRadius ** 2 && distance < nearestDistance) {
+            const closeRadiusSq = (staffNpc.interactionRadius || 6.5) ** 2;
+            if (distance <= closeRadiusSq && distance < nearestDistance) {
                 nearest = staffNpc;
                 nearestDistance = distance;
             }
@@ -745,7 +778,7 @@ function MiniZooGame() {
             const audio = new Audio(fallbackPath);
             audio.loop = true;
             audio.preload = 'auto';
-            audio.volume = getSfxVolume() * 0.7;
+            audio.volume = getSfxVolume() * 1.0;
             audio.setAttribute('playsinline', 'true');
             runAudioRef.current = audio;
 
@@ -1121,7 +1154,7 @@ function MiniZooGame() {
 
             state.scene.add(model);
             state.playerCharacter = model;
-            state.playerShadow = createContactShadow(2.2, 0.25);
+            state.playerShadow = createContactShadow(1.7, 0.25);
             state.scene.add(state.playerShadow);
 
             if (gltf.animations && gltf.animations.length > 0) {
@@ -1467,7 +1500,7 @@ function MiniZooGame() {
 
                     const cameraLerp = 1 - Math.exp(-8 * dt);
                     camera.position.lerp(desiredCameraPosition, cameraLerp);
-                    lookTarget.set(playerPosition.x, smoothedFollowY + 2.1, playerPosition.z);
+                    lookTarget.set(playerPosition.x, smoothedFollowY + 1.85, playerPosition.z);
                     previousCameraQuaternion.copy(camera.quaternion);
                     camera.lookAt(lookTarget);
                     if (cameraTransition.active) {
@@ -1540,7 +1573,7 @@ function MiniZooGame() {
                     const isRunning = state.playerIsMoving && state.isGrounded && soundEnabledRef.current && gameStartedRef.current && !document.hidden;
                     const sfxVol = getSfxVolume();
                     if (isRunning && sfxVol > 0) {
-                        runAudio.volume = sfxVol * 0.7;
+                        runAudio.volume = sfxVol * 1.0;
                         if (runAudio.paused) {
                             try { runAudio.play().catch(() => {}); } catch {}
                         }
@@ -1696,41 +1729,54 @@ function MiniZooGame() {
     }, [checkNearbyAnimals, checkNearbyStaff, clearFeedingTimer, disposePlayerCharacter, playPlayerAction]);
 
     const handleStartGame = useCallback(() => {
-        const state = gameStateRef.current;
-        const profile = getPlayerProfile();
-        const characterOption = getPlayerModel(profile.gender);
+        if (isEnteringGameRef.current) return;
+        isEnteringGameRef.current = true;
+        setIsEnteringGame(true);
 
-        gameStartedRef.current = true;
-        nearbyAnimalRef.current = null;
-        nearbyStaffRef.current = null;
-        soundEnabledRef.current = getSfxVolume() > 0;
-        setPlayerName(profile.name);
-        setShowMenu(false);
-        setGameStarted(true);
-        setTasks(getTasks());
-        // Third person is the default exploration view.
-        setCameraMode('third');
-        setPlayerGender(profile.gender);
-        setCharacterReady(false);
-        setNearbyStaff(null);
-        setShowNpcDialogue(false);
-        setNpcDialogueNodeId('root');
-        state.controlsEnabled = false;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                setEnterFadeActive(true);
+            });
+        });
 
-        if (characterOption) {
-            setTimeout(() => {
-                if (gameStartedRef.current) handleSelectCharacter(characterOption);
-            }, 0);
-        }
-
-        playAmbience();
-        playMusic();
         setTimeout(() => {
-            if (gameStartedRef.current) {
-                playAmbience();
-                playMusic();
+            const state = gameStateRef.current;
+            const profile = getPlayerProfile();
+            const characterOption = getPlayerModel(profile.gender);
+
+            gameStartedRef.current = true;
+            nearbyAnimalRef.current = null;
+            nearbyStaffRef.current = null;
+            soundEnabledRef.current = getSfxVolume() > 0;
+            setPlayerName(profile.name);
+            setShowMenu(false);
+            setGameStarted(true);
+            setTasks(getTasks());
+            // Third person is the default exploration view.
+            setCameraMode('third');
+            setPlayerGender(profile.gender);
+            setCharacterReady(false);
+            setNearbyStaff(null);
+            setShowNpcDialogue(false);
+            setNpcDialogueNodeId('root');
+            state.controlsEnabled = false;
+
+            if (characterOption) {
+                handleSelectCharacter(characterOption);
             }
-        }, 220);
+
+            playAmbience();
+            playMusic();
+
+            setTimeout(() => {
+                setEnterFadeActive(false);
+                setTimeout(() => {
+                    setIsEnteringGame(false);
+                    isEnteringGameRef.current = false;
+                    state.controlsEnabled = true;
+                }, 400);
+            }, 250);
+        }, 380);
     }, [playAmbience, playMusic, handleSelectCharacter]);
 
     const handleProfileSaved = useCallback((profile) => {
@@ -1760,45 +1806,52 @@ function MiniZooGame() {
         setShowNpcDialogue(false);
         setBookOpen(false);
         setPhotoPreview('');
+        if (isCameraModeOpen) {
+            setIsCameraModeOpen(false);
+            setCameraMode(preCameraModeRef.current || 'third');
+        }
         clearFeedingTimer();
-    }, [clearFeedingTimer]);
+    }, [clearFeedingTimer, isCameraModeOpen]);
     const handleMenuClick = useCallback(() => { closeInterfaces(); setSettingsOpen(true); }, [closeInterfaces]);
-    const handleTasksClick = useCallback(() => { closeInterfaces(); setTasksOpen(true); }, [closeInterfaces]);
-    const captureScene = useCallback(() => {
+    const handleTasksClick = useCallback(() => {
+        closeInterfaces();
+        playGameButtonSfx('task-list');
+        setTasksOpen(true);
+    }, [closeInterfaces]);
+    const handleOpenCameraView = useCallback(() => {
+        closeInterfaces();
+        playGameButtonSfx('confirm');
+        preCameraModeRef.current = cameraModeRef.current;
+        setCameraMode('first');
+        setIsCameraModeOpen(true);
+        const state = gameStateRef.current;
+        if (state) state.controlsEnabled = true;
+    }, [closeInterfaces]);
+    const handleCloseCameraView = useCallback(() => {
+        setIsCameraModeOpen(false);
+        setCameraMode(preCameraModeRef.current || 'third');
+    }, []);
+    const handleCapturePhoto = useCallback(() => {
         const state = gameStateRef.current;
         if (!state.renderer || !state.scene || !state.camera) return;
         try {
             const renderer = state.renderer;
-            const width = renderer.domElement.width;
-            const height = renderer.domElement.height;
-            const target = new THREE.WebGLRenderTarget(width, height, { depthBuffer: true });
-            renderer.setRenderTarget(target);
             renderer.render(state.scene, state.camera);
-            const pixels = new Uint8Array(width * height * 4);
-            renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
-            renderer.setRenderTarget(null);
-            renderer.render(state.scene, state.camera);
-            target.dispose();
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const context = canvas.getContext('2d');
-            const image = context.createImageData(width, height);
-            for (let row = 0; row < height; row += 1) {
-                const source = (height - row - 1) * width * 4;
-                image.data.set(pixels.subarray(source, source + width * 4), row * width * 4);
-            }
-            context.putImageData(image, 0, 0);
+            const dataUrl = renderer.domElement.toDataURL('image/png');
+
             setCameraFlash(true);
             window.setTimeout(() => setCameraFlash(false), 180);
             playGameButtonSfx('confirm');
-            closeInterfaces();
-            setPhotoPreview(canvas.toDataURL('image/png'));
+
+            setIsCameraModeOpen(false);
+            setCameraMode(preCameraModeRef.current || 'third');
+            setPhotoPreview(dataUrl);
         } catch (error) {
             console.error('Unable to capture game scene:', error);
-            closeInterfaces();
+            setIsCameraModeOpen(false);
+            setCameraMode(preCameraModeRef.current || 'third');
         }
-    }, [closeInterfaces]);
+    }, []);
     const savePhoto = useCallback(() => {
         if (!photoPreview) return;
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -2095,7 +2148,7 @@ function MiniZooGame() {
 
     useEffect(() => {
         const state = gameStateRef.current;
-        if (interfaceOpen) {
+        if (modalOpen) {
             state.controlsEnabled = false;
             return;
         }
@@ -2103,7 +2156,7 @@ function MiniZooGame() {
         if (gameStarted && characterReady) {
             state.controlsEnabled = true;
         }
-    }, [interfaceOpen, gameStarted, characterReady]);
+    }, [modalOpen, gameStarted, characterReady]);
 
     useEffect(() => {
         if (!gameStarted && !showMenu) return;
@@ -2215,13 +2268,21 @@ function MiniZooGame() {
     const canShowNpcPrompt = gameStarted
         && characterReady
         && nearbyStaff
-        && !nearbyAnimal
         && !showNpcDialogue;
 
     return (
         <div className="relative h-dvh w-full overflow-hidden bg-linear-to-b from-sky-300 to-sky-100 touch-none overscroll-none">
             <RotateDeviceOverlay />
             {cameraFlash ? <div className="pointer-events-none fixed inset-0 z-130 bg-white" aria-hidden="true" /> : null}
+            {isEnteringGame && (
+                <div
+                    className={cx(
+                        "fixed inset-0 z-140 pointer-events-none bg-linear-to-b from-[#70e0ff] via-[#38bdf8] to-[#16684a] transition-opacity duration-400 ease-in-out",
+                        enterFadeActive ? "opacity-100" : "opacity-0"
+                    )}
+                    aria-hidden="true"
+                />
+            )}
             <div ref={containerRef} className="absolute inset-0" />
             {isLoading && <LoadingScreen />}
             {!isLoading && showMenu && (
@@ -2234,21 +2295,23 @@ function MiniZooGame() {
             )}
             {gameStarted && (
                 <>
-                      <GameHUD
-                        playerName={playerName || 'Explorer'}
-                         onMenuClick={handleMenuClick}
-                         onPlayerDetails={() => setPlayerDetailsOpen(true)}
-                         onTasksClick={handleTasksClick}
-                         onBook={openBook}
-                         onCamera={captureScene}
-                        completedTasks={completedCount}
-                        totalTasks={totalCount}
-                        isTouchDevice={isTouchDevice}
-                    />
+                    {!isCameraModeOpen ? (
+                        <GameHUD
+                            playerName={playerName || 'Explorer'}
+                            onMenuClick={handleMenuClick}
+                            onPlayerDetails={() => setPlayerDetailsOpen(true)}
+                            onTasksClick={handleTasksClick}
+                            onBook={openBook}
+                            onCamera={handleOpenCameraView}
+                            completedTasks={completedCount}
+                            totalTasks={totalCount}
+                            isTouchDevice={isTouchDevice}
+                        />
+                    ) : null}
                      {!interfaceOpen ? <Joystick baseRef={baseRef} stickRef={stickRef} isTouchDevice={isTouchDevice} /> : null}
                       {!interfaceOpen ? <JumpButton jumpRef={jumpRef} isTouchDevice={isTouchDevice} /> : null}
                      <HoldToFeedControl
-                         visible={Boolean(nearbyAnimal && !isDangerousAnimalNearby && gameStarted && characterReady && !interfaceOpen)}
+                         visible={Boolean(nearbyAnimal && !nearbyStaff && !isDangerousAnimalNearby && gameStarted && characterReady && !interfaceOpen)}
                          animalName={nearbyAnimalInfo?.name}
                          progress={nearbyAnimalFed ? 1 : feedingProgress}
                          isHolding={isFeeding}
@@ -2301,7 +2364,8 @@ function MiniZooGame() {
                     />
                     <PlayerDetailsModal isOpen={playerDetailsOpen} onClose={() => setPlayerDetailsOpen(false)} onSave={handleProfileSaved} />
                      <FeedingSuccessNotification visible={feedingSuccess.visible} animalName={feedingSuccess.animalName} onHide={handleHideFeedSuccess} />
-                    <CameraPreview dataUrl={photoPreview} onSave={savePhoto} onRetake={() => { setPhotoPreview(''); captureScene(); }} onClose={() => setPhotoPreview('')} />
+                    <CameraModeOverlay isOpen={isCameraModeOpen} onClose={handleCloseCameraView} onCapture={handleCapturePhoto} />
+                    <CameraPreview dataUrl={photoPreview} onSave={savePhoto} onRetake={() => { setPhotoPreview(''); handleOpenCameraView(); }} onClose={() => setPhotoPreview('')} />
                 </>
             )}
             <QuitModal isOpen={showQuitModal} onConfirm={handleConfirmQuit} onCancel={handleCancelQuit} />

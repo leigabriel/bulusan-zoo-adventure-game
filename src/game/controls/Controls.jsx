@@ -260,7 +260,13 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
 
     const isUIInteractionTarget = (target) => {
         if (!(target instanceof Element)) return false;
-        return !!target.closest('[data-ui-scrollable="true"], [data-ui-modal="true"], [data-ui-panel="true"], [data-ui-hud="true"], [data-ui-button="true"], button, a, input, textarea, select, [role="button"]');
+        if (target.closest('button, [data-ui-button="true"], a, input, textarea, select, [role="button"]')) {
+            return true;
+        }
+        if (target.closest('[data-ui-touch-pass="true"]')) {
+            return false;
+        }
+        return !!target.closest('[data-ui-scrollable="true"], [data-ui-modal="true"], [data-ui-panel="true"], [data-ui-hud="true"]');
     };
 
     const getJoystickCenter = () => {
@@ -493,15 +499,43 @@ export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
 }
 
 export function setupMouseControls(state) {
+    let isMouseDown = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    const handleMouseDown = (e) => {
+        if (state.controlsEnabled === false) return;
+        if (isUIInteractionTarget(e.target)) return;
+        if (e.button === 0) {
+            isMouseDown = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        }
+    };
+
+    const handleMouseUp = () => {
+        isMouseDown = false;
+    };
+
     const handleMouseMove = (e) => {
         if (state.controlsEnabled === false) {
             return;
         }
 
-        if (!('ontouchstart' in window) && e.buttons === 1) {
+        if (e.buttons === 1 || isMouseDown) {
             const sens = state.sensitivity || 1.0;
-            state.yaw -= e.movementX * 0.003 * sens;
-            state.pitch -= e.movementY * 0.003 * sens;
+            let dx = e.movementX;
+            let dy = e.movementY;
+
+            if ((dx === undefined || dy === undefined || (dx === 0 && dy === 0)) && isMouseDown) {
+                dx = e.clientX - lastX;
+                dy = e.clientY - lastY;
+            }
+            lastX = e.clientX;
+            lastY = e.clientY;
+
+            state.yaw -= dx * 0.003 * sens;
+            state.pitch -= dy * 0.003 * sens;
             state.pitch = Math.max(-1.4, Math.min(1.4, state.pitch));
         }
     };
@@ -510,10 +544,14 @@ export function setupMouseControls(state) {
         e.preventDefault();
     };
 
+    window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mouseup", handleMouseUp);
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("contextmenu", handleContextMenu);
 
     return () => {
+        window.removeEventListener("mousedown", handleMouseDown);
+        window.removeEventListener("mouseup", handleMouseUp);
         window.removeEventListener("mousemove", handleMouseMove);
         window.removeEventListener("contextmenu", handleContextMenu);
     };

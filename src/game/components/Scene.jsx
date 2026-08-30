@@ -66,7 +66,7 @@ export function createRenderer(container, graphicsQuality) {
         stencil: false,
         depth: true,
         alpha: false,
-        preserveDrawingBuffer: false,
+        preserveDrawingBuffer: true,
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(config.pixelRatio);

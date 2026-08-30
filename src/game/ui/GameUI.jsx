@@ -4,7 +4,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import * as THREE from 'three';
 import { resolveAssetUrl } from '../utils/localAssets.js';
-import { ActionButton, GameButton, IconButton, ModalShell, PaginationControls, SurfacePanel, cx } from './UIComponents.jsx';
+import { ActionButton, GameButton, IconButton, ModalShell, PaginationControls, SurfacePanel, cx, useModalTransition } from './UIComponents.jsx';
 import { createGLTFLoader } from '../utils/gltfLoader.js';
 import { applyHumanSkinColor } from '../utils/characterMaterials.js';
 import { ANIMAL_METADATA } from '../data/animalMetadata.js';
@@ -19,6 +19,7 @@ const SFX_FILES = {
     confirm: '/audio/click.mp3',
     'task-complete': '/audio/finish-task.mp3',
     'page-turn': '/audio/book-page-turning.mp3',
+    'task-list': '/audio/task-list-button.mp3',
 };
 
 const uiAudioTemplates = {};
@@ -289,7 +290,7 @@ export function playGameButtonSfx(kind = 'tap') {
         if (!finalSrc) return;
 
         const audio = new Audio(finalSrc);
-        audio.volume = (kind === 'feed' || kind === 'task-complete' || kind === 'confirm') ? volume : volume * 0.85;
+        audio.volume = (kind === 'feed' || kind === 'task-complete' || kind === 'confirm' || kind === 'task-list') ? volume : volume * 0.85;
         const playPromise = audio.play();
         if (playPromise && typeof playPromise.catch === 'function') {
             playPromise.catch(() => { });
@@ -467,8 +468,6 @@ function SettingsModal({ isOpen, onClose, onQuit, cameraMode, onCameraModeChange
         persistSettings(next);
     };
 
-    if (!isOpen) return null;
-
     const updateSetting = (key, value) => {
         const next = { ...settings, [key]: value };
         setSettings(next);
@@ -484,7 +483,7 @@ function SettingsModal({ isOpen, onClose, onQuit, cameraMode, onCameraModeChange
 
     if (activeSection) {
         return (
-            <ModalShell isOpen={true} onClose={() => setActiveSection(null)} title={sectionTitles[activeSection]} size="md">
+            <ModalShell isOpen={isOpen && Boolean(activeSection)} onClose={() => setActiveSection(null)} title={sectionTitles[activeSection]} size="md">
                 <div className="flex min-h-52 flex-col gap-4">
                     <ActionButton variant="secondary" size="sm" className="self-start" onClick={() => setActiveSection(null)}>
                         <span aria-hidden="true">&lsaquo;</span> Settings
@@ -570,7 +569,7 @@ function SettingsModal({ isOpen, onClose, onQuit, cameraMode, onCameraModeChange
     ];
 
     return (
-        <ModalShell isOpen={isOpen} onClose={onClose} title="Game Settings" size="md">
+        <ModalShell isOpen={isOpen && !activeSection} onClose={onClose} title="Game Settings" size="md">
             <div className="space-y-4">
                 <div className="flex flex-col gap-3.5 w-full">
                     {categories.map((category) => (
@@ -687,7 +686,13 @@ export function MainMenu({ onStart, onMenuInteraction, onProfileSaved, isVisible
     if (!isVisible) return null;
 
     return (
-        <div onPointerDownCapture={onMenuInteraction} className="fixed inset-0 z-40 flex flex-col items-center overflow-hidden font-['Qilka',sans-serif] select-none touch-none bg-emerald-900">
+        <div
+            onPointerDownCapture={onMenuInteraction}
+            className={cx(
+                "fixed inset-0 z-40 flex flex-col items-center overflow-hidden font-['Qilka',sans-serif] select-none touch-none bg-emerald-900 transition-all duration-400 ease-in-out",
+                starting ? "opacity-0 scale-105 pointer-events-none" : "opacity-100 scale-100"
+            )}
+        >
             {/* ---------------- BACKGROUND DECORATION (FILLS EVERYTHING) ---------------- */}
             <div className="absolute -inset-x-20 inset-y-0 z-0 bg-linear-to-b from-[#70e0ff] via-[#a2d2ff] to-[#c6fe69] pointer-events-none" aria-hidden="true">
                 <div className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0)_70%)] animate-pulse" />
@@ -780,7 +785,7 @@ export function MainMenu({ onStart, onMenuInteraction, onProfileSaved, isVisible
                 <CreditsContent />
             </ModalShell>
 
-            {settingsOpen ? <SettingsModal isOpen={true} onClose={() => setSettingsOpen(false)} /> : null}
+            <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
             {playerDetailsOpen ? <PlayerDetailsModal isOpen={true} required={profileRequired} onClose={() => setPlayerDetailsOpen(false)} onSave={handleProfileSaved} /> : null}
 
@@ -900,6 +905,7 @@ export function GameHUD({ playerName, onMenuClick, onPlayerDetails, onTasksClick
                         className="group flex h-10 w-10 sm:h-14 sm:w-14 items-center justify-center transition-all active:scale-95"
                         aria-label="Tasks"
                         data-ui-button="true"
+                        data-sfx-self="true"
                     >
                         <img src={taskIcon} alt="" className="h-full w-full object-contain group-hover:scale-110 transition-transform" />
                     </button>
@@ -910,11 +916,9 @@ export function GameHUD({ playerName, onMenuClick, onPlayerDetails, onTasksClick
 }
 
 export function SettingsPanel({ isOpen, onClose, onQuit, cameraMode, onCameraModeChange }) {
-    if (!isOpen) return null;
-
     return (
         <SettingsModal
-            isOpen={true}
+            isOpen={isOpen}
             inGame={true}
             onClose={onClose}
             onQuit={onQuit}
@@ -925,6 +929,7 @@ export function SettingsPanel({ isOpen, onClose, onQuit, cameraMode, onCameraMod
 }
 
 export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick, onResetTasks }) {
+    const { mounted, active } = useModalTransition(isOpen, 250);
     const [page, setPage] = useState(0);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const pageSize = 4;
@@ -934,12 +939,25 @@ export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick, onResetTas
     const currentPage = Math.min(page, pageCount - 1);
     const visibleTasks = tasks.slice(currentPage * pageSize, currentPage * pageSize + pageSize);
 
-    if (!isOpen) return null;
+    if (!mounted) return null;
 
     return (
         <div className="fixed inset-0 z-95" data-ui-modal="true" role="dialog" aria-modal="true" aria-label="Zoo task checklist">
-            <button type="button" className="absolute inset-0 bg-emerald-950/20 backdrop-blur-[1px]" onClick={onClose} aria-label="Close task checklist" />
-            <section className="absolute right-[max(.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+.5rem)] flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] w-[min(36rem,calc(100vw-1rem))] flex-col rounded-sm border-2 border-slate-500 bg-[#fffef7] p-3 text-slate-800 shadow-[7px_8px_0_rgba(15,23,42,.25)] sm:p-5">
+            <button
+                type="button"
+                className={cx(
+                    'absolute inset-0 bg-emerald-950/20 backdrop-blur-[1px] transition-opacity duration-250 ease-out',
+                    active ? 'opacity-100' : 'opacity-0'
+                )}
+                onClick={onClose}
+                aria-label="Close task checklist"
+            />
+            <section
+                className={cx(
+                    'absolute right-[max(.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+.5rem)] flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] w-[min(36rem,calc(100vw-1rem))] flex-col rounded-sm border-2 border-slate-500 bg-[#fffef7] p-3 text-slate-800 shadow-[7px_8px_0_rgba(15,23,42,.25)] sm:p-5 transition-all duration-250 ease-out transform origin-top-right',
+                    active ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
+                )}
+            >
                 <header className="flex shrink-0 items-start justify-between gap-3 border-b-2 border-slate-300 pb-2">
                     <div>
                         <p className="text-xl font-black uppercase tracking-[0.08em] sm:text-2xl">Checklist</p>
@@ -1049,64 +1067,84 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
 
     const isLina = (npcName || '').toLowerCase().includes('lina');
     const avatarEmoji = isLina ? '👩‍🌾' : '🤠';
+    const roleBadge = npcRole || (isLina ? 'Zoo Botanist' : 'Zoo Ranger');
     const isMultiChoice = choices.length > 3;
 
     return (
-        <div className="fixed inset-0 z-120 flex items-center justify-center bg-emerald-950/50 p-2 sm:p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Ranger Guide">
-            <div className={cx('ranger-guide-panel relative flex w-full max-w-xl flex-col overflow-hidden rounded-3xl border-4 border-amber-400 bg-amber-50 shadow-2xl my-auto', transitioning && 'ranger-guide-transition')}>
-                {/* Header */}
-                <header className="ranger-guide-header flex shrink-0 items-center gap-2.5 px-3.5 py-2.5 sm:px-5 sm:py-3.5 bg-gradient-to-r from-emerald-100 via-amber-100 to-lime-100 border-b-2 border-amber-300">
-                    <div className="ranger-portrait flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border-2 border-amber-400 bg-emerald-200 text-2xl shadow-inner" aria-hidden="true">
-                        <span>{avatarEmoji}</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">
-                            ★ ZOO RANGER
-                        </span>
-                        <h2 className="text-lg font-black text-emerald-950 leading-tight sm:text-2xl">{npcName || 'Ranger Lino'}</h2>
+        <div
+            className="fixed inset-0 z-120 flex items-center justify-center bg-slate-950/40 p-3 sm:p-5 backdrop-blur-md"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ranger Guide"
+        >
+            <div
+                className={cx(
+                    'relative flex w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-2xl transition-all duration-300 my-auto',
+                    transitioning && 'opacity-80 scale-98'
+                )}
+            >
+                {/* Clean Header */}
+                <header className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3.5 sm:px-6 sm:py-4">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-200/80 bg-emerald-50 text-2xl shadow-xs" aria-hidden="true">
+                            <span>{avatarEmoji}</span>
+                        </div>
+                        <div className="min-w-0">
+                            <span className="inline-block rounded-full bg-emerald-100/80 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-emerald-800">
+                                {roleBadge}
+                            </span>
+                            <h2 className="text-base font-black text-slate-900 leading-tight sm:text-lg">
+                                {npcName || 'Ranger Lino'}
+                            </h2>
+                        </div>
                     </div>
                     <button
                         type="button"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xl font-black text-white shadow-md hover:bg-rose-600 active:scale-95 transition-transform"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-all"
                         onClick={onClose}
-                        aria-label="Close Ranger Guide"
+                        aria-label="Close"
                     >
-                        ×
+                        <span className="text-lg font-black leading-none">&times;</span>
                     </button>
                 </header>
 
-                {/* Content Body - Fits 100% on screen with NO scrolling */}
-                <div className="flex flex-col gap-2.5 p-3 sm:p-4 overflow-hidden">
-                    {/* Speech Bubble */}
-                    <div className="ranger-speech-bubble relative rounded-2xl rounded-tl-sm border-2 border-emerald-300 bg-white p-3 sm:p-4 shadow-sm">
-                        <span className="block mb-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
-                            {npcName || 'Zoo Ranger'} says 💬
-                        </span>
-                        <p className="text-xs sm:text-sm font-extrabold leading-relaxed text-emerald-950">
+                {/* Content Body */}
+                <div className="flex flex-col gap-3 p-4 sm:p-6 overflow-hidden">
+                    {/* Speech Box */}
+                    <div className="relative rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 shadow-xs">
+                        <p className="text-xs sm:text-sm font-semibold leading-relaxed text-slate-800">
                             {message}
                         </p>
                     </div>
 
-                    {/* Mission Steps View */}
+                    {/* Mission Goals View */}
                     {choices.some((choice) => choice.id === 'back') && missionSteps.length > 0 && !isAnimalPage ? (
-                        <div className="ranger-mission-card rounded-2xl border-2 border-amber-300 bg-amber-100/70 p-2.5 sm:p-3">
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">
-                                    🎯 Mission Goals
+                        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3 sm:p-4">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
+                                    Mission Progress
                                 </span>
-                                <span className="text-xs font-black text-emerald-800">
-                                    {missionSteps.filter((step) => step.done).length} of {missionSteps.length} complete
+                                <span className="text-xs font-bold text-emerald-700">
+                                    {missionSteps.filter((step) => step.done).length} of {missionSteps.length} Done
                                 </span>
                             </div>
-                            <div className="grid gap-1.5 sm:grid-cols-2">
+                            <div className="grid gap-2 sm:grid-cols-2">
                                 {missionSteps.map((step, index) => (
-                                    <div key={step.title} className={cx('flex items-center gap-2 rounded-xl bg-white/90 p-2 text-xs font-bold text-slate-800 border', step.done ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-amber-200')}>
-                                        <span className={cx('flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black', step.done ? 'bg-emerald-500 text-white' : 'bg-amber-200 text-amber-900')}>
+                                    <div
+                                        key={step.title}
+                                        className={cx(
+                                            'flex items-center gap-2.5 rounded-xl border p-2.5 text-xs font-medium transition-all',
+                                            step.done
+                                                ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
+                                                : 'border-slate-200 bg-white text-slate-700'
+                                        )}
+                                    >
+                                        <span className={cx('flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold', step.done ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600')}>
                                             {step.done ? '✓' : index + 1}
                                         </span>
                                         <div className="min-w-0 flex-1 leading-tight">
-                                            <p className="font-black text-slate-900">{step.title}</p>
-                                            <p className="text-[10px] text-slate-600 truncate">{step.objective}</p>
+                                            <p className="font-bold text-slate-900">{step.title}</p>
+                                            <p className="text-[10px] text-slate-500 truncate">{step.objective}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -1116,32 +1154,32 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
 
                     {/* Animal Browser View */}
                     {isAnimalPage ? (
-                        <div className="ranger-animal-browser flex flex-col gap-2">
-                            <div className="ranger-animal-detail rounded-2xl border-2 border-amber-300 bg-amber-100/70 p-3">
+                        <div className="flex flex-col gap-2.5">
+                            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
                                 {selectedAnimal ? (
                                     <>
-                                        <div className="flex items-center gap-2.5">
-                                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white border border-slate-200/80 text-2xl shadow-xs">
                                                 {selectedAnimal.emoji}
                                             </span>
                                             <div>
-                                                <h3 className="text-base sm:text-lg font-black text-emerald-950 leading-tight">{selectedAnimal.name}</h3>
-                                                <p className="text-[10px] font-bold italic text-slate-500">{selectedAnimal.scientific}</p>
+                                                <h3 className="text-base font-bold text-slate-900 leading-tight">{selectedAnimal.name}</h3>
+                                                <p className="text-[11px] font-medium italic text-slate-500">{selectedAnimal.scientific}</p>
                                             </div>
                                         </div>
-                                        <div className="mt-2 text-xs font-bold leading-tight text-slate-700 space-y-1">
-                                            <p><span className="text-emerald-800 font-black">Habitat:</span> {selectedAnimal.habitat}</p>
-                                            <p><span className="text-emerald-800 font-black">Diet:</span> {selectedAnimal.diet}</p>
-                                            <p><span className="text-emerald-800 font-black">Fun Fact:</span> {selectedAnimal.fact}</p>
+                                        <div className="mt-3 text-xs font-normal leading-relaxed text-slate-700 space-y-1">
+                                            <p><span className="font-semibold text-slate-900">Habitat:</span> {selectedAnimal.habitat}</p>
+                                            <p><span className="font-semibold text-slate-900">Diet:</span> {selectedAnimal.diet}</p>
+                                            <p><span className="font-semibold text-slate-900">Fun Fact:</span> {selectedAnimal.fact}</p>
                                         </div>
-                                        <button type="button" className="mt-2 text-xs font-black text-amber-800 underline hover:text-amber-950" onClick={onOpenAnimalBook}>
-                                            📖 Open in Animal Book
+                                        <button type="button" className="mt-2.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 underline" onClick={onOpenAnimalBook}>
+                                            Open in Animal Book
                                         </button>
                                     </>
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center py-4 text-center text-amber-900">
+                                    <div className="flex flex-col items-center justify-center py-4 text-center text-slate-500">
                                         <span className="text-3xl">🐾</span>
-                                        <p className="text-xs font-black mt-1">No animals discovered yet.</p>
+                                        <p className="text-xs font-medium mt-1">No animals discovered yet.</p>
                                     </div>
                                 )}
                             </div>
@@ -1149,9 +1187,9 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
                         </div>
                     ) : null}
 
-                    {/* Choice Buttons - Grid / Stack that fits on screen without scrolling */}
+                    {/* Minimal Choice Buttons */}
                     {!isAnimalPage ? (
-                        <div className={cx('ranger-choice-grid grid gap-2', isMultiChoice ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
+                        <div className={cx('grid gap-2', isMultiChoice ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
                             {choices.map((choice, index) => (
                                 <button
                                     type="button"
@@ -1159,29 +1197,29 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
                                     disabled={transitioning}
                                     onClick={() => choose(choice)}
                                     className={cx(
-                                        'ranger-choice-button flex min-h-[2.8rem] items-center gap-2.5 rounded-2xl border-2 px-3 py-2 text-xs sm:text-sm font-black text-emerald-950 transition-all active:scale-95',
+                                        'group flex min-h-[2.75rem] items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-800 transition-all active:scale-98',
                                         choice.accent
-                                            ? 'border-amber-400 bg-amber-100 hover:bg-amber-200 shadow-sm'
-                                            : 'border-emerald-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 shadow-sm',
-                                        pressedChoice === choice.id && 'scale-95 border-emerald-500 bg-emerald-100'
+                                            ? 'border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100/70 hover:border-emerald-400'
+                                            : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/80',
+                                        pressedChoice === choice.id && 'border-emerald-500 bg-emerald-50'
                                     )}
                                 >
-                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-sm shadow-inner">
+                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 group-hover:bg-emerald-100 group-hover:text-emerald-800 transition-colors">
                                         {choice.icon || index + 1}
                                     </span>
-                                    <span className="flex-1 text-left leading-tight">{choice.label}</span>
-                                    <span className="text-amber-600 font-black text-base">›</span>
+                                    <span className="flex-1 text-left leading-snug">{choice.label}</span>
+                                    <span className="text-slate-400 group-hover:text-slate-700 transition-colors text-base font-bold">›</span>
                                 </button>
                             ))}
                         </div>
                     ) : null}
                 </div>
 
-                {/* Footer */}
-                <footer className="flex shrink-0 items-center justify-between gap-2 border-t-2 border-amber-300 bg-amber-100/60 px-3.5 py-2.5 sm:px-5">
+                {/* Minimal Footer */}
+                <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/50 px-4 py-3 sm:px-6">
                     <button
                         type="button"
-                        className="rounded-xl border-2 border-emerald-300 bg-emerald-100 px-3.5 py-1.5 text-xs font-black text-emerald-900 hover:bg-emerald-200 active:scale-95 transition-transform"
+                        className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition-all"
                         disabled={transitioning}
                         onClick={() => choose({ id: 'back', nextId: 'root' })}
                     >
@@ -1189,7 +1227,7 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
                     </button>
                     <button
                         type="button"
-                        className="rounded-xl border-2 border-amber-400 bg-amber-200 px-3.5 py-1.5 text-xs font-black text-amber-950 hover:bg-amber-300 active:scale-95 transition-transform"
+                        className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 active:scale-95 transition-all shadow-xs"
                         onClick={onClose}
                     >
                         Close Dialogue

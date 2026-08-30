@@ -102,6 +102,64 @@ async function getAnimalModelSnapshot(entry) {
     return result;
 }
 
+export function CameraModeOverlay({ isOpen, onClose, onCapture }) {
+    if (!isOpen) return null;
+
+    return (
+        <div
+            data-ui-touch-pass="true"
+            className="fixed inset-0 z-120 flex flex-col justify-between p-3 sm:p-6 pt-[calc(env(safe-area-inset-top)+0.85rem)] pb-[calc(env(safe-area-inset-bottom)+0.85rem)] px-[calc(env(safe-area-inset-left)+1rem)] pointer-events-none font-['Qilka',sans-serif] select-none touch-none"
+            aria-label="Camera Mode"
+        >
+            {/* Top Bar: Title & Top-Right 3D 'X' Close Button (100% visible on all screens) */}
+            <div className="flex items-center justify-between w-full max-w-5xl mx-auto z-122 pointer-events-auto">
+                <div className="flex items-center gap-2 rounded-2xl border-2 border-white/80 bg-slate-900/85 px-4 py-2 backdrop-blur-md shadow-2xl">
+                    <span className="text-xs sm:text-sm font-black uppercase tracking-widest text-white">
+                        Camera View
+                    </span>
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    data-ui-button="true"
+                    className="flex h-11 w-11 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white font-black text-2xl shadow-[0_4px_0_0_#9f1239] transition-transform active:scale-95 pointer-events-auto"
+                    aria-label="Close Camera View"
+                >
+                    &times;
+                </button>
+            </div>
+
+            {/* Center Area: Floating Camera Overlay Frame (public/images/camera.png) */}
+            <div className="relative flex-1 min-h-0 w-full flex items-center justify-center py-2 pointer-events-none z-121">
+                <div className="relative max-h-full max-w-full flex items-center justify-center p-2">
+                    <img
+                        src="/images/camera.png"
+                        alt="Camera viewfinder frame"
+                        className="max-h-[62dvh] max-w-[88vw] object-contain drop-shadow-2xl animate-bounce-subtle pointer-events-none"
+                    />
+                </div>
+            </div>
+
+            {/* Bottom Bar: Bottom-Middle 3D Shutter / Capture Button */}
+            <div className="flex items-center justify-center w-full max-w-md mx-auto pb-1 z-122 pointer-events-auto">
+                <button
+                    type="button"
+                    onClick={onCapture}
+                    data-ui-button="true"
+                    className="group relative flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center transition-transform active:scale-90 hover:scale-105 pointer-events-auto"
+                    aria-label="Capture Photo"
+                >
+                    <img
+                        src="/ui-buttons/camera-button.png"
+                        alt="Capture Photo"
+                        className="h-full w-full object-contain drop-shadow-2xl group-hover:scale-110 transition-transform pointer-events-none"
+                    />
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export function CameraPreview({ dataUrl, onSave, onRetake, onClose }) {
     if (!dataUrl) return null;
     return (
