@@ -26,11 +26,15 @@ function buildPathSamples() {
     let distance = 0;
     const steps = 240;
     let previousPoint = sampleSmoothPath(0);
-    pathSamples.push({ point: previousPoint, distance });
-    for (let step = 1; step <= steps; step += 1) {
-        const point = sampleSmoothPath(step / steps);
-        distance += point.distanceTo(previousPoint);
-        pathSamples.push({ point, distance });
+    for (let step = 0; step <= steps; step += 1) {
+        const t = step / steps;
+        const point = sampleSmoothPath(t);
+        const next = t < 1 ? sampleSmoothPath(t + 0.002) : sampleSmoothPath(t - 0.002);
+        const tangent = next.clone().sub(point).normalize();
+        if (step > 0) {
+            distance += point.distanceTo(previousPoint);
+        }
+        pathSamples.push({ point, tangent, distance });
         previousPoint = point;
     }
     return pathSamples;

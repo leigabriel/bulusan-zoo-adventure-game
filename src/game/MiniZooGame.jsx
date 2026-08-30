@@ -4,9 +4,9 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 
 import { createScene, createCamera, createRenderer, createLighting, applyRendererQuality, applySceneQuality } from './components/Scene.jsx';
-import { createTerrain, createFence, createTigerEnclosure, loadTrees, loadBushes, loadRocks, createGrass, createClouds, getTerrainHeight, releaseTerrainModelCache, PLAYABLE_BOUNDARY } from './components/Terrain.jsx';
+import { createTerrain, createFence, createTigerEnclosure, loadTrees, loadBushes, loadRocks, createGrass, updateGrass, createClouds, getTerrainHeight, releaseTerrainModelCache, PLAYABLE_BOUNDARY } from './components/Terrain.jsx';
 import { loadGLTFAnimals, loadAmbientBirds, releaseAnimalModelCache } from './components/Animals.jsx';
-import { createRiver, updateRiver, updateRiverQuality, disposeRiver, isLandAccessible, findAccessiblePosition } from './components/River.jsx';
+import { createRiver, updateRiver, updateRiverQuality, disposeRiver, getRiverMetrics, isLandAccessible, findAccessiblePosition } from './components/River.jsx';
 import { loadNewHouses } from './components/Structures.jsx';
 import { createGLTFLoader } from './utils/gltfLoader.js';
 import { applyHumanSkinColor } from './utils/characterMaterials.js';
@@ -183,16 +183,47 @@ function setStaffNpcAction(npc, actionName) {
 let SMOKE_PUFF_TEXTURE = null;
 function getSmokePuffTexture() {
     if (SMOKE_PUFF_TEXTURE) return SMOKE_PUFF_TEXTURE;
+    const size = 128;
     const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
+    canvas.width = size;
+    canvas.height = size;
     const ctx = canvas.getContext('2d');
-    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    grad.addColorStop(0, 'rgba(235, 235, 235, 0.7)');
-    grad.addColorStop(0.4, 'rgba(200, 200, 200, 0.35)');
-    grad.addColorStop(1, 'rgba(180, 180, 180, 0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 64, 64);
+
+    ctx.clearRect(0, 0, size, size);
+
+    function drawCloudCluster(ox, oy, fillStyle, strokeStyle, lineWidth) {
+        ctx.fillStyle = fillStyle;
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = lineWidth;
+        ctx.lineJoin = 'round';
+
+        const circles = [
+            { x: ox, y: oy, r: 28 },
+            { x: ox - 20, y: oy + 8, r: 20 },
+            { x: ox + 20, y: oy + 8, r: 20 },
+            { x: ox - 10, y: oy - 16, r: 18 },
+            { x: ox + 10, y: oy - 16, r: 18 },
+        ];
+
+        if (lineWidth > 0) {
+            ctx.beginPath();
+            circles.forEach((c) => {
+                ctx.moveTo(c.x + c.r, c.y);
+                ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+            });
+            ctx.stroke();
+        }
+
+        circles.forEach((c) => {
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    drawCloudCluster(size / 2, size / 2 + 5, '#ffffff', 'rgba(100, 116, 139, 0.65)', 8);
+    drawCloudCluster(size / 2, size / 2 + 5, '#ffffff', '#ffffff', 0);
+
     SMOKE_PUFF_TEXTURE = new THREE.CanvasTexture(canvas);
     SMOKE_PUFF_TEXTURE.colorSpace = THREE.SRGBColorSpace;
     SMOKE_PUFF_TEXTURE.needsUpdate = true;
@@ -202,7 +233,7 @@ function getSmokePuffTexture() {
 function createRunSmokeSystem(scene) {
     const poolSize = 16;
     const puffs = [];
-    const geometry = new THREE.PlaneGeometry(0.7, 0.7);
+    const geometry = new THREE.PlaneGeometry(0.85, 0.85);
     const texture = getSmokePuffTexture();
 
     for (let i = 0; i < poolSize; i++) {
@@ -214,11 +245,10 @@ function createRunSmokeSystem(scene) {
             toneMapped: false
         });
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.rotation.x = -Math.PI / 2;
         mesh.visible = false;
-        mesh.renderOrder = 3;
+        mesh.renderOrder = 4;
         scene.add(mesh);
-        puffs.push({ mesh, material, life: 0, maxLife: 0.45, initialScale: 1, active: false });
+        puffs.push({ mesh, material, life: 0, maxLife: 0.35, initialScale: 1, active: false });
     }
 
     let spawnTimer = 0;
@@ -227,22 +257,22 @@ function createRunSmokeSystem(scene) {
         update: (dt, playerPos, isRunning, camera) => {
             if (isRunning) {
                 spawnTimer += dt;
-                if (spawnTimer >= 0.1) {
+                if (spawnTimer >= 0.08) {
                     spawnTimer = 0;
                     const puff = puffs.find((p) => !p.active);
                     if (puff) {
                         puff.active = true;
                         puff.life = 0;
-                        puff.maxLife = 0.35 + Math.random() * 0.2;
-                        puff.initialScale = 0.5 + Math.random() * 0.4;
+                        puff.maxLife = 0.28 + Math.random() * 0.15;
+                        puff.initialScale = 0.4 + Math.random() * 0.3;
                         puff.mesh.position.set(
-                            playerPos.x + (Math.random() - 0.5) * 0.4,
-                            playerPos.y + 0.08,
-                            playerPos.z + (Math.random() - 0.5) * 0.4
+                            playerPos.x + (Math.random() - 0.5) * 0.3,
+                            playerPos.y + 0.15,
+                            playerPos.z + (Math.random() - 0.5) * 0.3
                         );
-                        puff.mesh.scale.setScalar(puff.initialScale);
+                        puff.mesh.scale.setScalar(0.1);
                         puff.mesh.visible = true;
-                        puff.material.opacity = 0.5;
+                        puff.material.opacity = 0.95;
                     }
                 }
             }
@@ -256,10 +286,13 @@ function createRunSmokeSystem(scene) {
                     puff.mesh.visible = false;
                     return;
                 }
-                puff.mesh.position.y += dt * 0.7;
-                const scale = (puff.initialScale + progress * 0.8);
-                puff.mesh.scale.setScalar(scale);
-                puff.material.opacity = Math.sin(progress * Math.PI) * 0.5;
+                const popScale = Math.sin(Math.min(1, progress * 2.5) * Math.PI * 0.5);
+                const currentScale = (puff.initialScale + progress * 0.7) * popScale;
+                puff.mesh.scale.setScalar(currentScale);
+                puff.mesh.position.y += dt * 0.8;
+
+                puff.material.opacity = progress > 0.6 ? (1 - progress) / 0.4 : 0.95;
+
                 if (camera) {
                     puff.mesh.quaternion.copy(camera.quaternion);
                 }
@@ -703,6 +736,46 @@ function MiniZooGame() {
 
     const ambienceLoadingRef = useRef(false);
     const birdChirpingRef = useRef(null);
+    const riverAudioRef = useRef(null);
+    const runAudioRef = useRef(null);
+
+    const getRunAudio = useCallback(() => {
+        if (!runAudioRef.current) {
+            const fallbackPath = '/audio/running-effect-sound.mp3';
+            const audio = new Audio(fallbackPath);
+            audio.loop = true;
+            audio.preload = 'auto';
+            audio.volume = getSfxVolume() * 0.7;
+            audio.setAttribute('playsinline', 'true');
+            runAudioRef.current = audio;
+
+            resolveAssetUrl(fallbackPath).then((assetUrl) => {
+                if (runAudioRef.current === audio && assetUrl && audio.paused) {
+                    audio.src = assetUrl;
+                }
+            }).catch(() => {});
+        }
+        return runAudioRef.current;
+    }, []);
+
+    const getRiverAudio = useCallback(() => {
+        if (!riverAudioRef.current) {
+            const fallbackPath = '/audio/water-river.mp3';
+            const audio = new Audio(fallbackPath);
+            audio.loop = true;
+            audio.preload = 'auto';
+            audio.volume = 0;
+            audio.setAttribute('playsinline', 'true');
+            riverAudioRef.current = audio;
+
+            resolveAssetUrl(fallbackPath).then((assetUrl) => {
+                if (riverAudioRef.current === audio && assetUrl && audio.paused) {
+                    audio.src = assetUrl;
+                }
+            }).catch(() => {});
+        }
+        return riverAudioRef.current;
+    }, []);
 
     const getBirdChirping = useCallback(() => {
         if (!birdChirpingRef.current) {
@@ -822,6 +895,14 @@ function MiniZooGame() {
         if (birdChirpingRef.current) {
             birdChirpingRef.current.pause();
             if (!keepPosition) birdChirpingRef.current.currentTime = 0;
+        }
+        if (riverAudioRef.current) {
+            riverAudioRef.current.pause();
+            if (!keepPosition) riverAudioRef.current.currentTime = 0;
+        }
+        if (runAudioRef.current) {
+            runAudioRef.current.pause();
+            if (!keepPosition) runAudioRef.current.currentTime = 0;
         }
     }, []);
 
@@ -1178,7 +1259,7 @@ function MiniZooGame() {
             state.currentCameraMode = cameraModeRef.current;
             state.controlsEnabled = false;
 
-            await createGrass(scene, isMobile ? 260 : 900);
+            state.grass = await createGrass(scene, isMobile ? 1200 : 2500);
             setLoadProgress(55);
 
             const initialSfxVolume = getSfxVolume();
@@ -1417,6 +1498,7 @@ function MiniZooGame() {
                     cameraTransition.active = false;
                 }
 
+                const sfxVol = getSfxVolume();
                 state.animals.forEach(a => {
                     if (a.group) {
                         const dx = playerPosition.x - a.group.position.x;
@@ -1424,13 +1506,48 @@ function MiniZooGame() {
                         const dz = playerPosition.z - a.group.position.z;
                         const distSq = dx * dx + dy * dy + dz * dz;
                         const updateRange = isMobile ? 130 : 200;
-                        if (distSq < updateRange * updateRange) a.update(now * 0.001, dt);
+                        if (distSq < updateRange * updateRange) {
+                            a.update(now * 0.001, dt, playerPosition, soundEnabledRef.current ? sfxVol : 0);
+                        }
                     }
                 });
                 state.ambientBirds.forEach((bird) => bird.update(now * 0.001, dt));
 
                 // World animation continues while input is locked by the book overlay.
                 updateRiver(state.river, dt, gameStartedRef.current);
+                updateGrass(state.grass, now * 0.001);
+
+                const riverAudio = getRiverAudio();
+                if (riverAudio) {
+                    const ambVol = getAmbienceVolume();
+                    if (ambVol > 0 && playerPosition && gameStartedRef.current) {
+                        const riverMetrics = getRiverMetrics(playerPosition.x, playerPosition.z);
+                        const distToRiver = riverMetrics.lateral;
+                        const riverProx = THREE.MathUtils.clamp(1 - distToRiver / 55, 0, 1);
+                        riverAudio.volume = ambVol * riverProx * 0.85;
+                        if (riverProx > 0.02 && riverAudio.paused) {
+                            try { riverAudio.play().catch(() => {}); } catch {}
+                        } else if (riverProx <= 0.02 && !riverAudio.paused) {
+                            riverAudio.pause();
+                        }
+                    } else if (!riverAudio.paused) {
+                        riverAudio.pause();
+                    }
+                }
+
+                const runAudio = getRunAudio();
+                if (runAudio) {
+                    const isRunning = state.playerIsMoving && state.isGrounded && soundEnabledRef.current && gameStartedRef.current && !document.hidden;
+                    const sfxVol = getSfxVolume();
+                    if (isRunning && sfxVol > 0) {
+                        runAudio.volume = sfxVol * 0.7;
+                        if (runAudio.paused) {
+                            try { runAudio.play().catch(() => {}); } catch {}
+                        }
+                    } else if (!runAudio.paused) {
+                        runAudio.pause();
+                    }
+                }
 
                 state.clouds.forEach(c => {
                     c.position.x += 0.02 * dt * 60;
@@ -2157,7 +2274,13 @@ function MiniZooGame() {
                         cameraMode={cameraMode}
                         onCameraModeChange={(mode) => setCameraMode(mode)}
                     />
-                    <TaskPanel isOpen={tasksOpen} onClose={() => setTasksOpen(false)} tasks={tasks} onTaskClick={() => setTasksOpen(false)} />
+                    <TaskPanel
+                        isOpen={tasksOpen}
+                        onClose={() => setTasksOpen(false)}
+                        tasks={tasks}
+                        onTaskClick={() => setTasksOpen(false)}
+                        onResetTasks={handleResetTasks}
+                    />
                     <NPCInteractionPrompt
                         visible={canShowNpcPrompt}
                         onInteract={openNpcDialogue}

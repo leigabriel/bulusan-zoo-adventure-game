@@ -8,7 +8,8 @@ const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/bz-url-logo.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
 ];
 
 const STATIC_EXT_RE = /\.(?:js|css|png|jpg|jpeg|webp|svg|gif|ico|woff2?|ttf|otf)$/i;

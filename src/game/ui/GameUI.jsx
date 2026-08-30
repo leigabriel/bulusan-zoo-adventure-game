@@ -939,7 +939,7 @@ export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick, onResetTas
     return (
         <div className="fixed inset-0 z-95" data-ui-modal="true" role="dialog" aria-modal="true" aria-label="Zoo task checklist">
             <button type="button" className="absolute inset-0 bg-emerald-950/20 backdrop-blur-[1px]" onClick={onClose} aria-label="Close task checklist" />
-            <section className="absolute right-[max(.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+.5rem)] flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] w-[min(28rem,calc(100vw-1rem))] flex-col rounded-sm border-2 border-slate-500 bg-[#fffef7] p-3 text-slate-800 shadow-[7px_8px_0_rgba(15,23,42,.25)] sm:p-5">
+            <section className="absolute right-[max(.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+.5rem)] flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] w-[min(36rem,calc(100vw-1rem))] flex-col rounded-sm border-2 border-slate-500 bg-[#fffef7] p-3 text-slate-800 shadow-[7px_8px_0_rgba(15,23,42,.25)] sm:p-5">
                 <header className="flex shrink-0 items-start justify-between gap-3 border-b-2 border-slate-300 pb-2">
                     <div>
                         <p className="text-xl font-black uppercase tracking-[0.08em] sm:text-2xl">Checklist</p>
@@ -947,7 +947,7 @@ export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick, onResetTas
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="rounded-lg border-2 border-slate-400 bg-white px-2 py-1 text-xs font-black">{completedCount} / {tasks.length}</span>
-                        <IconButton onClick={onClose} aria-label="Close checklist" className="h-9 w-9"><span className="text-lg leading-none">&times;</span></IconButton>
+                        <button type="button" onClick={onClose} aria-label="Close checklist" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white font-black text-lg shadow-[0_3px_0_0_#9f1239] transition-transform active:scale-95">&times;</button>
                     </div>
                 </header>
 
@@ -1047,45 +1047,153 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
         onSelectChoice?.(choice);
     };
 
+    const isLina = (npcName || '').toLowerCase().includes('lina');
+    const avatarEmoji = isLina ? '👩‍🌾' : '🤠';
+    const isMultiChoice = choices.length > 3;
+
     return (
-        <div className="fixed inset-0 z-120 flex items-center justify-center bg-emerald-950/45 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-label="Ranger Guide">
-            <div className={cx('ranger-guide-panel relative flex max-h-[min(90dvh,44rem)] w-full max-w-2xl flex-col overflow-hidden', transitioning && 'ranger-guide-transition')}>
-                <header className="ranger-guide-header flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6 sm:py-4">
-                    <div className="ranger-portrait" aria-hidden="true"><span>🧑‍🌾</span></div>
+        <div className="fixed inset-0 z-120 flex items-center justify-center bg-emerald-950/50 p-2 sm:p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Ranger Guide">
+            <div className={cx('ranger-guide-panel relative flex w-full max-w-xl flex-col overflow-hidden rounded-3xl border-4 border-amber-400 bg-amber-50 shadow-2xl my-auto', transitioning && 'ranger-guide-transition')}>
+                {/* Header */}
+                <header className="ranger-guide-header flex shrink-0 items-center gap-2.5 px-3.5 py-2.5 sm:px-5 sm:py-3.5 bg-gradient-to-r from-emerald-100 via-amber-100 to-lime-100 border-b-2 border-amber-300">
+                    <div className="ranger-portrait flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border-2 border-amber-400 bg-emerald-200 text-2xl shadow-inner" aria-hidden="true">
+                        <span>{avatarEmoji}</span>
+                    </div>
                     <div className="min-w-0 flex-1">
-                        <p className="ranger-guide-kicker">Your zoo guide</p>
-                        <p className="text-xl font-black leading-none text-emerald-950 sm:text-3xl">{npcName || 'Ranger Lino'}</p>
-                        <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 sm:text-xs">{npcRole || 'Zoo Ranger'}</p>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">
+                            ★ ZOO RANGER
+                        </span>
+                        <h2 className="text-lg font-black text-emerald-950 leading-tight sm:text-2xl">{npcName || 'Ranger Lino'}</h2>
                     </div>
-                    <button type="button" className="ranger-close-button" onClick={onClose} aria-label="Close Ranger Guide">×</button>
+                    <button
+                        type="button"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xl font-black text-white shadow-md hover:bg-rose-600 active:scale-95 transition-transform"
+                        onClick={onClose}
+                        aria-label="Close Ranger Guide"
+                    >
+                        ×
+                    </button>
                 </header>
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-7 sm:py-5" data-ui-scrollable="true">
-                    <div className="ranger-speech-bubble ranger-guide-message">
-                        <span className="ranger-message-label">{npcName || 'Zoo Ranger'} says</span>
-                        <p className="text-sm font-bold leading-relaxed text-emerald-950 sm:text-base">{message}</p>
+
+                {/* Content Body - Fits 100% on screen with NO scrolling */}
+                <div className="flex flex-col gap-2.5 p-3 sm:p-4 overflow-hidden">
+                    {/* Speech Bubble */}
+                    <div className="ranger-speech-bubble relative rounded-2xl rounded-tl-sm border-2 border-emerald-300 bg-white p-3 sm:p-4 shadow-sm">
+                        <span className="block mb-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                            {npcName || 'Zoo Ranger'} says 💬
+                        </span>
+                        <p className="text-xs sm:text-sm font-extrabold leading-relaxed text-emerald-950">
+                            {message}
+                        </p>
                     </div>
-                    {missionSteps.length > 0 && choices.some((choice) => choice.id === 'mission') ? null : null}
+
+                    {/* Mission Steps View */}
                     {choices.some((choice) => choice.id === 'back') && missionSteps.length > 0 && !isAnimalPage ? (
-                        <div className="ranger-mission-card mt-4">
-                            <div className="flex items-center justify-between gap-2"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Mission trail</p><p className="text-xs font-black text-emerald-800">{missionSteps.filter((step) => step.done).length} of {missionSteps.length} complete</p></div>
-                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                                {missionSteps.map((step, index) => <div key={step.title} className={cx('ranger-mission-step', step.done && 'ranger-mission-step-done')}><span className="ranger-mission-number">{step.done ? '✓' : index + 1}</span><span><b>{step.title}</b><br /><span>{step.objective}</span></span></div>)}
+                        <div className="ranger-mission-card rounded-2xl border-2 border-amber-300 bg-amber-100/70 p-2.5 sm:p-3">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">
+                                    🎯 Mission Goals
+                                </span>
+                                <span className="text-xs font-black text-emerald-800">
+                                    {missionSteps.filter((step) => step.done).length} of {missionSteps.length} complete
+                                </span>
+                            </div>
+                            <div className="grid gap-1.5 sm:grid-cols-2">
+                                {missionSteps.map((step, index) => (
+                                    <div key={step.title} className={cx('flex items-center gap-2 rounded-xl bg-white/90 p-2 text-xs font-bold text-slate-800 border', step.done ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-amber-200')}>
+                                        <span className={cx('flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black', step.done ? 'bg-emerald-500 text-white' : 'bg-amber-200 text-amber-900')}>
+                                            {step.done ? '✓' : index + 1}
+                                        </span>
+                                        <div className="min-w-0 flex-1 leading-tight">
+                                            <p className="font-black text-slate-900">{step.title}</p>
+                                            <p className="text-[10px] text-slate-600 truncate">{step.objective}</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     ) : null}
+
+                    {/* Animal Browser View */}
                     {isAnimalPage ? (
-                        <div className="ranger-animal-browser mt-4">
-                            <div className="ranger-animal-detail">
-                                {selectedAnimal ? <><div className="flex items-start gap-3"><span className="ranger-detail-emoji">{selectedAnimal.emoji}</span><div><h3 className="text-lg font-black text-emerald-950 sm:text-2xl">{selectedAnimal.name}</h3><p className="text-[10px] font-bold italic text-slate-500 sm:text-xs">{selectedAnimal.scientific}</p></div></div><div className="mt-4 grid gap-2 text-xs font-semibold leading-relaxed text-slate-700"><p><b>Habitat:</b> {selectedAnimal.habitat}</p><p><b>Diet:</b> {selectedAnimal.diet}</p><p><b>Fun fact:</b> {selectedAnimal.fact}</p></div><button type="button" className="mt-4 font-black text-amber-700 underline" onClick={onOpenAnimalBook}>Open in Animal Book</button></> : <div className="ranger-detail-empty"><span>🐾</span><p>No animals discovered yet.</p></div>}
+                        <div className="ranger-animal-browser flex flex-col gap-2">
+                            <div className="ranger-animal-detail rounded-2xl border-2 border-amber-300 bg-amber-100/70 p-3">
+                                {selectedAnimal ? (
+                                    <>
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">
+                                                {selectedAnimal.emoji}
+                                            </span>
+                                            <div>
+                                                <h3 className="text-base sm:text-lg font-black text-emerald-950 leading-tight">{selectedAnimal.name}</h3>
+                                                <p className="text-[10px] font-bold italic text-slate-500">{selectedAnimal.scientific}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 text-xs font-bold leading-tight text-slate-700 space-y-1">
+                                            <p><span className="text-emerald-800 font-black">Habitat:</span> {selectedAnimal.habitat}</p>
+                                            <p><span className="text-emerald-800 font-black">Diet:</span> {selectedAnimal.diet}</p>
+                                            <p><span className="text-emerald-800 font-black">Fun Fact:</span> {selectedAnimal.fact}</p>
+                                        </div>
+                                        <button type="button" className="mt-2 text-xs font-black text-amber-800 underline hover:text-amber-950" onClick={onOpenAnimalBook}>
+                                            📖 Open in Animal Book
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-4 text-center text-amber-900">
+                                        <span className="text-3xl">🐾</span>
+                                        <p className="text-xs font-black mt-1">No animals discovered yet.</p>
+                                    </div>
+                                )}
                             </div>
                             <PaginationControls page={animalPage} pageCount={animalEntries.length} onPageChange={setAnimalPage} />
                         </div>
                     ) : null}
-                    {!isAnimalPage ? <div className="ranger-choice-grid mt-4">{choices.map((choice, index) => <button type="button" key={choice.id} disabled={transitioning} onClick={() => choose(choice)} className={cx('ranger-choice-button', choice.accent && 'ranger-choice-accent', pressedChoice === choice.id && 'ranger-choice-pressed')}><span className="ranger-choice-icon">{choice.icon || index + 1}</span><span>{choice.label}</span><span className="ranger-choice-arrow">›</span></button>)}</div> : null}
+
+                    {/* Choice Buttons - Grid / Stack that fits on screen without scrolling */}
+                    {!isAnimalPage ? (
+                        <div className={cx('ranger-choice-grid grid gap-2', isMultiChoice ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
+                            {choices.map((choice, index) => (
+                                <button
+                                    type="button"
+                                    key={choice.id}
+                                    disabled={transitioning}
+                                    onClick={() => choose(choice)}
+                                    className={cx(
+                                        'ranger-choice-button flex min-h-[2.8rem] items-center gap-2.5 rounded-2xl border-2 px-3 py-2 text-xs sm:text-sm font-black text-emerald-950 transition-all active:scale-95',
+                                        choice.accent
+                                            ? 'border-amber-400 bg-amber-100 hover:bg-amber-200 shadow-sm'
+                                            : 'border-emerald-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 shadow-sm',
+                                        pressedChoice === choice.id && 'scale-95 border-emerald-500 bg-emerald-100'
+                                    )}
+                                >
+                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-sm shadow-inner">
+                                        {choice.icon || index + 1}
+                                    </span>
+                                    <span className="flex-1 text-left leading-tight">{choice.label}</span>
+                                    <span className="text-amber-600 font-black text-base">›</span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : null}
                 </div>
-                <footer className="flex shrink-0 justify-between gap-2 border-t-2 border-amber-200/80 px-4 py-3 sm:px-7">
-                    <button type="button" className="ranger-footer-button" disabled={transitioning} onClick={() => choose({ id: 'back', nextId: 'root' })}>Back</button>
-                    <button type="button" className="ranger-footer-button ranger-footer-close" onClick={onClose}>Close</button>
+
+                {/* Footer */}
+                <footer className="flex shrink-0 items-center justify-between gap-2 border-t-2 border-amber-300 bg-amber-100/60 px-3.5 py-2.5 sm:px-5">
+                    <button
+                        type="button"
+                        className="rounded-xl border-2 border-emerald-300 bg-emerald-100 px-3.5 py-1.5 text-xs font-black text-emerald-900 hover:bg-emerald-200 active:scale-95 transition-transform"
+                        disabled={transitioning}
+                        onClick={() => choose({ id: 'back', nextId: 'root' })}
+                    >
+                        ← Back
+                    </button>
+                    <button
+                        type="button"
+                        className="rounded-xl border-2 border-amber-400 bg-amber-200 px-3.5 py-1.5 text-xs font-black text-amber-950 hover:bg-amber-300 active:scale-95 transition-transform"
+                        onClick={onClose}
+                    >
+                        Close Dialogue
+                    </button>
                 </footer>
             </div>
         </div>

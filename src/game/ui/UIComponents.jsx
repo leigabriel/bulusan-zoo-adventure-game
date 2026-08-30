@@ -193,7 +193,7 @@ export function ModalShell({ isOpen, onClose, title, children, size = 'md', clos
             >
                 <div className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-emerald-50 p-4 sm:px-8 sm:py-5">
                     {title ? <h2 className="text-xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">{title}</h2> : <span />}
-                    {showClose ? <IconButton onClick={onClose} aria-label="Close"><span className="text-xl font-bold leading-none">&times;</span></IconButton> : null}
+                    {showClose ? <button type="button" onClick={onClose} aria-label="Close" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white font-black text-xl shadow-[0_4px_0_0_#9f1239] transition-transform active:scale-95">&times;</button> : null}
                 </div>
                 <div className="min-h-0 overflow-y-auto p-4 sm:p-6" data-ui-scrollable="true">
                     {children}
@@ -231,9 +231,7 @@ export function SideSheet({ isOpen, onClose, title, side = 'left', children }) {
                 <div className="flex h-full flex-col">
                     <div className="flex items-center justify-between border-b-2 border-emerald-50 px-4 py-3 sm:px-6 sm:py-5">
                         <h3 className="text-sm sm:text-base font-black uppercase tracking-[0.12em] text-emerald-900">{title}</h3>
-                        <IconButton onClick={onClose} aria-label="Close panel">
-                            <span className="text-xl font-bold leading-none">&times;</span>
-                        </IconButton>
+                        <button type="button" onClick={onClose} aria-label="Close panel" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white font-black text-xl shadow-[0_4px_0_0_#9f1239] transition-transform active:scale-95">&times;</button>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6" data-ui-scrollable="true">
                         {children}

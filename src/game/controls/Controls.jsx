@@ -122,21 +122,25 @@ export function createMovementHandler(camera, state) {
                 }
             }
         };
-        const enclosureMinX = TIGER_ENCLOSURE.x - TIGER_ENCLOSURE.halfSize;
-        const enclosureMaxX = TIGER_ENCLOSURE.x + TIGER_ENCLOSURE.halfSize;
-        const enclosureMinZ = TIGER_ENCLOSURE.z - TIGER_ENCLOSURE.halfSize;
-        const enclosureMaxZ = TIGER_ENCLOSURE.z + TIGER_ENCLOSURE.halfSize;
-        if (nextX > enclosureMinX && nextX < enclosureMaxX && nextZ > enclosureMinZ && nextZ < enclosureMaxZ) {
-            const distances = [
-                { distance: nextX - enclosureMinX, axis: 'x', value: enclosureMinX - PLAYER_RADIUS },
-                { distance: enclosureMaxX - nextX, axis: 'x', value: enclosureMaxX + PLAYER_RADIUS },
-                { distance: nextZ - enclosureMinZ, axis: 'z', value: enclosureMinZ - PLAYER_RADIUS },
-                { distance: enclosureMaxZ - nextZ, axis: 'z', value: enclosureMaxZ + PLAYER_RADIUS },
-            ];
-            const nearest = distances.reduce((best, current) => current.distance < best.distance ? current : best);
-            if (nearest.axis === 'x') nextX = nearest.value;
-            else nextZ = nearest.value;
+        // Smooth Tiger Enclosure Box collision (includes PLAYER_RADIUS padding to prevent vibration/jitter)
+        const padEnclosureMinX = TIGER_ENCLOSURE.x - TIGER_ENCLOSURE.halfSize - PLAYER_RADIUS;
+        const padEnclosureMaxX = TIGER_ENCLOSURE.x + TIGER_ENCLOSURE.halfSize + PLAYER_RADIUS;
+        const padEnclosureMinZ = TIGER_ENCLOSURE.z - TIGER_ENCLOSURE.halfSize - PLAYER_RADIUS;
+        const padEnclosureMaxZ = TIGER_ENCLOSURE.z + TIGER_ENCLOSURE.halfSize + PLAYER_RADIUS;
+
+        if (nextX > padEnclosureMinX && nextX < padEnclosureMaxX && nextZ > padEnclosureMinZ && nextZ < padEnclosureMaxZ) {
+            const pushLeft = nextX - padEnclosureMinX;
+            const pushRight = padEnclosureMaxX - nextX;
+            const pushBack = nextZ - padEnclosureMinZ;
+            const pushFront = padEnclosureMaxZ - nextZ;
+
+            const minPush = Math.min(pushLeft, pushRight, pushBack, pushFront);
+            if (minPush === pushLeft) nextX = padEnclosureMinX;
+            else if (minPush === pushRight) nextX = padEnclosureMaxX;
+            else if (minPush === pushBack) nextZ = padEnclosureMinZ;
+            else if (minPush === pushFront) nextZ = padEnclosureMaxZ;
         }
+
         resolveObstacles(state.obstacles);
         resolveObstacles(state.animalObstacles);
 

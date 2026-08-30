@@ -56,7 +56,11 @@ const AUDIO_ASSETS = [
   '/audio/finish-task.mp3',
   '/audio/game-bg-music.mp3',
   '/audio/horse.mp3',
+  '/audio/monkey.mp3',
+  '/audio/ostrich.mp3',
   '/audio/redd.mp3',
+  '/audio/running-effect-sound.mp3',
+  '/audio/water-river.mp3',
 ];
 
 export const ESSENTIAL_ASSET_PATHS = [

@@ -10,6 +10,7 @@ const ANIMAL_CONFIGS = [
     {
         file: 'Deer.gltf',
         soundFile: 'deer.mp3',
+        soundGain: 0.85,
         scale: 1.3,
         speed: 0.05,
         runSpeed: 0.11,
@@ -22,6 +23,7 @@ const ANIMAL_CONFIGS = [
     {
         file: 'Horse.gltf',
         soundFile: 'horse.mp3',
+        soundGain: 0.80,
         scale: 1.3,
         speed: 0.08,
         runSpeed: 0.16,
@@ -33,6 +35,8 @@ const ANIMAL_CONFIGS = [
     },
     {
         file: 'ostrich/scene.gltf',
+        soundFile: 'ostrich.mp3',
+        soundGain: 0.80,
         targetHeight: 2.4,
         scale: 3,
         speed: 0,
@@ -49,6 +53,7 @@ const ANIMAL_CONFIGS = [
     {
         file: 'Donkey.gltf',
         soundFile: 'donkey.mp3',
+        soundGain: 0.75,
         scale: 1.5,
         speed: 0.05,
         runSpeed: 0.09,
@@ -61,6 +66,7 @@ const ANIMAL_CONFIGS = [
     {
         file: 'Cow.gltf',
         soundFile: 'cow.mp3',
+        soundGain: 0.80,
         scale: 1.1,
         speed: 0.04,
         runSpeed: 0.07,
@@ -73,6 +79,7 @@ const ANIMAL_CONFIGS = [
     {
         file: 'Alpaca.gltf',
         soundFile: 'alpaca.mp3',
+        soundGain: 0.85,
         scale: 1.1,
         speed: 0.05,
         runSpeed: 0.09,
@@ -85,6 +92,7 @@ const ANIMAL_CONFIGS = [
     {
         file: 'Stag.gltf',
         soundFile: 'redd.mp3',
+        soundGain: 0.80,
         scale: 1.3,
         speed: 0.06,
         runSpeed: 0.13,
@@ -98,6 +106,7 @@ const ANIMAL_CONFIGS = [
     {
         file: 'Bull.gltf',
         soundFile: 'bull.wav',
+        soundGain: 0.75,
         scale: 1.4,
         speed: 0.045,
         runSpeed: 0.085,
@@ -110,6 +119,8 @@ const ANIMAL_CONFIGS = [
     },
     {
         file: 'monkey/scene.gltf',
+        soundFile: 'monkey.mp3',
+        soundGain: 0.80,
         targetHeight: 1.5,
         scale: 1.3,
         speed: 0.04,
@@ -142,6 +153,7 @@ const ANIMAL_CONFIGS = [
         file: 'tiger/scene.gltf',
         scale: 4.25,
         soundFile: 'tiger.mp3',
+        soundGain: 0.85,
         speed: 0.038,
         runSpeed: 0.082,
         count: 1,
@@ -304,6 +316,9 @@ class GLTFAnimal {
         this.config = config;
         this.obstacles = obstacles; // Store obstacles for AI logic
         this.soundVolume = initialVolume;
+        this.sfxSetting = initialVolume;
+        this.baseSoundGain = config.soundGain ?? 0.85;
+        this.currentSpatialFactor = 0;
         this.dynamicBox = new THREE.Box3();
         this.terrainNormal = new THREE.Vector3();
         this.mixer = null;
@@ -435,21 +450,41 @@ class GLTFAnimal {
 
     updateVolume(volume) {
         const nextVol = THREE.MathUtils.clamp(volume, 0, 1);
-        this.soundVolume = nextVol;
+        this.sfxSetting = nextVol;
         if (this.sound) {
-            this.sound.volume = nextVol;
+            this.sound.volume = nextVol * (this.currentSpatialFactor ?? 1) * (this.baseSoundGain ?? 0.85);
         }
     }
 
-    async playSound() {
+    async playSound(listenerPosition = null, sfxSetting = null) {
         if (!this.sound) return;
-        if (!this.sound.paused) return;
+        const currentSfxSetting = typeof sfxSetting === 'number' ? sfxSetting : (this.sfxSetting ?? 1.0);
+
+        let initialFactor = 0.5;
+        if (listenerPosition && this.group) {
+            const dx = listenerPosition.x - this.group.position.x;
+            const dz = listenerPosition.z - this.group.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist <= 4.0) {
+                initialFactor = 1.0;
+            } else if (dist < AMBIENT_SOUND_RADIUS) {
+                const norm = 1.0 - (dist - 4.0) / (AMBIENT_SOUND_RADIUS - 4.0);
+                initialFactor = norm * norm;
+            } else {
+                return;
+            }
+        }
+
+        const baseGain = this.baseSoundGain ?? 0.85;
+        const targetVol = currentSfxSetting * baseGain * initialFactor;
+        if (targetVol <= 0.01) return;
+
         try {
-            this.sound.volume = this.soundVolume;
+            this.sound.volume = Math.min(0.04, targetVol);
             this.sound.currentTime = 0;
             await this.sound.play();
         } catch {
-            // Audio can fail if blocked or asset is missing; ignore to avoid gameplay interruption.
+            // Audio error fallback
         }
     }
 
@@ -475,7 +510,7 @@ class GLTFAnimal {
 
         if (nowSeconds < this.nextAmbientSoundAt) return;
 
-        this.playSound();
+        this.playSound(listenerPosition, this.sfxSetting ?? 1.0);
         this.scheduleNextAmbientSound(nowSeconds);
     }
 
@@ -519,8 +554,43 @@ class GLTFAnimal {
         }
     }
 
-    update(t, dt) {
+    update(t, dt, listenerPosition = null, sfxSetting = null) {
         if (this.mixer) this.mixer.update(dt);
+
+        if (typeof sfxSetting === 'number') {
+            this.sfxSetting = sfxSetting;
+        }
+        const currentSfxSetting = this.sfxSetting ?? 1.0;
+        const baseGain = this.baseSoundGain ?? 0.85;
+
+        // Dynamic spatial sound volume fade-in and fade-out based on character proximity
+        if (this.sound && listenerPosition && this.group) {
+            const dx = listenerPosition.x - this.group.position.x;
+            const dz = listenerPosition.z - this.group.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+
+            let spatialFactor = 0;
+            if (dist <= 4.0) {
+                spatialFactor = 1.0;
+            } else if (dist < AMBIENT_SOUND_RADIUS) {
+                const norm = 1.0 - (dist - 4.0) / (AMBIENT_SOUND_RADIUS - 4.0);
+                spatialFactor = norm * norm;
+            }
+
+            this.currentSpatialFactor = spatialFactor;
+            const targetVol = currentSfxSetting * baseGain * spatialFactor;
+
+            if (!this.sound.paused) {
+                const curVol = this.sound.volume;
+                const newVol = curVol + (targetVol - curVol) * Math.min(1, dt * 7.5);
+                this.sound.volume = THREE.MathUtils.clamp(newVol, 0, 1);
+
+                if (targetVol <= 0.005 && this.sound.volume <= 0.01) {
+                    this.sound.pause();
+                    this.sound.currentTime = 0;
+                }
+            }
+        }
 
         if (this.movementStyle !== 'static') {
             this.timer -= dt;

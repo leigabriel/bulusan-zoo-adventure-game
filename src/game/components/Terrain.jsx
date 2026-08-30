@@ -491,49 +491,220 @@ export function loadRocks(scene, count = 40) {
     return { rocks, loadPromise };
 }
 
-export function createGrass(scene, count = 2500) {
-    const grass = [];
-    const promises = GRASS_MODELS.map(name => loadOBJModel(name, '/models/natures/', 'grass'));
+let GRASS_MATERIAL = null;
 
-    return Promise.all(promises).then(async (models) => {
-        const validModels = models.filter(m => m !== null);
+function getWavingGrassMaterial() {
+    if (GRASS_MATERIAL) return GRASS_MATERIAL;
 
-        if (validModels.length > 0) {
-            for (let i = 0; i < count; i++) {
-                const baseModel = validModels[Math.floor(Math.random() * validModels.length)];
-                const grassClump = baseModel.clone();
+    GRASS_MATERIAL = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uWindSpeed: { value: 1.8 },
+            // Color palette precisely matched to terrain vertex colors
+            uColorBase: { value: new THREE.Color(0x386641) },  // darkGreen (terrain base)
+            uColorMid: { value: new THREE.Color(0x6a994e) },   // baseGreen (terrain main)
+            uColorTop: { value: new THREE.Color(0x8cb369) },   // freshGrass (terrain highlight)
+        },
+        vertexShader: `
+            uniform float uTime;
+            uniform float uWindSpeed;
+            varying vec2 vUv;
 
-                // Slightly larger and more varied scale
-                const scale = 1.2 + Math.random() * 2.2;
-                grassClump.scale.setScalar(scale);
+            void main() {
+                vUv = uv;
+                vec3 pos = position;
 
-                // Spread evenly across the ENTIRE terrain map
-                const angle = Math.random() * Math.PI * 2;
-                const r = Math.pow(Math.random(), 0.5) * 235; // Keep grass within the 500x500 terrain.
-                 const x = Math.cos(angle) * r;
-                 const z = Math.sin(angle) * r;
-                 if (!isLandAccessible(x, z, 0.8)) continue;
-                 const h = getTerrainHeight(x, z);
+                // Extract instance world coordinates for waving animation
+                vec3 instancePos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
 
-                grassClump.position.set(x, h, z);
-
-                // Randomize rotation and add slight tilt for a wild/windy look
-                grassClump.rotation.y = Math.random() * Math.PI * 2;
-                grassClump.rotation.x = (Math.random() - 0.5) * 0.3;
-                grassClump.rotation.z = (Math.random() - 0.5) * 0.3;
-                alignObjectToTerrain(grassClump, h, new THREE.Box3(), 0);
-
-                scene.add(grassClump);
-                grass.push(grassClump);
-
-                // Yield during bulk cloning so the loading screen and browser stay responsive.
-                if (i > 0 && i % 40 === 0) {
-                    await new Promise(resolve => requestAnimationFrame(resolve));
+                // Waving motion applies to top vertices (vUv.y > 0.05), root remains fixed
+                if (pos.y > 0.05) {
+                    float waveX = sin(uTime * uWindSpeed * 1.5 + instancePos.x * 0.15 + instancePos.z * 0.15) * 0.14 * pos.y;
+                    float waveZ = cos(uTime * uWindSpeed * 1.1 + instancePos.x * 0.20 - instancePos.z * 0.12) * 0.10 * pos.y;
+                    pos.x += waveX;
+                    pos.z += waveZ;
                 }
+
+                vec4 worldPosition = instanceMatrix * vec4(pos, 1.0);
+                gl_Position = projectionMatrix * modelViewMatrix * worldPosition;
             }
-        }
-        return grass;
+        `,
+        fragmentShader: `
+            uniform vec3 uColorBase;
+            uniform vec3 uColorMid;
+            uniform vec3 uColorTop;
+            varying vec2 vUv;
+
+            void main() {
+                // Color gradient matched seamlessly with terrain
+                vec3 color;
+                if (vUv.y < 0.5) {
+                    color = mix(uColorBase, uColorMid, vUv.y * 2.0);
+                } else {
+                    color = mix(uColorMid, uColorTop, (vUv.y - 0.5) * 2.0);
+                }
+
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `,
+        side: THREE.DoubleSide,
+        depthWrite: true,
     });
+
+    return GRASS_MATERIAL;
+}
+
+function createGrassTuftGeometry() {
+    const geom = new THREE.BufferGeometry();
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+
+    // Classic low-poly Three.js style grass: 3 crossed planes (asterisk shape)
+    // Extremely lightweight: only 12 vertices and 6 quads (12 triangles) total per tuft!
+    const numPlanes = 3;
+    const width = 0.45;  // Low-poly blade width
+    const height = 0.65; // Low-poly blade height
+
+    let vertIndex = 0;
+    for (let i = 0; i < numPlanes; i++) {
+        const angle = (i / numPlanes) * Math.PI; // 0, 60, 120 degrees
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        const hw = width * 0.5;
+        const x1 = -hw * cos, z1 = -hw * sin;
+        const x2 =  hw * cos, z2 =  hw * sin;
+
+        // Vertices for plane quad (Base-Left, Base-Right, Top-Left, Top-Right)
+        positions.push(
+            x1, 0, z1,       // 0: Base-Left
+            x2, 0, z2,       // 1: Base-Right
+            x1, height, z1,  // 2: Top-Left
+            x2, height, z2   // 3: Top-Right
+        );
+
+        uvs.push(
+            0.0, 0.0,
+            1.0, 0.0,
+            0.0, 1.0,
+            1.0, 1.0
+        );
+
+        // Triangles for quad (0, 1, 3) and (0, 3, 2)
+        indices.push(
+            vertIndex + 0, vertIndex + 1, vertIndex + 3,
+            vertIndex + 0, vertIndex + 3, vertIndex + 2
+        );
+
+        vertIndex += 4;
+    }
+
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geom.setIndex(indices);
+    geom.computeVertexNormals();
+
+    return geom;
+}
+
+export function createGrass(scene, count = 2500) {
+    const geometry = createGrassTuftGeometry();
+    const material = getWavingGrassMaterial();
+    const instancedMesh = new THREE.InstancedMesh(geometry, material, count);
+
+    const dummy = new THREE.Object3D();
+    let instanceIdx = 0;
+
+    // Patch cluster distribution across terrain
+    const clusterCenters = [];
+    const numClusters = 75;
+
+    // 1. Riverbank clusters
+    const riverPoints = [
+        [-218, 112], [-178, 101], [-135, 108], [-92, 94], [-48, 101],
+        [-4, 87], [42, 98], [88, 82], [132, 91], [176, 73], [218, 82]
+    ];
+    for (let i = 0; i < 20; i++) {
+        const seg = Math.floor(Math.random() * (riverPoints.length - 1));
+        const t = Math.random();
+        const rx = riverPoints[seg][0] + (riverPoints[seg + 1][0] - riverPoints[seg][0]) * t;
+        const rz = riverPoints[seg][1] + (riverPoints[seg + 1][1] - riverPoints[seg][1]) * t;
+        const metrics = getRiverMetrics(rx, rz);
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const push = metrics.width + 1.2 + Math.random() * 3.5;
+        const cx = rx + metrics.tangent.y * push * side;
+        const cz = rz - metrics.tangent.x * push * side;
+        clusterCenters.push({ x: cx, z: cz, radius: 4.5 + Math.random() * 3.5 });
+    }
+
+    // 2. Open meadow clusters
+    for (let i = clusterCenters.length; i < numClusters; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 15 + Math.random() * 200;
+        const cx = Math.cos(angle) * dist;
+        const cz = Math.sin(angle) * dist;
+        if (Math.abs(cx) < PLAYABLE_BOUNDARY && Math.abs(cz) < PLAYABLE_BOUNDARY) {
+            clusterCenters.push({ x: cx, z: cz, radius: 5.0 + Math.random() * 4.5 });
+        }
+    }
+
+    const tuftsPerCluster = Math.floor(count / clusterCenters.length);
+
+    for (const cluster of clusterCenters) {
+        const tuftCount = tuftsPerCluster + Math.floor((Math.random() - 0.5) * tuftsPerCluster * 0.5);
+        for (let i = 0; i < tuftCount; i++) {
+            if (instanceIdx >= count) break;
+
+            const r = Math.sqrt(Math.random()) * cluster.radius;
+            const theta = Math.random() * Math.PI * 2;
+            const x = cluster.x + Math.cos(theta) * r;
+            const z = cluster.z + Math.sin(theta) * r;
+
+            if (!isLandAccessible(x, z, 0.6)) continue;
+            const h = getTerrainHeight(x, z);
+
+            dummy.position.set(x, h, z);
+            dummy.rotation.y = Math.random() * Math.PI;
+            dummy.scale.set(0.9 + Math.random() * 0.4, 0.9 + Math.random() * 0.5, 0.9 + Math.random() * 0.4);
+
+            dummy.updateMatrix();
+            instancedMesh.setMatrixAt(instanceIdx, dummy.matrix);
+            instanceIdx++;
+        }
+    }
+
+    while (instanceIdx < count) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.pow(Math.random(), 0.5) * 220;
+        const x = Math.cos(angle) * r;
+        const z = Math.sin(angle) * r;
+
+        if (!isLandAccessible(x, z, 0.6)) continue;
+        const h = getTerrainHeight(x, z);
+
+        dummy.position.set(x, h, z);
+        dummy.rotation.y = Math.random() * Math.PI;
+        dummy.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.5, 0.8 + Math.random() * 0.4);
+
+        dummy.updateMatrix();
+        instancedMesh.setMatrixAt(instanceIdx, dummy.matrix);
+        instanceIdx++;
+    }
+
+    instancedMesh.count = instanceIdx;
+    instancedMesh.instanceMatrix.needsUpdate = true;
+    instancedMesh.receiveShadow = false;
+    instancedMesh.castShadow = false;
+
+    scene.add(instancedMesh);
+    return Promise.resolve(instancedMesh);
+}
+
+export function updateGrass(grassMesh, time) {
+    if (grassMesh && grassMesh.material && grassMesh.material.uniforms?.uTime) {
+        grassMesh.material.uniforms.uTime.value = time;
+    }
 }
 
 export function createClouds(scene, count = 18) {
