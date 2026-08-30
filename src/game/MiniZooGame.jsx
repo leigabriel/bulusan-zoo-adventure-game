@@ -180,6 +180,101 @@ function setStaffNpcAction(npc, actionName) {
     npc.currentAction = nextAction;
 }
 
+let SMOKE_PUFF_TEXTURE = null;
+function getSmokePuffTexture() {
+    if (SMOKE_PUFF_TEXTURE) return SMOKE_PUFF_TEXTURE;
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(235, 235, 235, 0.7)');
+    grad.addColorStop(0.4, 'rgba(200, 200, 200, 0.35)');
+    grad.addColorStop(1, 'rgba(180, 180, 180, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    SMOKE_PUFF_TEXTURE = new THREE.CanvasTexture(canvas);
+    SMOKE_PUFF_TEXTURE.colorSpace = THREE.SRGBColorSpace;
+    SMOKE_PUFF_TEXTURE.needsUpdate = true;
+    return SMOKE_PUFF_TEXTURE;
+}
+
+function createRunSmokeSystem(scene) {
+    const poolSize = 16;
+    const puffs = [];
+    const geometry = new THREE.PlaneGeometry(0.7, 0.7);
+    const texture = getSmokePuffTexture();
+
+    for (let i = 0; i < poolSize; i++) {
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            toneMapped: false
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.visible = false;
+        mesh.renderOrder = 3;
+        scene.add(mesh);
+        puffs.push({ mesh, material, life: 0, maxLife: 0.45, initialScale: 1, active: false });
+    }
+
+    let spawnTimer = 0;
+
+    return {
+        update: (dt, playerPos, isRunning, camera) => {
+            if (isRunning) {
+                spawnTimer += dt;
+                if (spawnTimer >= 0.1) {
+                    spawnTimer = 0;
+                    const puff = puffs.find((p) => !p.active);
+                    if (puff) {
+                        puff.active = true;
+                        puff.life = 0;
+                        puff.maxLife = 0.35 + Math.random() * 0.2;
+                        puff.initialScale = 0.5 + Math.random() * 0.4;
+                        puff.mesh.position.set(
+                            playerPos.x + (Math.random() - 0.5) * 0.4,
+                            playerPos.y + 0.08,
+                            playerPos.z + (Math.random() - 0.5) * 0.4
+                        );
+                        puff.mesh.scale.setScalar(puff.initialScale);
+                        puff.mesh.visible = true;
+                        puff.material.opacity = 0.5;
+                    }
+                }
+            }
+
+            puffs.forEach((puff) => {
+                if (!puff.active) return;
+                puff.life += dt;
+                const progress = puff.life / puff.maxLife;
+                if (progress >= 1) {
+                    puff.active = false;
+                    puff.mesh.visible = false;
+                    return;
+                }
+                puff.mesh.position.y += dt * 0.7;
+                const scale = (puff.initialScale + progress * 0.8);
+                puff.mesh.scale.setScalar(scale);
+                puff.material.opacity = Math.sin(progress * Math.PI) * 0.5;
+                if (camera) {
+                    puff.mesh.quaternion.copy(camera.quaternion);
+                }
+            });
+        },
+        dispose: () => {
+            puffs.forEach((puff) => {
+                scene.remove(puff.mesh);
+                puff.material.dispose();
+            });
+            geometry.dispose();
+        }
+    };
+}
+
 function getContactShadowTexture() {
     if (CONTACT_SHADOW_TEXTURE) return CONTACT_SHADOW_TEXTURE;
 
@@ -607,6 +702,26 @@ function MiniZooGame() {
     }, []);
 
     const ambienceLoadingRef = useRef(false);
+    const birdChirpingRef = useRef(null);
+
+    const getBirdChirping = useCallback(() => {
+        if (!birdChirpingRef.current) {
+            const fallbackPath = '/audio/bird-chirping.mp3';
+            const audio = new Audio(fallbackPath);
+            audio.loop = true;
+            audio.preload = 'auto';
+            audio.volume = getAmbienceVolume() * 0.75;
+            audio.setAttribute('playsinline', 'true');
+            birdChirpingRef.current = audio;
+
+            resolveAssetUrl(fallbackPath).then((assetUrl) => {
+                if (birdChirpingRef.current === audio && assetUrl && audio.paused) {
+                    audio.src = assetUrl;
+                }
+            }).catch(() => {});
+        }
+        return birdChirpingRef.current;
+    }, []);
 
     const getAmbience = useCallback(() => {
         if (!ambienceRef.current) {
@@ -662,19 +777,24 @@ function MiniZooGame() {
     const playAmbience = useCallback(async () => {
         const vol = getAmbienceVolume();
         const audio = getAmbience();
-        if (!audio || (!audio.src && !audio.currentSrc)) return;
-        audio.volume = vol;
-        if (vol <= 0) {
-            audio.pause();
-            return;
+        if (audio && (audio.src || audio.currentSrc)) {
+            audio.volume = vol;
+            if (vol <= 0) {
+                audio.pause();
+            } else if (audio.paused) {
+                try { await audio.play(); } catch {}
+            }
         }
-        if (!audio.paused) return;
-        try {
-            await audio.play();
-        } catch {
-            // Playback can fail before a user interaction
+        const birdAudio = getBirdChirping();
+        if (birdAudio && (birdAudio.src || birdAudio.currentSrc)) {
+            birdAudio.volume = vol * 0.75;
+            if (vol <= 0) {
+                birdAudio.pause();
+            } else if (birdAudio.paused) {
+                try { await birdAudio.play(); } catch {}
+            }
         }
-    }, [getAmbience]);
+    }, [getAmbience, getBirdChirping]);
 
     const playMusic = useCallback(async () => {
         const vol = getMusicVolume();
@@ -695,10 +815,13 @@ function MiniZooGame() {
 
     const stopAmbience = useCallback((keepPosition = true) => {
         const audio = ambienceRef.current;
-        if (!audio) return;
-        audio.pause();
-        if (!keepPosition) {
-            audio.currentTime = 0;
+        if (audio) {
+            audio.pause();
+            if (!keepPosition) audio.currentTime = 0;
+        }
+        if (birdChirpingRef.current) {
+            birdChirpingRef.current.pause();
+            if (!keepPosition) birdChirpingRef.current.currentTime = 0;
         }
     }, []);
 
@@ -1067,6 +1190,7 @@ function MiniZooGame() {
             setLoadProgress(95);
 
             const handleMovement = createMovementHandler(state.playerAnchor, state);
+            const smokeSystem = createRunSmokeSystem(scene);
             const desiredCameraPosition = new THREE.Vector3();
             const firstPersonCameraPosition = new THREE.Vector3();
             const lookTarget = new THREE.Vector3();
@@ -1167,6 +1291,10 @@ function MiniZooGame() {
                         }
                     }
                     state.playerMixer.update(dt);
+                }
+
+                if (state.playerCharacter) {
+                    smokeSystem.update(dt, state.playerCharacter.position, state.playerIsMoving && state.isGrounded, camera);
                 }
 
                 state.staffNpcs.forEach((npc) => {
@@ -1395,6 +1523,7 @@ function MiniZooGame() {
                 cleanupKeyboard();
                 cleanupTouch();
                 cleanupMouse();
+                smokeSystem.dispose();
                 state.animals.forEach(a => a.dispose?.());
                 disposePlayerCharacter();
                 state.staffNpcs.forEach((staffNpc) => {
@@ -1656,7 +1785,6 @@ function MiniZooGame() {
     const openBook = useCallback(() => {
         if (!gameStarted || !characterReady) return;
         closeInterfaces();
-        setCameraMode('first');
         const state = gameStateRef.current;
         state.controlsEnabled = false;
         state.mX = 0;
@@ -1670,7 +1798,6 @@ function MiniZooGame() {
 
     const closeBook = useCallback(() => {
         setBookOpen(false);
-        setCameraMode('third');
         const state = gameStateRef.current;
         if (gameStarted && characterReady) {
             state.controlsEnabled = true;
@@ -1962,7 +2089,7 @@ function MiniZooGame() {
     const missionSteps = [
         { title: 'Talk to Ranger Lino', objective: 'Say hello and get your ranger mission.', done: missionProgress.talkedToRanger, icon: '👋' },
         { title: 'Feed the horse', objective: 'Find the friendly horse and hold Feed.', done: missionProgress.fedHorse, icon: '🐴' },
-        { title: 'Feed the rabbit', objective: 'Find either rabbit and hold Feed for a gentle snack.', done: missionProgress.fedRabbit, icon: '🐇' }
+        { title: 'Feed the rabbit', objective: 'Find a rabbit and hold Feed for a gentle snack.', done: missionProgress.fedRabbit, icon: '🐇' }
     ];
     const missionComplete = missionSteps.every((step) => step.done);
     const npcDialogueNode = activeStaff?.id === 'lino' && npcDialogueNodeId === 'mission'

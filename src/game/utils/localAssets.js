@@ -45,6 +45,7 @@ const ANIMAL_MODEL_DEPENDENCIES = [
 const AUDIO_ASSETS = [
   '/audio/alpaca.mp3',
   '/audio/ambience.mp3',
+  '/audio/bird-chirping.mp3',
   '/audio/book-page-turning.mp3',
   '/audio/bull.wav',
   '/audio/click.mp3',

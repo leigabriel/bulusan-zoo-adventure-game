@@ -457,7 +457,7 @@ function Character3DPreview({ modelFile }) {
     );
 }
 
-function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, cameraMode, onCameraModeChange }) {
+function SettingsModal({ isOpen, onClose, onQuit, cameraMode, onCameraModeChange, inGame = false }) {
     const [settings, setSettings] = useState(() => readSettings());
     const [activeSection, setActiveSection] = useState(null);
 
@@ -474,12 +474,12 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, cameraMode, onCa
         setSettings(next);
         persistSettings(next);
     };
+
     const sectionTitles = {
         graphics: 'Graphics',
         audio: 'Audio',
         sensitivity: 'Sensitivity',
         perspective: 'View Perspective',
-        progress: 'Quit / Reset Progress',
     };
 
     if (activeSection) {
@@ -555,40 +555,39 @@ function SettingsModal({ isOpen, onClose, onQuit, onResetTasks, cameraMode, onCa
                             />
                         </div>
                     ) : null}
-
-                    {activeSection === 'progress' ? (
-                        <div className="grid flex-1 content-center gap-3 sm:grid-cols-2">
-                            {onResetTasks ? <ActionButton variant="warning" className="h-14" onClick={() => { onClose(); onResetTasks(); }}>Reset Progress</ActionButton> : null}
-                            {onQuit ? <ActionButton variant="danger" className="h-14" onClick={onQuit}>Quit Game</ActionButton> : null}
-                        </div>
-                    ) : null}
                 </div>
             </ModalShell>
         );
     }
 
     const categories = [
-        { id: 'resume', label: 'Resume', icon: '▶', className: 'bg-emerald-500 text-white shadow-[0_5px_0_0_#065f46]' },
-        { id: 'graphics', label: 'Graphics', icon: '▦', className: 'bg-sky-500 text-white shadow-[0_5px_0_0_#075985]' },
-        { id: 'audio', label: 'Audio', icon: '♪', className: 'bg-violet-500 text-white shadow-[0_5px_0_0_#5b21b6]' },
-        { id: 'sensitivity', label: 'Sensitivity', icon: '⌁', className: 'bg-amber-400 text-amber-950 shadow-[0_5px_0_0_#92400e]' },
-        { id: 'perspective', label: 'View Perspective', icon: '◉', className: 'bg-teal-500 text-white shadow-[0_5px_0_0_#115e59]' },
-        ...(onResetTasks || onQuit ? [{ id: 'progress', label: 'Quit / Reset', icon: '!', className: 'bg-rose-500 text-white shadow-[0_5px_0_0_#9f1239]' }] : []),
+        ...(inGame ? [{ id: 'resume', label: 'Resume', className: 'bg-emerald-500 text-white shadow-[0_5px_0_0_#065f46]' }] : []),
+        { id: 'graphics', label: 'Graphics', className: 'bg-sky-500 text-white shadow-[0_5px_0_0_#075985]' },
+        { id: 'audio', label: 'Audio', className: 'bg-violet-500 text-white shadow-[0_5px_0_0_#5b21b6]' },
+        { id: 'sensitivity', label: 'Sensitivity', className: 'bg-amber-400 text-amber-950 shadow-[0_5px_0_0_#92400e]' },
+        { id: 'perspective', label: 'View Perspective', className: 'bg-teal-500 text-white shadow-[0_5px_0_0_#115e59]' },
+        ...(inGame && onQuit ? [{ id: 'quit', label: 'Quit Game', className: 'bg-rose-500 text-white shadow-[0_5px_0_0_#9f1239]' }] : []),
     ];
 
     return (
         <ModalShell isOpen={isOpen} onClose={onClose} title="Game Settings" size="md">
             <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-3.5 w-full">
                     {categories.map((category) => (
                         <button
                             key={category.id}
                             type="button"
-                            onClick={() => category.id === 'resume' ? onClose() : setActiveSection(category.id)}
-                            className={cx('flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center font-black uppercase tracking-wide transition-all active:translate-y-1 active:shadow-none sm:min-h-24', category.className)}
+                            onClick={() => {
+                                if (category.id === 'resume') onClose();
+                                else if (category.id === 'quit') onQuit?.();
+                                else setActiveSection(category.id);
+                            }}
+                            className={cx(
+                                'flex w-full min-h-13 items-center justify-center rounded-2xl px-5 py-3 text-center font-black uppercase tracking-wider text-sm sm:text-base transition-all active:translate-y-1 active:shadow-none',
+                                category.className
+                            )}
                         >
-                            <span className="text-xl leading-none sm:text-2xl" aria-hidden="true">{category.icon}</span>
-                            <span className="text-[10px] leading-tight sm:text-xs">{category.label}</span>
+                            <span>{category.label}</span>
                         </button>
                     ))}
                 </div>
@@ -625,10 +624,19 @@ export function PlayerDetailsModal({ isOpen, onClose, onSave, required = false }
                 </div>
                 <fieldset>
                     <legend className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Gender</legend>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-3 w-full">
                         {PLAYER_GENDERS.map((option) => (
-                            <button key={option.id} type="button" aria-pressed={gender === option.id} onClick={() => { setGender(option.id); setError(''); }} className={cx('min-h-20 rounded-2xl text-sm font-black uppercase tracking-wider transition-all active:translate-y-1 active:shadow-none', option.id === 'boy' ? 'bg-sky-500 text-white shadow-[0_5px_0_0_#075985]' : 'bg-rose-400 text-white shadow-[0_5px_0_0_#9f1239]', gender === option.id && 'ring-4 ring-emerald-950/80 ring-offset-2')}>
-                                <span className="block text-2xl" aria-hidden="true">{option.id === 'boy' ? '♂' : '♀'}</span>
+                            <button
+                                key={option.id}
+                                type="button"
+                                aria-pressed={gender === option.id}
+                                onClick={() => { setGender(option.id); setError(''); }}
+                                className={cx(
+                                    'flex w-full min-h-12 items-center justify-center rounded-2xl px-4 py-3 text-sm font-black uppercase tracking-wider transition-all active:translate-y-1 active:shadow-none',
+                                    option.id === 'boy' ? 'bg-sky-500 text-white shadow-[0_5px_0_0_#075985]' : 'bg-rose-400 text-white shadow-[0_5px_0_0_#9f1239]',
+                                    gender === option.id && 'ring-4 ring-emerald-950/80 ring-offset-2'
+                                )}
+                            >
                                 {option.label}
                             </button>
                         ))}
@@ -901,23 +909,24 @@ export function GameHUD({ playerName, onMenuClick, onPlayerDetails, onTasksClick
     );
 }
 
-export function SettingsPanel({ isOpen, onClose, onQuit, onResetTasks, cameraMode, onCameraModeChange }) {
+export function SettingsPanel({ isOpen, onClose, onQuit, cameraMode, onCameraModeChange }) {
     if (!isOpen) return null;
 
     return (
         <SettingsModal
             isOpen={true}
+            inGame={true}
             onClose={onClose}
             onQuit={onQuit}
-            onResetTasks={onResetTasks}
             cameraMode={cameraMode}
             onCameraModeChange={onCameraModeChange}
         />
     );
 }
 
-export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick }) {
+export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick, onResetTasks }) {
     const [page, setPage] = useState(0);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
     const pageSize = 4;
     const completedCount = tasks.filter((task) => task.completed).length;
     const progressPercent = (completedCount / (tasks.length || 1)) * 100;
@@ -964,8 +973,32 @@ export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick }) {
                         </li>
                     ))}
                 </ol>
-                <PaginationControls page={currentPage} pageCount={pageCount} onPageChange={setPage} className="mt-3" />
+
+                <div className="mt-3 flex flex-col gap-2 shrink-0 pt-2 border-t border-slate-200">
+                    <PaginationControls page={currentPage} pageCount={pageCount} onPageChange={setPage} />
+                    {onResetTasks ? (
+                        <ActionButton
+                            variant="warning"
+                            size="sm"
+                            className="w-full mt-1 h-10 text-xs tracking-wider"
+                            onClick={() => setShowResetConfirm(true)}
+                        >
+                            Reset Progress
+                        </ActionButton>
+                    ) : null}
+                </div>
             </section>
+
+            {showResetConfirm ? (
+                <ResetTasksModal
+                    isOpen={true}
+                    onConfirm={() => {
+                        setShowResetConfirm(false);
+                        onResetTasks?.();
+                    }}
+                    onCancel={() => setShowResetConfirm(false)}
+                />
+            ) : null}
         </div>
     );
 }
@@ -1198,7 +1231,7 @@ export function HoldToFeedControl({
     const label = completed ? 'Fed!' : disabled ? 'Need food' : isHolding ? 'Feeding...' : 'Hold to Feed';
 
     return (
-        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+13.8rem)] right-2.5 z-70 flex w-28 flex-col items-center sm:right-3 sm:bottom-52">
+        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+13.8rem)] right-2.5 z-70 flex w-48 sm:w-56 flex-col items-center sm:right-3 sm:bottom-52">
             <button
                 type="button"
                 aria-label={`${label}${animalName ? ` ${animalName}` : ''}`}
@@ -1228,8 +1261,15 @@ export function HoldToFeedControl({
                 <span className="absolute inset-1.25 rounded-full bg-emerald-950/90" aria-hidden="true" />
                 {completed ? <span className="relative z-10 text-4xl font-black text-white">✓</span> : <img className="relative z-10 h-12 w-12 sm:h-14 sm:w-14" src="/ui-buttons/feed-button.png" alt="" />}
             </button>
-            <span className="mt-1 rounded-full bg-emerald-950/85 px-2 py-1 text-center text-[9px] font-black uppercase tracking-wide text-white shadow-lg">{label}</span>
-            {message ? <span className="mt-1 max-w-28 text-center text-[10px] font-black leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.9)]">{message}</span> : null}
+            <div className="mt-2 flex w-full max-w-56 flex-col items-center justify-center rounded-2xl border-2 border-emerald-200/80 bg-emerald-950/90 px-4 py-2 text-center text-white shadow-xl backdrop-blur-md">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                    {animalName ? `${animalName}` : 'Animal'}
+                </span>
+                <span className="mt-0.5 text-[11px] font-extrabold uppercase tracking-wide text-emerald-100">
+                    {label}
+                </span>
+                {message ? <span className="mt-1 text-[10px] font-medium leading-snug text-slate-200">{message}</span> : null}
+            </div>
         </div>
     );
 }

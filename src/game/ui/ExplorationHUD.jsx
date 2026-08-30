@@ -2,22 +2,105 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { ActionButton, ModalShell } from './UIComponents.jsx';
 import { ANIMAL_METADATA } from '../data/animalMetadata.js';
+import { createGLTFLoader } from '../utils/gltfLoader.js';
+import { resolveAssetUrl } from '../utils/localAssets.js';
 
 const ANIMAL_BOOK_ENTRIES = ANIMAL_METADATA;
 
-const EMOJI_MAP = {
-    'White-tailed Deer': '🦌',
-    'Domestic Horse': '🐎',
-    'Ostrich': '🦤',
-    'Donkey': '🐴',
-    'Domestic Cow': '🐄',
-    'Alpaca': '🦙',
-    'Red Deer Stag': '🦌',
-    'Bull': '🐂',
-    'Forest Monkey': '🐒',
-    'Rabbit': '🐇',
-    'Bengal Tiger': '🐅'
-};
+const snapshotCache = new Map();
+const pendingSnapshots = new Map();
+
+async function getAnimalModelSnapshot(entry) {
+    if (!entry || !entry.file) return null;
+    if (snapshotCache.has(entry.name)) {
+        return snapshotCache.get(entry.name);
+    }
+    if (pendingSnapshots.has(entry.name)) {
+        return pendingSnapshots.get(entry.name);
+    }
+
+    const promise = (async () => {
+        try {
+            const width = 256;
+            const height = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const scene = new THREE.Scene();
+            scene.background = null;
+
+            const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+            camera.position.set(0, 0.8, 3.8);
+            camera.lookAt(0, 0, 0);
+
+            const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(1);
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xfff0dd, 2.5);
+            dirLight.position.set(3, 5, 4);
+            scene.add(dirLight);
+
+            const loader = createGLTFLoader();
+            const modelPath = `/models/animals/${entry.file}`;
+            const modelUrl = await resolveAssetUrl(modelPath);
+            loader.setResourcePath(modelPath.slice(0, modelPath.lastIndexOf('/') + 1));
+
+            const gltf = await new Promise((resolve) => {
+                loader.load(modelUrl, resolve, undefined, () => resolve(null));
+            });
+
+            if (gltf && gltf.scene) {
+                const model = gltf.scene.clone();
+                const box = new THREE.Box3().setFromObject(model);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                const scale = 2.0 / maxDim;
+                model.scale.multiplyScalar(scale);
+
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+                model.position.sub(center.multiplyScalar(scale));
+                model.position.y -= 0.15;
+                model.rotation.y = Math.PI / 4.5;
+
+                scene.add(model);
+                renderer.render(scene, camera);
+
+                const snapshot2D = document.createElement('canvas');
+                snapshot2D.width = width;
+                snapshot2D.height = height;
+                const ctx2d = snapshot2D.getContext('2d');
+                ctx2d.drawImage(canvas, 0, 0);
+
+                renderer.dispose();
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.geometry?.dispose();
+                        if (Array.isArray(child.material)) child.material.forEach((m) => m?.dispose());
+                        else child.material?.dispose();
+                    }
+                });
+
+                snapshotCache.set(entry.name, snapshot2D);
+                return snapshot2D;
+            }
+        } catch (e) {
+            console.warn(`Failed to generate snapshot for ${entry.name}`, e);
+        }
+        return null;
+    })();
+
+    pendingSnapshots.set(entry.name, promise);
+    const result = await promise;
+    pendingSnapshots.delete(entry.name);
+    return result;
+}
 
 export function CameraPreview({ dataUrl, onSave, onRetake, onClose }) {
     if (!dataUrl) return null;
@@ -60,11 +143,29 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
     const containerRef = useRef(null);
     const [spread, setSpread] = useState(0);
     const [isAnimating, setIsAnimating] = useState(false);
+    const [, setSnapshotsReady] = useState(0);
     const bookApiRef = useRef(null);
     const maxSpread = Math.ceil((ANIMAL_BOOK_ENTRIES.length + 1) / 2);
 
     const fedAnimalsStr = JSON.stringify(fedAnimals);
     const discoveredAnimalsStr = JSON.stringify(discoveredAnimals);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const discoveredArr = JSON.parse(discoveredAnimalsStr);
+        let mounted = true;
+
+        const loadSnapshots = async () => {
+            const entriesToLoad = ANIMAL_BOOK_ENTRIES.filter((e) => discoveredArr.includes(e.name));
+            await Promise.all(entriesToLoad.map(getAnimalModelSnapshot));
+            if (mounted) {
+                setSnapshotsReady((c) => c + 1);
+            }
+        };
+
+        loadSnapshots();
+        return () => { mounted = false; };
+    }, [isOpen, discoveredAnimalsStr]);
 
     useEffect(() => {
         if (!isOpen || !containerRef.current) return;
@@ -85,15 +186,15 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
             if (discoveredArr.includes(entry.name)) {
                 bookData.push({
                     type: 'animal',
+                    entry,
                     name: entry.name,
                     scientific: entry.scientific,
-                    emoji: EMOJI_MAP[entry.name] || '❓',
                     description: entry.description,
                     fact: entry.fact,
                     fed: fedMap[entry.name]
                 });
             } else {
-                bookData.push({ type: 'locked' });
+                bookData.push({ type: 'locked', entry });
             }
         });
 
@@ -108,21 +209,21 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
         const width = container.clientWidth;
         const height = container.clientHeight;
         const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-        camera.position.set(0, 12, 10);
+        camera.position.set(0, 10, 8.5);
         camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setClearColor(0x000000, 0);
         renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         container.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfff0dd, 1.2);
+        const dirLight = new THREE.DirectionalLight(0xfff0dd, 1.3);
         dirLight.position.set(5, 10, 5);
         dirLight.castShadow = true;
         scene.add(dirLight);
@@ -133,112 +234,133 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
         for (let i = 0; i < bookData.length; i++) {
             const pageData = bookData[i];
             const canvas = document.createElement('canvas');
-            canvas.width = 1024;
-            canvas.height = 1400;
+            canvas.width = 512;
+            canvas.height = 700;
             const ctx = canvas.getContext('2d');
 
             ctx.fillStyle = '#fdf6e3';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = 'rgba(0,0,0,0.05)';
-            ctx.lineWidth = 15;
-            ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
+            ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(15, 15, canvas.width - 30, canvas.height - 30);
 
             if (pageData.type === 'cover_outside') {
                 ctx.fillStyle = '#4ade80';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = '#22c55e';
-                ctx.fillRect(0, 0, 80, canvas.height);
+                ctx.fillRect(0, 0, 40, canvas.height);
 
                 ctx.fillStyle = '#064e3b';
                 ctx.textAlign = 'center';
-                ctx.font = 'bold 80px "Arial", sans-serif';
-                ctx.fillText("BULUSAN ZOO", canvas.width / 2 + 20, 300);
-                ctx.font = 'bold 150px "Arial", sans-serif';
-                ctx.fillText("ANIMALS", canvas.width / 2 + 20, 480);
-                ctx.font = '400px sans-serif';
-                ctx.fillText("🦒", canvas.width / 2 + 20, 950);
                 ctx.font = 'bold 40px "Arial", sans-serif';
-                ctx.fillText("Explorer's Board Book", canvas.width / 2 + 20, 1250);
+                ctx.fillText("BULUSAN ZOO", canvas.width / 2 + 10, 150);
+                ctx.font = 'bold 75px "Arial", sans-serif';
+                ctx.fillText("ANIMALS", canvas.width / 2 + 10, 240);
+                ctx.font = '180px sans-serif';
+                ctx.fillText("🦒", canvas.width / 2 + 10, 480);
+                ctx.font = 'bold 20px "Arial", sans-serif';
+                ctx.fillText("Explorer's Board Book", canvas.width / 2 + 10, 620);
 
             } else if (pageData.type === 'pattern') {
                 ctx.fillStyle = '#f0e8d0';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = 'rgba(0,0,0,0.05)';
-                ctx.font = '60px sans-serif';
-                for (let x = 0; x < canvas.width; x += 120) {
-                    for (let y = 0; y < canvas.height; y += 120) {
+                ctx.font = '30px sans-serif';
+                for (let x = 0; x < canvas.width; x += 60) {
+                    for (let y = 0; y < canvas.height; y += 60) {
                         ctx.save();
-                        ctx.translate(x + 60, y + 60);
+                        ctx.translate(x + 30, y + 30);
                         ctx.rotate(Math.random() * Math.PI * 2);
-                        ctx.fillText("🐾", -30, 20);
+                        ctx.fillText("🐾", -15, 10);
                         ctx.restore();
                     }
                 }
             } else if (pageData.type === 'title') {
                 ctx.fillStyle = '#333';
                 ctx.textAlign = 'center';
-                ctx.font = 'italic 60px "Georgia", serif';
-                ctx.fillText("An Interactive Journey", canvas.width / 2, 500);
-                ctx.font = 'bold 100px "Arial", sans-serif';
-                ctx.fillText("ANIMAL GUIDE", canvas.width / 2, 650);
+                ctx.font = 'italic 30px "Georgia", serif';
+                ctx.fillText("An Interactive Journey", canvas.width / 2, 250);
+                ctx.font = 'bold 50px "Arial", sans-serif';
+                ctx.fillText("ANIMAL GUIDE", canvas.width / 2, 330);
             } else if (pageData.type === 'animal') {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
-                ctx.fillStyle = 'rgba(0,0,0,0.1)';
-                ctx.font = '350px sans-serif';
-                ctx.fillText(pageData.emoji, canvas.width / 2 + 15, 415);
-                ctx.fillStyle = '#333';
-                ctx.fillText(pageData.emoji, canvas.width / 2, 400);
+                const snapshot = snapshotCache.get(pageData.name);
+                if (snapshot) {
+                    // Frame background
+                    ctx.fillStyle = '#ecfdf5';
+                    ctx.strokeStyle = '#a7f3d0';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.roundRect(canvas.width / 2 - 120, 70, 240, 240, 20);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Render 3D Model Snapshot
+                    ctx.drawImage(snapshot, canvas.width / 2 - 110, 80, 220, 220);
+                } else {
+                    ctx.fillStyle = '#059669';
+                    ctx.font = '80px sans-serif';
+                    ctx.fillText("🐾", canvas.width / 2, 190);
+                }
 
                 ctx.fillStyle = '#1f2937';
-                ctx.font = 'bold 80px "Arial", sans-serif';
-                ctx.fillText(pageData.name.toUpperCase(), canvas.width / 2, 750);
+                ctx.font = 'bold 36px "Arial", sans-serif';
+                ctx.fillText(pageData.name.toUpperCase(), canvas.width / 2, 360);
 
                 ctx.fillStyle = '#6b7280';
-                ctx.font = 'italic 40px "Georgia", serif';
-                ctx.fillText(pageData.scientific, canvas.width / 2, 830);
+                ctx.font = 'italic 20px "Georgia", serif';
+                ctx.fillText(pageData.scientific, canvas.width / 2, 400);
 
                 ctx.fillStyle = '#4b5563';
-                ctx.font = '40px "Arial", sans-serif';
-                wrapText(ctx, pageData.description, canvas.width / 2, 950, canvas.width - 200, 50);
+                ctx.font = '20px "Arial", sans-serif';
+                wrapText(ctx, pageData.description, canvas.width / 2, 460, canvas.width - 80, 26);
 
                 ctx.fillStyle = '#065f46';
-                ctx.font = 'bold 36px "Arial", sans-serif';
-                wrapText(ctx, `Fact: ${pageData.fact}`, canvas.width / 2, 1150, canvas.width - 200, 45);
+                ctx.font = 'bold 18px "Arial", sans-serif';
+                wrapText(ctx, `Fact: ${pageData.fact}`, canvas.width / 2, 570, canvas.width - 80, 24);
 
                 if (pageData.fed) {
                     ctx.fillStyle = '#22c55e';
-                    ctx.font = 'bold 45px "Arial", sans-serif';
-                    ctx.fillText("⭐ Fed Successfully ⭐", canvas.width / 2, 1300);
+                    ctx.font = 'bold 22px "Arial", sans-serif';
+                    ctx.fillText("⭐ Fed Successfully ⭐", canvas.width / 2, 640);
                 }
 
                 ctx.fillStyle = '#9ca3af';
-                ctx.font = '40px "Arial", sans-serif';
+                ctx.font = '20px "Arial", sans-serif';
                 ctx.textAlign = (i % 2 !== 0) ? 'left' : 'right';
-                const px = (i % 2 !== 0) ? 60 : canvas.width - 60;
-                ctx.fillText(`Page ${i - 1}`, px, canvas.height - 60);
+                const px = (i % 2 !== 0) ? 30 : canvas.width - 30;
+                ctx.fillText(`Page ${i - 1}`, px, canvas.height - 30);
 
             } else if (pageData.type === 'locked') {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#d1d5db';
-                ctx.font = '400px sans-serif';
-                ctx.fillText("?", canvas.width / 2, 500);
+
+                ctx.fillStyle = '#f3f4f6';
+                ctx.strokeStyle = '#e5e7eb';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.roundRect(canvas.width / 2 - 120, 100, 240, 240, 20);
+                ctx.fill();
+                ctx.stroke();
 
                 ctx.fillStyle = '#9ca3af';
-                ctx.font = 'bold 80px "Arial", sans-serif';
-                ctx.fillText("UNDISCOVERED", canvas.width / 2, 850);
+                ctx.font = '120px sans-serif';
+                ctx.fillText("❓", canvas.width / 2, 220);
 
-                ctx.font = '40px "Arial", sans-serif';
-                ctx.fillText("Explore the zoo to unlock.", canvas.width / 2, 950);
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = 'bold 36px "Arial", sans-serif';
+                ctx.fillText("UNDISCOVERED", canvas.width / 2, 420);
+
+                ctx.font = '20px "Arial", sans-serif';
+                ctx.fillText("Explore the zoo to unlock.", canvas.width / 2, 480);
             }
 
             const tex = new THREE.CanvasTexture(canvas);
             tex.anisotropy = anisotropy;
             tex.colorSpace = THREE.SRGBColorSpace;
             tex.center.set(0.5, 0.5);
-            // FIXED: Removed tex.rotation = Math.PI / 2; to keep right page upright
 
             textures.push(tex);
         }
@@ -247,7 +369,6 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
             const leftTexture = texture.clone();
             leftTexture.needsUpdate = true;
             leftTexture.center.set(0.5, 0.5);
-            // FIXED: Flipped 180 degrees so left pages aren't mirrored/upside-down
             leftTexture.rotation = Math.PI;
             return leftTexture;
         });
@@ -349,7 +470,7 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
                 backCover.material[2].needsUpdate = true;
 
                 flipHinge.rotation.z = 0;
-                await animateValue(flipHinge.rotation, 'z', Math.PI, 800);
+                await animateValue(flipHinge.rotation, 'z', Math.PI, 600);
 
                 internalSpread = nextSpread;
                 setSpread(internalSpread);
@@ -371,7 +492,7 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
                 frontCover.material[3].needsUpdate = true;
 
                 flipHinge.rotation.z = Math.PI;
-                await animateValue(flipHinge.rotation, 'z', 0, 800);
+                await animateValue(flipHinge.rotation, 'z', 0, 600);
 
                 internalSpread = prevSpread;
                 setSpread(internalSpread);
@@ -385,9 +506,9 @@ export function AnimalBookModal({ isOpen, onClose, discoveredAnimals = [], fedAn
             if (!disposed) setIsAnimating(true);
         });
         updateStaticMaterials(0);
-        animateValue(camera.position, 'y', 7, 1200);
-        animateValue(camera.position, 'z', 6.5, 1200);
-        animateValue(frontCoverHinge.rotation, 'z', Math.PI, 1200).then(() => {
+        animateValue(camera.position, 'y', 7, 700);
+        animateValue(camera.position, 'z', 6.5, 700);
+        animateValue(frontCoverHinge.rotation, 'z', Math.PI, 700).then(() => {
             setIsAnimating(false);
         });
 

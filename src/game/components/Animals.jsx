@@ -129,29 +129,14 @@ const ANIMAL_CONFIGS = [
         speed: 0.03,
         runSpeed: 0.05,
         collisionRadius: 0.65,
-        count: 1,
-        movementStyle: 'static',
-        idleAnimation: 'Idle',
-        spawnArea: { x: -42, z: 58, radius: 16 },
-        name: 'Rabbit (Idle)',
-        species: 'Oryctolagus cuniculus',
-        emoji: '🐇',
-        description: 'A rabbit that stays in an idle animation.'
-    },
-    {
-        file: 'rabbit/scene.gltf',
-        scale: 0.05,
-        speed: 0.03,
-        runSpeed: 0.05,
-        collisionRadius: 0.65,
-        count: 1,
+        count: 5,
         movementStyle: 'walkOnly',
         walkAnimation: 'Walk',
-        spawnArea: { x: -26, z: 70, radius: 18 },
-        name: 'Rabbit (Walk)',
+        spawnArea: { x: -30, z: 65, radius: 6 },
+        name: 'Rabbit',
         species: 'Oryctolagus cuniculus',
         emoji: '🐇',
-        description: 'A rabbit that stays in a walking animation.'
+        description: 'A small, speedy friend with a twitching nose and soft fur.'
     },
     {
         file: 'tiger/scene.gltf',
@@ -747,12 +732,19 @@ class AmbientBird {
     constructor(model, animations, scene, birdIndex) {
         this.group = model;
         this.mixer = animations.length > 0 ? new THREE.AnimationMixer(model) : null;
-        this.phase = Math.random() * Math.PI * 2;
-        this.orbitRadius = 70 + birdIndex * 35 + Math.random() * 25;
-        this.orbitSpeed = 0.045 + Math.random() * 0.018;
-        this.altitude = 48 + birdIndex * 8 + Math.random() * 8;
-        this.centerX = (Math.random() - 0.5) * 80;
-        this.centerZ = (Math.random() - 0.5) * 80;
+
+        const skyPositions = [
+            { radius: 65, altitude: 42, cx: -35, cz: 25 },
+            { radius: 95, altitude: 58, cx: 40, cz: -30 },
+            { radius: 120, altitude: 72, cx: -10, cz: -45 },
+        ];
+        const sky = skyPositions[birdIndex % skyPositions.length];
+        this.phase = birdIndex * (Math.PI * 2 / 3) + Math.random() * 0.4;
+        this.orbitRadius = sky.radius;
+        this.orbitSpeed = 0.04 + (birdIndex * 0.008);
+        this.altitude = sky.altitude;
+        this.centerX = sky.cx;
+        this.centerZ = sky.cz;
 
         const bounds = new THREE.Box3().setFromObject(model);
         const size = bounds.getSize(new THREE.Vector3());
@@ -856,7 +848,7 @@ export async function loadGLTFAnimals(scene, obstacles, initialVolume) {
 }
 
 export async function loadAmbientBirds(scene) {
-    const birdFiles = ['birds/bird_1/scene.gltf', 'birds/bird_2/scene.gltf'];
+    const birdFiles = ['birds/bird_1/scene.gltf', 'birds/bird_2/scene.gltf', 'birds/bird_1/scene.gltf'];
     const birds = [];
     const loadModel = (file) => {
         if (modelCache.has(file)) return Promise.resolve(modelCache.get(file));
