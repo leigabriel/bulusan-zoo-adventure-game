@@ -102,8 +102,25 @@ async function getAnimalModelSnapshot(entry) {
     return result;
 }
 
-export function CameraModeOverlay({ isOpen, onClose, onCapture }) {
+export function CameraModeOverlay({ isOpen, onClose, onCapture, photoCapturedToast = false }) {
+    const cameraImgRef = useRef(null);
+
     if (!isOpen) return null;
+
+    const handleCapture = () => {
+        if (!cameraImgRef.current) {
+            onCapture?.(null);
+            return;
+        }
+        const rect = cameraImgRef.current.getBoundingClientRect();
+        const lcdRect = {
+            x: rect.left + rect.width * 0.125,
+            y: rect.top + rect.height * 0.200,
+            width: rect.width * 0.420,
+            height: rect.height * 0.615
+        };
+        onCapture?.(lcdRect);
+    };
 
     return (
         <div
@@ -111,49 +128,58 @@ export function CameraModeOverlay({ isOpen, onClose, onCapture }) {
             className="fixed inset-0 z-120 flex flex-col justify-between p-3 sm:p-6 pt-[calc(env(safe-area-inset-top)+0.85rem)] pb-[calc(env(safe-area-inset-bottom)+0.85rem)] px-[calc(env(safe-area-inset-left)+1rem)] pointer-events-none font-['Qilka',sans-serif] select-none touch-none"
             aria-label="Camera Mode"
         >
-            {/* Top Bar: Title & Top-Right 3D 'X' Close Button (100% visible on all screens) */}
+            {/* Top Bar: Title & Top-Right 3D 'X' Close Button */}
             <div className="flex items-center justify-between w-full max-w-5xl mx-auto z-122 pointer-events-auto">
                 <div className="flex items-center gap-2 rounded-2xl border-2 border-white/80 bg-slate-900/85 px-4 py-2 backdrop-blur-md shadow-2xl">
                     <span className="text-xs sm:text-sm font-black uppercase tracking-widest text-white">
                         Camera View
                     </span>
+                    {photoCapturedToast && (
+                        <span className="ml-2 rounded-lg bg-emerald-500 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white animate-bounce">
+                            Photo Taken!
+                        </span>
+                    )}
                 </div>
                 <button
                     type="button"
                     onClick={onClose}
                     data-ui-button="true"
-                    className="flex h-11 w-11 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white font-black text-2xl shadow-[0_4px_0_0_#9f1239] transition-transform active:scale-95 pointer-events-auto"
+                    className="flex h-11 w-11 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white font-black text-2xl shadow-[0_4px_0_0_#9f1239] transition-transform active:scale-95 pointer-events-auto cursor-pointer"
                     aria-label="Close Camera View"
                 >
                     &times;
                 </button>
             </div>
 
-            {/* Center Area: Floating Camera Overlay Frame (public/images/camera.png) */}
+            {/* Center Area: Camera Frame PNG */}
             <div className="relative flex-1 min-h-0 w-full flex items-center justify-center py-2 pointer-events-none z-121">
                 <div className="relative max-h-full max-w-full flex items-center justify-center p-2">
                     <img
+                        ref={cameraImgRef}
                         src="/images/camera.png"
-                        alt="Camera viewfinder frame"
+                        alt="Camera Viewfinder Frame"
                         className="max-h-[62dvh] max-w-[88vw] object-contain drop-shadow-2xl animate-bounce-subtle pointer-events-none"
                     />
                 </div>
             </div>
 
-            {/* Bottom Bar: Bottom-Middle 3D Shutter / Capture Button */}
-            <div className="flex items-center justify-center w-full max-w-md mx-auto pb-1 z-122 pointer-events-auto">
+            {/* Bottom Bar: 3D Button 'CAPTURE' Text */}
+            <div className="flex items-center justify-center w-full max-w-md mx-auto pb-2 z-122 pointer-events-auto">
                 <button
                     type="button"
-                    onClick={onCapture}
+                    onClick={handleCapture}
                     data-ui-button="true"
-                    className="group relative flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center transition-transform active:scale-90 hover:scale-105 pointer-events-auto"
+                    className="group relative flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-white font-black text-lg sm:text-xl px-8 py-3.5 sm:px-10 sm:py-4 shadow-[0_6px_0_0_#9f1239] hover:shadow-[0_4px_0_0_#9f1239] active:shadow-none active:translate-y-1.5 transition-all pointer-events-auto cursor-pointer border-2 border-rose-300/80"
                     aria-label="Capture Photo"
                 >
                     <img
                         src="/ui-buttons/camera-button.png"
-                        alt="Capture Photo"
-                        className="h-full w-full object-contain drop-shadow-2xl group-hover:scale-110 transition-transform pointer-events-none"
+                        alt="Capture"
+                        className="h-7 w-7 object-contain group-hover:scale-110 transition-transform pointer-events-none"
                     />
+                    <span className="tracking-widest uppercase drop-shadow">
+                        CAPTURE
+                    </span>
                 </button>
             </div>
         </div>
@@ -163,14 +189,16 @@ export function CameraModeOverlay({ isOpen, onClose, onCapture }) {
 export function CameraPreview({ dataUrl, onSave, onRetake, onClose }) {
     if (!dataUrl) return null;
     return (
-        <ModalShell isOpen={true} onClose={onClose} title="Your Zoo Photo" size="md">
-            <img
-                src={dataUrl}
-                alt="Bulusan Zoo"
-                className="max-h-[55dvh] w-full rounded-xl border-4 border-amber-200 object-contain"
-            />
+        <ModalShell isOpen={true} onClose={onClose} title="Your Zoo Polaroid" size="md">
+            <div className="flex justify-center w-full py-2">
+                <img
+                    src={dataUrl}
+                    alt="Bulusan Zoo Polaroid Photo"
+                    className="max-h-[58dvh] w-auto max-w-full rounded-xl shadow-2xl border-2 border-amber-100/60 transform hover:scale-[1.02] transition-transform duration-300"
+                />
+            </div>
             <div className="mt-4 grid grid-cols-3 gap-2">
-                <ActionButton size="sm" onClick={onSave}>Save Photo</ActionButton>
+                <ActionButton size="sm" onClick={onSave}>Save Polaroid</ActionButton>
                 <ActionButton size="sm" variant="secondary" onClick={onRetake}>Retake</ActionButton>
                 <ActionButton size="sm" variant="secondary" onClick={onClose}>Close</ActionButton>
             </div>

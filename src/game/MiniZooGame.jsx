@@ -704,30 +704,6 @@ function MiniZooGame() {
         warmupAssetStore(ESSENTIAL_ASSET_PATHS).catch(() => { });
     }, []);
 
-    useEffect(() => {
-        if (!isTouchDevice) return;
-
-        const handleTouchStart = (e) => {
-            if (bookOpenRef.current) return;
-            const now = performance.now();
-            const elapsed = now - lastTapRef.current;
-            if (elapsed < 300 && elapsed > 0) {
-                e.preventDefault();
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => { });
-                } else {
-                    document.exitFullscreen().catch(() => { });
-                }
-                lastTapRef.current = 0;
-            } else {
-                lastTapRef.current = now;
-            }
-        };
-
-        document.addEventListener('touchstart', handleTouchStart, { passive: false });
-        return () => document.removeEventListener('touchstart', handleTouchStart);
-    }, [isTouchDevice]);
-
     const checkNearbyAnimals = useCallback((playerPosition, animals) => {
         if (!playerPosition || !animals.length) return null;
         const pos = playerPosition;
@@ -1837,7 +1813,82 @@ function MiniZooGame() {
         try {
             const renderer = state.renderer;
             renderer.render(state.scene, state.camera);
-            const dataUrl = renderer.domElement.toDataURL('image/png');
+            const webglCanvas = renderer.domElement;
+
+            // Full unzoomed 1:1 square capture centered on the WebGL scene view
+            const side = Math.min(webglCanvas.width, webglCanvas.height);
+            const cropX = Math.floor((webglCanvas.width - side) / 2);
+            const cropY = Math.floor((webglCanvas.height - side) / 2);
+
+            // 1. Crop 1:1 square scene capture with aesthetic film filter
+            const cropCanvas = document.createElement('canvas');
+            cropCanvas.width = 1000;
+            cropCanvas.height = 1000;
+            const cropCtx = cropCanvas.getContext('2d');
+
+            // Aesthetic film filter (warm contrast, rich saturation, subtle retro sepia tone)
+            cropCtx.filter = 'contrast(1.08) brightness(1.04) saturate(1.15) sepia(0.10)';
+            cropCtx.drawImage(webglCanvas, cropX, cropY, side, side, 0, 0, 1000, 1000);
+            cropCtx.filter = 'none';
+
+            // 2. Render Polaroid Card Output (Pure canvas frame & image, NO text)
+            const polaroidCanvas = document.createElement('canvas');
+            polaroidCanvas.width = 1000;
+            polaroidCanvas.height = 1200;
+            const pCtx = polaroidCanvas.getContext('2d');
+
+            // Classic off-white paper polaroid card background
+            pCtx.fillStyle = '#f8f6f0';
+            pCtx.fillRect(0, 0, 1000, 1200);
+
+            // Subtle paper border outline
+            pCtx.strokeStyle = '#e2ded4';
+            pCtx.lineWidth = 4;
+            pCtx.strokeRect(2, 2, 996, 1196);
+
+            // Photo Square frame (880 x 880 at x=60, y=60)
+            const photoSize = 880;
+            const photoX = 60;
+            const photoY = 60;
+
+            pCtx.fillStyle = '#18181b';
+            pCtx.fillRect(photoX, photoY, photoSize, photoSize);
+            pCtx.drawImage(cropCanvas, 0, 0, 1000, 1000, photoX, photoY, photoSize, photoSize);
+
+            // Aesthetic Vignette Overlay (Soft darkened corners for dreamy retro lens effect)
+            const vignette = pCtx.createRadialGradient(
+                photoX + photoSize / 2, photoY + photoSize / 2, photoSize * 0.35,
+                photoX + photoSize / 2, photoY + photoSize / 2, photoSize * 0.72
+            );
+            vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            vignette.addColorStop(1, 'rgba(20, 10, 5, 0.25)');
+            pCtx.fillStyle = vignette;
+            pCtx.fillRect(photoX, photoY, photoSize, photoSize);
+
+            // Warm Aesthetic Light Flare / Leak Effect
+            const lightLeak = pCtx.createRadialGradient(
+                photoX + 120, photoY + 120, 10,
+                photoX + 120, photoY + 120, 480
+            );
+            lightLeak.addColorStop(0, 'rgba(255, 220, 160, 0.16)');
+            lightLeak.addColorStop(1, 'rgba(255, 220, 160, 0)');
+            pCtx.fillStyle = lightLeak;
+            pCtx.fillRect(photoX, photoY, photoSize, photoSize);
+
+            // Subtle glossy glass shine overlay
+            const gloss = pCtx.createLinearGradient(photoX, photoY, photoX + photoSize, photoY + photoSize);
+            gloss.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+            gloss.addColorStop(0.4, 'rgba(255, 255, 255, 0)');
+            gloss.addColorStop(1, 'rgba(0, 0, 0, 0.05)');
+            pCtx.fillStyle = gloss;
+            pCtx.fillRect(photoX, photoY, photoSize, photoSize);
+
+            // Inner photo border line
+            pCtx.strokeStyle = 'rgba(0,0,0,0.14)';
+            pCtx.lineWidth = 3;
+            pCtx.strokeRect(photoX, photoY, photoSize, photoSize);
+
+            const dataUrl = polaroidCanvas.toDataURL('image/png');
 
             setCameraFlash(true);
             window.setTimeout(() => setCameraFlash(false), 180);
@@ -2159,6 +2210,90 @@ function MiniZooGame() {
     }, [modalOpen, gameStarted, characterReady]);
 
     useEffect(() => {
+        let listenerHandle = null;
+
+        const setupBackButton = async () => {
+            try {
+                listenerHandle = await CapacitorApp.addListener('backButton', () => {
+                    if (showResetTasksModal) {
+                        setShowResetTasksModal(false);
+                        return;
+                    }
+                    if (showQuitModal) {
+                        setShowQuitModal(false);
+                        return;
+                    }
+                    if (showCertificate) {
+                        setShowCertificate(false);
+                        return;
+                    }
+                    if (showAllFedCelebration) {
+                        setShowAllFedCelebration(false);
+                        return;
+                    }
+                    if (photoPreview) {
+                        setPhotoPreview('');
+                        return;
+                    }
+                    if (isCameraModeOpen) {
+                        handleCloseCameraView();
+                        return;
+                    }
+                    if (bookOpen) {
+                        setBookOpen(false);
+                        return;
+                    }
+                    if (showNpcDialogue) {
+                        closeNpcDialogue();
+                        return;
+                    }
+                    if (tasksOpen) {
+                        setTasksOpen(false);
+                        return;
+                    }
+                    if (settingsOpen) {
+                        setSettingsOpen(false);
+                        return;
+                    }
+                    if (playerDetailsOpen) {
+                        setPlayerDetailsOpen(false);
+                        return;
+                    }
+                    if (gameStarted) {
+                        setShowQuitModal(true);
+                        return;
+                    }
+                });
+            } catch {
+                // Not running on native platform
+            }
+        };
+
+        setupBackButton();
+
+        return () => {
+            if (listenerHandle) {
+                listenerHandle.remove();
+            }
+        };
+    }, [
+        showResetTasksModal,
+        showQuitModal,
+        showCertificate,
+        showAllFedCelebration,
+        photoPreview,
+        isCameraModeOpen,
+        bookOpen,
+        showNpcDialogue,
+        tasksOpen,
+        settingsOpen,
+        playerDetailsOpen,
+        gameStarted,
+        handleCloseCameraView,
+        closeNpcDialogue
+    ]);
+
+    useEffect(() => {
         if (!gameStarted && !showMenu) return;
 
         const applyMusicState = () => {
@@ -2272,7 +2407,6 @@ function MiniZooGame() {
 
     return (
         <div className="relative h-dvh w-full overflow-hidden bg-linear-to-b from-sky-300 to-sky-100 touch-none overscroll-none">
-            <RotateDeviceOverlay />
             {cameraFlash ? <div className="pointer-events-none fixed inset-0 z-130 bg-white" aria-hidden="true" /> : null}
             {isEnteringGame && (
                 <div

@@ -251,23 +251,23 @@ export function setupKeyboardControls(state) {
     };
 }
 
+export function isUIInteractionTarget(target) {
+    if (!(target instanceof Element)) return false;
+    if (target.closest('button, [data-ui-button="true"], a, input, textarea, select, [role="button"]')) {
+        return true;
+    }
+    if (target.closest('[data-ui-touch-pass="true"]')) {
+        return false;
+    }
+    return !!target.closest('[data-ui-scrollable="true"], [data-ui-modal="true"], [data-ui-panel="true"], [data-ui-hud="true"]');
+}
+
 export function setupTouchControls(state, baseRef, stickRef, jumpBtnRef) {
     let joystickTouchId = null;
     let lookTouchId = null;
     let jumpTouchId = null;
     const JOYSTICK_PROXIMITY = 90;
     const JUMP_PROXIMITY = 60;
-
-    const isUIInteractionTarget = (target) => {
-        if (!(target instanceof Element)) return false;
-        if (target.closest('button, [data-ui-button="true"], a, input, textarea, select, [role="button"]')) {
-            return true;
-        }
-        if (target.closest('[data-ui-touch-pass="true"]')) {
-            return false;
-        }
-        return !!target.closest('[data-ui-scrollable="true"], [data-ui-modal="true"], [data-ui-panel="true"], [data-ui-hud="true"]');
-    };
 
     const getJoystickCenter = () => {
         if (!baseRef.current) return null;

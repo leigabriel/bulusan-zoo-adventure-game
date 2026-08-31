@@ -648,9 +648,7 @@ export function PlayerDetailsModal({ isOpen, onClose, onSave, required = false }
     );
 }
 
-/* ==========================================================================
-   REDESIGNED MAIN MENU - REAL 3D BUTTONS & AESTHETIC BUSHES
-   ========================================================================== */
+// REDESIGNED MAIN MENU - REAL 3D BUTTONS & AESTHETIC BUSHES
 
 export function MainMenu({ onStart, onMenuInteraction, onProfileSaved, isVisible }) {
  const [starting, setStarting] = useState(false);
@@ -661,6 +659,44 @@ export function MainMenu({ onStart, onMenuInteraction, onProfileSaved, isVisible
     const [profileRequired, setProfileRequired] = useState(false);
     const startAfterProfileRef = useRef(false);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+    useEffect(() => {
+        let listenerHandle = null;
+        const setupBack = async () => {
+            try {
+                listenerHandle = await CapacitorApp.addListener('backButton', () => {
+                    if (showExitConfirm) {
+                        setShowExitConfirm(false);
+                        return;
+                    }
+                    if (howToPlayOpen) {
+                        setHowToPlayOpen(false);
+                        return;
+                    }
+                    if (creditsOpen) {
+                        setCreditsOpen(false);
+                        return;
+                    }
+                    if (settingsOpen) {
+                        setSettingsOpen(false);
+                        return;
+                    }
+                    if (playerDetailsOpen) {
+                        setPlayerDetailsOpen(false);
+                        return;
+                    }
+                    setShowExitConfirm(true);
+                });
+            } catch {
+            }
+        };
+        setupBack();
+        return () => {
+            if (listenerHandle) {
+                listenerHandle.remove();
+            }
+        };
+    }, [showExitConfirm, howToPlayOpen, creditsOpen, settingsOpen, playerDetailsOpen]);
 
     const handleStart = useCallback(() => {
         if (!isPlayerProfileComplete()) {
@@ -689,90 +725,121 @@ export function MainMenu({ onStart, onMenuInteraction, onProfileSaved, isVisible
         <div
             onPointerDownCapture={onMenuInteraction}
             className={cx(
-                "fixed inset-0 z-40 flex flex-col items-center overflow-hidden font-['Qilka',sans-serif] select-none touch-none bg-emerald-900 transition-all duration-400 ease-in-out",
+                "fixed inset-0 z-40 flex flex-col items-center justify-between overflow-hidden font-['Qilka',sans-serif] select-none touch-none bg-emerald-900 transition-all duration-400 ease-in-out py-3 sm:py-6 px-4",
                 starting ? "opacity-0 scale-105 pointer-events-none" : "opacity-100 scale-100"
             )}
         >
-            {/* ---------------- BACKGROUND DECORATION (FILLS EVERYTHING) ---------------- */}
-            <div className="absolute -inset-x-20 inset-y-0 z-0 bg-linear-to-b from-[#70e0ff] via-[#a2d2ff] to-[#c6fe69] pointer-events-none" aria-hidden="true">
+            {/* Background Hills and Sky */}
+            <div className="absolute -inset-x-20 inset-y-0 z-0 bg-gradient-to-b from-[#70e0ff] via-[#a2d2ff] to-[#c6fe69] pointer-events-none" aria-hidden="true">
                 <div className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0)_70%)] animate-pulse" />
 
-                {/* Clouds */}
+                {/* Floating Clouds */}
                 <div className="absolute top-[5%] left-[6%] w-20 sm:w-36 h-6 sm:h-10 bg-white/70 rounded-full blur-[0.5px] animate-[kids-float_6s_ease-in-out_infinite]" />
                 <div className="absolute top-[9%] right-[8%] w-28 sm:w-48 h-8 sm:h-12 bg-white/60 rounded-full blur-[0.5px] animate-[kids-float_8s_ease-in-out_infinite_1s]" />
 
-                <div className="absolute bottom-0 w-full h-[40%] bg-[#c6fe69] rounded-t-[100%] scale-[1.7] translate-y-1/3 shadow-[0_-12px_24px_rgba(0,0,0,0.05)]" />
-                <div className="absolute bottom-0 w-full h-[25%] bg-[#70e000] rounded-t-[100%] scale-[1.4] translate-y-1/4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]" />
-                <div className="absolute bottom-0 w-full h-[12%] bg-[#38b000] rounded-t-[100%] scale-[1.2] translate-y-1/4 shadow-[0_-8px_16px_rgba(0,0,0,0.05)]" />
+                {/* Rolling Green Hills */}
+                <div className="absolute bottom-0 w-full h-[42%] bg-[#c6fe69] rounded-t-[100%] scale-[1.7] translate-y-1/3 shadow-[0_-12px_24px_rgba(0,0,0,0.05)]" />
+                <div className="absolute bottom-0 w-full h-[27%] bg-[#70e000] rounded-t-[100%] scale-[1.4] translate-y-1/4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]" />
+                <div className="absolute bottom-0 w-full h-[14%] bg-[#38b000] rounded-t-[100%] scale-[1.2] translate-y-1/4 shadow-[0_-8px_16px_rgba(0,0,0,0.05)]" />
             </div>
 
-            {/* ---------------- MAIN CONTENT WRAPPER (RESPECTS SAFE AREA) ---------------- */}
-            <div className="relative z-30 flex h-full w-full flex-col items-center justify-between p-3 sm:p-6 safe-area-inset">
+            {/* Main Interface Content Container */}
+            <div className="relative z-30 flex h-full w-full max-w-xl flex-col items-center justify-center pointer-events-auto safe-area-inset py-1 sm:py-2">
 
-                {/* --- TOP SECTION: TITLE --- */}
-                <div className="w-full flex flex-col items-center pt-0 shrink-0 scale-[0.4] sm:scale-90 md:scale-110 origin-top mb-2 sm:mb-4">
+                {/* 1. TOP TITLE BANNER */}
+                <div className="w-full flex justify-center pt-0 shrink-0 transform scale-[0.65] sm:scale-85 md:scale-100 origin-top">
                     <WoodenTitle titlePart1="Bulusan" titlePart2="Zootopia Adventure Game" />
                 </div>
 
-                {/* --- SPACER / CENTER AREA --- */}
-                <div className="flex-1 min-h-0 flex items-center justify-center py-1">
-                    {/* PRIMARY PLAY BUTTON */}
+                {/* 2. CENTER STACKED PRIMARY ACTION BUTTONS */}
+                <div className="w-full max-w-xs sm:max-w-sm flex flex-col items-center gap-1.5 sm:gap-3 my-auto py-0.5">
+
+                    {/* PLAY GAME */}
                     <button
+                        type="button"
                         onClick={handleStart}
                         disabled={starting}
-                        className="group relative w-full max-w-25 sm:max-w-30 transition-all active:scale-95 disabled:opacity-50"
+                        className="group flex items-center justify-center gap-2.5 sm:gap-3.5 px-4 py-1.5 sm:py-2 transition-transform hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50"
                     >
-                        <img
-                            src="/ui-buttons/play-button.png"
-                            alt="PLAY NOW"
-                            className="w-full h-auto drop-shadow-xl group-hover:scale-105 transition-transform animate-bounce-subtle"
-                        />
+                        <img src="/ui-buttons/play-button.png" alt="Play" className="h-8 w-8 sm:h-11 sm:w-11 object-contain drop-shadow-md group-hover:scale-110 transition-transform" />
+                        <span className="text-lg sm:text-2xl font-black uppercase tracking-widest text-slate-800 drop-shadow-[0_2px_4px_rgba(255,255,255,0.9)]">
+                            PLAY GAME
+                        </span>
+                    </button>
+
+                    {/* SETTINGS */}
+                    <button
+                        type="button"
+                        onClick={() => setSettingsOpen(true)}
+                        className="group flex items-center justify-center gap-2.5 sm:gap-3.5 px-4 py-1.5 sm:py-2 transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+                    >
+                        <img src="/ui-buttons/settings-button.png" alt="Settings" className="h-8 w-8 sm:h-11 sm:w-11 object-contain drop-shadow-md group-hover:scale-110 transition-transform" />
+                        <span className="text-lg sm:text-2xl font-black uppercase tracking-widest text-slate-800 drop-shadow-[0_2px_4px_rgba(255,255,255,0.9)]">
+                            SETTINGS
+                        </span>
+                    </button>
+
+                    {/* QUIT */}
+                    <button
+                        type="button"
+                        onClick={() => setShowExitConfirm(true)}
+                        className="group flex items-center justify-center gap-2.5 sm:gap-3.5 px-4 py-1.5 sm:py-2 transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+                    >
+                        <img src="/ui-buttons/quit-button.png" alt="Quit" className="h-8 w-8 sm:h-11 sm:w-11 object-contain drop-shadow-md group-hover:scale-110 transition-transform" />
+                        <span className="text-lg sm:text-2xl font-black uppercase tracking-widest text-slate-800 drop-shadow-[0_2px_4px_rgba(255,255,255,0.9)]">
+                            QUIT
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            {/* BOTTOM BAR: LEFT = 3 UI BUTTONS (GUIDE, PLAYER, CREDITS), RIGHT = VERSION ONLY */}
+            <div className="pointer-events-auto absolute inset-x-3 sm:inset-x-6 bottom-[calc(env(safe-area-inset-bottom)+0.35rem)] z-40 flex items-end justify-between">
+                {/* 3 UI BUTTONS IN BOTTOM LEFT */}
+                <div className="flex items-center gap-2.5 sm:gap-4">
+                    {/* HOW TO PLAY / GUIDE */}
+                    <button
+                        type="button"
+                        onClick={() => setHowToPlayOpen(true)}
+                        className="group relative flex flex-col items-center gap-0.5 cursor-pointer transition-transform active:scale-90"
+                        title="How To Play"
+                    >
+                        <img src="/ui-buttons/how-to-play-button.png" alt="How To Play" className="h-8 w-8 sm:h-11 sm:w-11 object-contain group-hover:scale-110 transition-transform drop-shadow-md" />
+                        <span className="text-[8px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-950 drop-shadow-xs">
+                            Guide
+                        </span>
+                    </button>
+
+                    {/* PLAYER DETAILS */}
+                    <button
+                        type="button"
+                        onClick={() => { setProfileRequired(false); setPlayerDetailsOpen(true); }}
+                        className="group relative flex flex-col items-center gap-0.5 cursor-pointer transition-transform active:scale-90"
+                        title="Player Details"
+                    >
+                        <img src="/ui-buttons/character-button.png" alt="Player Details" className="h-8 w-8 sm:h-11 sm:w-11 object-contain group-hover:scale-110 transition-transform drop-shadow-md" />
+                        <span className="text-[8px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-950 drop-shadow-xs">
+                            Player
+                        </span>
+                    </button>
+
+                    {/* CREDITS */}
+                    <button
+                        type="button"
+                        onClick={() => setCreditsOpen(true)}
+                        className="group relative flex flex-col items-center gap-0.5 cursor-pointer transition-transform active:scale-90"
+                        title="Credits"
+                    >
+                        <img src="/ui-buttons/credit-button.png" alt="Credits" className="h-8 w-8 sm:h-11 sm:w-11 object-contain group-hover:scale-110 transition-transform drop-shadow-md" />
+                        <span className="text-[8px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-950 drop-shadow-xs">
+                            Credits
+                        </span>
                     </button>
                 </div>
 
-                {/* --- BOTTOM SECTION: NAVIGATION --- */}
-                <div className="w-full max-w-2xl shrink-0 pb-1 sm:pb-4">
-                    <div className="flex items-center justify-center gap-3 sm:gap-6 px-2">
-                        <button
-                            onClick={() => setHowToPlayOpen(true)}
-                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
-                            title="Guide"
-                        >
-                            <img src="/ui-buttons/how-to-play-button.png" alt="Guide" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
-                        </button>
-
-                        <button
-                            onClick={() => { setProfileRequired(false); setPlayerDetailsOpen(true); }}
-                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
-                            title="Player Details"
-                        >
-                            <img src="/ui-buttons/character-button.png" alt="Player Details" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
-                        </button>
-
-                        <button
-                            onClick={() => setCreditsOpen(true)}
-                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
-                            title="Credits"
-                        >
-                            <img src="/ui-buttons/credit-button.png" alt="Credits" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
-                        </button>
-
-                        <button
-                            onClick={() => setSettingsOpen(true)}
-                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
-                            title="Settings"
-                        >
-                            <img src="/ui-buttons/settings-button.png" alt="Settings" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
-                        </button>
-
-                        <button
-                            onClick={() => setShowExitConfirm(true)}
-                            className="group relative w-12 h-12 sm:w-20 sm:h-20 transition-all active:scale-90"
-                            title="Quit"
-                        >
-                            <img src="/ui-buttons/quit-button.png" alt="Quit" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
-                        </button>
-                    </div>
+                {/* VERSION ONLY IN BOTTOM RIGHT */}
+                <div className="pb-0.5 text-[9px] sm:text-[11px] font-black uppercase tracking-widest text-emerald-950 drop-shadow-xs">
+                    <span>VERSION 1.0</span>
                 </div>
             </div>
 
@@ -810,18 +877,11 @@ export function MainMenu({ onStart, onMenuInteraction, onProfileSaved, isVisible
                 confirmLabel="Exit"
                 confirmVariant="danger"
             />
-
-            <div className="pointer-events-none absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.35rem)] z-40 flex justify-between text-[8px] font-black uppercase tracking-[0.18em] text-emerald-950/70 sm:inset-x-6 sm:bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:text-[10px]">
-                <span>2026</span>
-                <span>Version 5.3.0</span>
-            </div>
         </div>
     );
 }
 
-/* ==========================================================================
-   CARVED WOODEN BANNER TITLE
-   ========================================================================== */
+// CARVED WOODEN BANNER TITLE
 
 const WoodenTitle = ({ titlePart1, titlePart2, className = '' }) => {
     return (
@@ -929,10 +989,12 @@ export function SettingsPanel({ isOpen, onClose, onQuit, cameraMode, onCameraMod
 }
 
 export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick, onResetTasks }) {
-    const { mounted, active } = useModalTransition(isOpen, 250);
+    const { mounted, active } = useModalTransition(isOpen, 300);
     const [page, setPage] = useState(0);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
-    const pageSize = 4;
+
+    // 3 items per page for clean mobile android visibility
+    const pageSize = 3;
     const completedCount = tasks.filter((task) => task.completed).length;
     const progressPercent = (completedCount / (tasks.length || 1)) * 100;
     const pageCount = Math.max(1, Math.ceil(tasks.length / pageSize));
@@ -942,68 +1004,115 @@ export function TaskPanel({ isOpen, onClose, tasks = [], onTaskClick, onResetTas
     if (!mounted) return null;
 
     return (
-        <div className="fixed inset-0 z-95" data-ui-modal="true" role="dialog" aria-modal="true" aria-label="Zoo task checklist">
+        <div className="fixed inset-0 z-110 flex items-start justify-end p-2 sm:p-4 pt-[calc(env(safe-area-inset-top)+0.5rem)] pr-[max(0.5rem,env(safe-area-inset-right))] pointer-events-none" data-ui-modal="true" role="dialog" aria-modal="true" aria-label="Zoo task checklist">
+            {/* Backdrop Fade */}
             <button
                 type="button"
                 className={cx(
-                    'absolute inset-0 bg-emerald-950/20 backdrop-blur-[1px] transition-opacity duration-250 ease-out',
+                    'pointer-events-auto fixed inset-0 bg-slate-950/40 backdrop-blur-sm transition-opacity duration-300 ease-out',
                     active ? 'opacity-100' : 'opacity-0'
                 )}
                 onClick={onClose}
                 aria-label="Close task checklist"
             />
+
+            {/* Banner Style Top-Right Container (Fits screen bounds) */}
             <section
                 className={cx(
-                    'absolute right-[max(.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+.5rem)] flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] w-[min(36rem,calc(100vw-1rem))] flex-col rounded-sm border-2 border-slate-500 bg-[#fffef7] p-3 text-slate-800 shadow-[7px_8px_0_rgba(15,23,42,.25)] sm:p-5 transition-all duration-250 ease-out transform origin-top-right',
-                    active ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
+                    'pointer-events-auto relative flex flex-col w-full max-w-sm sm:max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl border-3 border-amber-950/80 bg-[#fffef0] text-slate-800 shadow-[0_20px_50px_rgba(0,0,0,0.45)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform origin-top-right',
+                    active ? 'translate-y-0 opacity-100 scale-100' : '-translate-y-full opacity-0 scale-95'
                 )}
             >
-                <header className="flex shrink-0 items-start justify-between gap-3 border-b-2 border-slate-300 pb-2">
-                    <div>
-                        <p className="text-xl font-black uppercase tracking-[0.08em] sm:text-2xl">Checklist</p>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Feed every zoo friend</p>
-                    </div>
+                {/* Hanging Banner Header Plaque */}
+                <header className="relative shrink-0 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 text-amber-50 p-2.5 sm:p-3.5 border-b-2 border-amber-950 flex items-center justify-between shadow-md">
                     <div className="flex items-center gap-2">
-                        <span className="rounded-lg border-2 border-slate-400 bg-white px-2 py-1 text-xs font-black">{completedCount} / {tasks.length}</span>
-                        <button type="button" onClick={onClose} aria-label="Close checklist" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white font-black text-lg shadow-[0_3px_0_0_#9f1239] transition-transform active:scale-95">&times;</button>
+                        <img src="/ui-buttons/task-list-button.png" alt="Tasks" className="h-7 w-7 sm:h-8 sm:w-8 object-contain shrink-0" />
+                        <div>
+                            <h2 className="text-sm sm:text-base font-black uppercase tracking-wider drop-shadow-sm text-amber-100">
+                                Zoo Checklist
+                            </h2>
+                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-amber-200/80">
+                                Feed every zoo friend
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="rounded-xl border border-amber-400/50 bg-amber-950/70 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[11px] sm:text-xs font-black text-amber-300 shadow-inner">
+                            {completedCount} / {tasks.length}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            aria-label="Close checklist"
+                            className="inline-flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-rose-500 hover:bg-rose-600 text-white font-black text-base sm:text-lg shadow-[0_3px_0_0_#9f1239] transition-transform active:scale-95 cursor-pointer"
+                        >
+                            &times;
+                        </button>
                     </div>
                 </header>
 
-                <div className="mt-2 h-2 shrink-0 overflow-hidden rounded-full bg-slate-200">
-                    <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${progressPercent}%` }} />
-                </div>
+                {/* Banner Body Content (Scrollable if height constrained) */}
+                <div className="p-2.5 sm:p-4 overflow-y-auto flex-1 flex flex-col justify-between">
+                    <div>
+                        {/* Progress Bar */}
+                        <div className="relative h-2 shrink-0 overflow-hidden rounded-full bg-amber-200/60 border border-amber-300">
+                            <div
+                                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-[width] duration-500 shadow-sm"
+                                style={{ width: `${progressPercent}%` }}
+                            />
+                        </div>
 
-                <ol className="mt-2 grid min-h-0 flex-1 auto-rows-fr gap-1.5">
-                    {visibleTasks.map((task, index) => (
-                        <li key={task.id}>
-                            <button
-                                type="button"
-                                onClick={() => onTaskClick?.(task)}
-                                className={cx(
-                                    'flex h-full min-h-10 w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-amber-50 active:bg-amber-100',
-                                    task.completed && 'text-slate-400',
-                                )}
+                        {/* Task Items List (3 items max per page) */}
+                        <ol className="mt-2.5 grid auto-rows-fr gap-2">
+                            {visibleTasks.map((task, index) => (
+                                <li key={task.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => onTaskClick?.(task)}
+                                        className={cx(
+                                            'flex h-full min-h-10 w-full items-center gap-2.5 rounded-xl border-2 px-2.5 py-1.5 text-left transition-all hover:bg-amber-100/60 active:scale-[0.99]',
+                                            task.completed
+                                                ? 'border-emerald-300 bg-emerald-50/60 text-slate-400'
+                                                : 'border-amber-200/80 bg-white shadow-sm hover:border-amber-400'
+                                        )}
+                                    >
+                                        <span className={cx(
+                                            'flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 text-[11px] font-black transition-colors',
+                                            task.completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-amber-400 bg-amber-50 text-amber-900'
+                                        )}>
+                                            {task.completed ? '✓' : currentPage * pageSize + index + 1}
+                                        </span>
+                                        <span className={cx('min-w-0 flex-1 text-xs font-black leading-tight sm:text-sm text-slate-800', task.completed && 'line-through opacity-60')}>
+                                            {task.name}
+                                        </span>
+                                        <span className={cx(
+                                            'shrink-0 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border',
+                                            task.completed
+                                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                : 'bg-amber-100 text-amber-800 border-amber-300'
+                                        )}>
+                                            {task.completed ? 'Done' : 'Feed'}
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ol>
+                    </div>
+
+                    <div className="mt-2.5 flex flex-col gap-1.5 shrink-0 pt-2 border-t border-amber-200">
+                        <PaginationControls page={currentPage} pageCount={pageCount} onPageChange={setPage} />
+                        {onResetTasks ? (
+                            <ActionButton
+                                variant="warning"
+                                size="sm"
+                                className="w-full mt-0.5 h-8 sm:h-9 text-[11px] tracking-wider"
+                                onClick={() => setShowResetConfirm(true)}
                             >
-                                <span className={cx('flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 text-xs font-black', task.completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-400 bg-white')}>{task.completed ? '✓' : currentPage * pageSize + index + 1}</span>
-                                <span className={cx('min-w-0 flex-1 text-xs font-black leading-tight sm:text-sm', task.completed && 'line-through')}>{task.name}</span>
-                                <span className="shrink-0 text-[9px] font-black uppercase tracking-wider">{task.completed ? 'Done' : 'Feed'}</span>
-                            </button>
-                        </li>
-                    ))}
-                </ol>
-
-                <div className="mt-3 flex flex-col gap-2 shrink-0 pt-2 border-t border-slate-200">
-                    <PaginationControls page={currentPage} pageCount={pageCount} onPageChange={setPage} />
-                    {onResetTasks ? (
-                        <ActionButton
-                            variant="warning"
-                            size="sm"
-                            className="w-full mt-1 h-10 text-xs tracking-wider"
-                            onClick={() => setShowResetConfirm(true)}
-                        >
-                            Reset Progress
-                        </ActionButton>
-                    ) : null}
+                                Reset Progress
+                            </ActionButton>
+                        ) : null}
+                    </div>
                 </div>
             </section>
 
@@ -1072,35 +1181,35 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
 
     return (
         <div
-            className="fixed inset-0 z-120 flex items-center justify-center bg-slate-950/40 p-3 sm:p-5 backdrop-blur-md"
+            className="fixed inset-0 z-120 flex items-center justify-center bg-slate-950/40 p-2 sm:p-5 backdrop-blur-md"
             role="dialog"
             aria-modal="true"
             aria-label="Ranger Guide"
         >
             <div
                 className={cx(
-                    'relative flex w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-2xl transition-all duration-300 my-auto',
+                    'relative flex w-full max-w-lg max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-2xl transition-all duration-300 my-auto',
                     transitioning && 'opacity-80 scale-98'
                 )}
             >
                 {/* Clean Header */}
-                <header className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3.5 sm:px-6 sm:py-4">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-200/80 bg-emerald-50 text-2xl shadow-xs" aria-hidden="true">
+                <header className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/70 px-3.5 py-2.5 sm:px-6 sm:py-3.5">
+                    <div className="flex items-center gap-2.5">
+                        <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-200/80 bg-emerald-50 text-xl sm:text-2xl shadow-xs" aria-hidden="true">
                             <span>{avatarEmoji}</span>
                         </div>
                         <div className="min-w-0">
-                            <span className="inline-block rounded-full bg-emerald-100/80 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-emerald-800">
+                            <span className="inline-block rounded-full bg-emerald-100/80 px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest text-emerald-800">
                                 {roleBadge}
                             </span>
-                            <h2 className="text-base font-black text-slate-900 leading-tight sm:text-lg">
+                            <h2 className="text-sm font-black text-slate-900 leading-tight sm:text-lg">
                                 {npcName || 'Ranger Lino'}
                             </h2>
                         </div>
                     </div>
                     <button
                         type="button"
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-all"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-95 transition-all cursor-pointer"
                         onClick={onClose}
                         aria-label="Close"
                     >
@@ -1108,8 +1217,8 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
                     </button>
                 </header>
 
-                {/* Content Body */}
-                <div className="flex flex-col gap-3 p-4 sm:p-6 overflow-hidden">
+                {/* Content Body (Scrollable on mobile landscape) */}
+                <div className="flex flex-col gap-2.5 sm:gap-3 p-3 sm:p-5 overflow-y-auto flex-1 min-h-0">
                     {/* Speech Box */}
                     <div className="relative rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 shadow-xs">
                         <p className="text-xs sm:text-sm font-semibold leading-relaxed text-slate-800">
@@ -1187,39 +1296,57 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
                         </div>
                     ) : null}
 
-                    {/* Minimal Choice Buttons */}
+                    {/* 3D Styled Talk Buttons - Vertically Aligned Column */}
                     {!isAnimalPage ? (
-                        <div className={cx('grid gap-2', isMultiChoice ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
-                            {choices.map((choice, index) => (
-                                <button
-                                    type="button"
-                                    key={choice.id}
-                                    disabled={transitioning}
-                                    onClick={() => choose(choice)}
-                                    className={cx(
-                                        'group flex min-h-[2.75rem] items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-800 transition-all active:scale-98',
-                                        choice.accent
-                                            ? 'border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100/70 hover:border-emerald-400'
-                                            : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/80',
-                                        pressedChoice === choice.id && 'border-emerald-500 bg-emerald-50'
-                                    )}
-                                >
-                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 group-hover:bg-emerald-100 group-hover:text-emerald-800 transition-colors">
-                                        {choice.icon || index + 1}
-                                    </span>
-                                    <span className="flex-1 text-left leading-snug">{choice.label}</span>
-                                    <span className="text-slate-400 group-hover:text-slate-700 transition-colors text-base font-bold">›</span>
-                                </button>
-                            ))}
+                        <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
+                            {choices.map((choice, index) => {
+                                const isAccent = choice.accent;
+                                return (
+                                    <button
+                                        type="button"
+                                        key={choice.id}
+                                        disabled={transitioning}
+                                        onClick={() => choose(choice)}
+                                        className={cx(
+                                            'group relative flex min-h-[3.25rem] w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-xs sm:text-sm font-black transition-all cursor-pointer active:translate-y-1 active:shadow-none',
+                                            isAccent
+                                                ? 'bg-gradient-to-b from-emerald-400 to-emerald-600 hover:from-emerald-300 hover:to-emerald-500 text-white border-2 border-emerald-300/80 shadow-[0_4px_0_0_#065f46]'
+                                                : 'bg-gradient-to-b from-amber-100 via-amber-50 to-amber-200 hover:from-amber-200 hover:to-amber-300 text-amber-950 border-2 border-amber-300/90 shadow-[0_4px_0_0_#92400e]',
+                                            pressedChoice === choice.id && 'scale-[0.98]'
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <span className={cx(
+                                                'flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border text-xs font-black shadow-xs',
+                                                isAccent
+                                                    ? 'bg-emerald-700/40 border-emerald-300/50 text-white'
+                                                    : 'bg-amber-200/80 border-amber-400/80 text-amber-900'
+                                            )}>
+                                                {choice.icon || index + 1}
+                                            </span>
+                                            <span className="min-w-0 flex-1 text-left leading-tight tracking-wide font-black">
+                                                {choice.label}
+                                            </span>
+                                        </div>
+
+                                        <span className={cx(
+                                            'shrink-0 text-base font-black transition-transform group-hover:translate-x-0.5',
+                                            isAccent ? 'text-emerald-100' : 'text-amber-800'
+                                        )}>
+                                            ➜
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     ) : null}
                 </div>
 
-                {/* Minimal Footer */}
-                <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/50 px-4 py-3 sm:px-6">
+                {/* 3D Styled Footer Buttons */}
+                <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200/80 bg-slate-50/80 px-4 py-3 sm:px-6">
                     <button
                         type="button"
-                        className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition-all"
+                        className="rounded-xl bg-gradient-to-b from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-800 border border-slate-300 px-4 py-2 text-xs font-black tracking-wider uppercase shadow-[0_3px_0_0_#64748b] active:shadow-none active:translate-y-0.5 transition-all cursor-pointer"
                         disabled={transitioning}
                         onClick={() => choose({ id: 'back', nextId: 'root' })}
                     >
@@ -1227,10 +1354,10 @@ export function NPCDialogueModal({ isOpen, onClose, npcName, npcRole, message, c
                     </button>
                     <button
                         type="button"
-                        className="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 active:scale-95 transition-all shadow-xs"
+                        className="rounded-xl bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-white border border-rose-300 px-5 py-2 text-xs font-black tracking-wider uppercase shadow-[0_3px_0_0_#9f1239] active:shadow-none active:translate-y-0.5 transition-all cursor-pointer"
                         onClick={onClose}
                     >
-                        Close Dialogue
+                        Close
                     </button>
                 </footer>
             </div>
@@ -1376,27 +1503,47 @@ export function HoldToFeedControl({
     const percentage = Math.round(Math.max(0, Math.min(1, progress)) * 100);
     const label = completed ? 'Fed!' : disabled ? 'Need food' : isHolding ? 'Feeding...' : 'Hold to Feed';
 
+    const handlePressStart = (event) => {
+        if (disabled || completed) return;
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+            event.currentTarget?.setPointerCapture?.(event.pointerId);
+        } catch {}
+        onStart?.();
+    };
+
+    const handlePressEnd = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onEnd?.();
+    };
+
     return (
-        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+13.8rem)] right-2.5 z-70 flex w-48 sm:w-56 flex-col items-center sm:right-3 sm:bottom-52">
+        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+5.2rem)] right-2.5 z-70 flex flex-col items-center sm:right-4 sm:bottom-24">
+            <div className="mb-1.5 flex w-auto max-w-48 flex-col items-center justify-center rounded-2xl border-2 border-emerald-200/80 bg-emerald-950/90 px-3 py-1 text-center text-white shadow-xl backdrop-blur-md">
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                    {animalName ? `${animalName}` : 'Animal'}
+                </span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wide text-emerald-100">
+                    {label}
+                </span>
+                {message ? <span className="mt-0.5 text-[9px] font-medium leading-snug text-slate-200">{message}</span> : null}
+            </div>
             <button
                 type="button"
+                data-ui-button="true"
                 aria-label={`${label}${animalName ? ` ${animalName}` : ''}`}
-                disabled={disabled || completed}
-                onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    event.currentTarget.setPointerCapture?.(event.pointerId);
-                    onStart?.();
-                }}
-                onPointerUp={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onEnd?.();
-                }}
-                onPointerCancel={onEnd}
+                onContextMenu={(e) => e.preventDefault()}
+                onPointerDown={handlePressStart}
+                onPointerUp={handlePressEnd}
+                onPointerCancel={handlePressEnd}
+                onTouchStart={handlePressStart}
+                onTouchEnd={handlePressEnd}
+                onTouchCancel={handlePressEnd}
                 className={cx(
-                    'pointer-events-auto relative grid h-24 w-24 place-items-center rounded-full border-4 border-white/70 shadow-xl touch-none select-none transition-transform active:scale-95 sm:h-28 sm:w-28',
-                    completed ? 'bg-emerald-500' : disabled ? 'bg-slate-400' : 'bg-emerald-950/80',
+                    'pointer-events-auto relative grid h-20 w-20 place-items-center rounded-full border-4 border-white/80 shadow-2xl touch-none select-none transition-transform active:scale-95 sm:h-24 sm:w-24 cursor-pointer',
+                    completed ? 'bg-emerald-500' : disabled ? 'bg-slate-400 opacity-70' : 'bg-emerald-950/90',
                 )}
             >
                 <span
@@ -1404,18 +1551,9 @@ export function HoldToFeedControl({
                     style={{ background: `conic-gradient(${completed ? '#22c55e' : '#facc15'} ${percentage}%, rgba(255,255,255,.25) ${percentage}% 100%)`, zIndex: 0 }}
                     aria-hidden="true"
                 />
-                <span className="absolute inset-1.25 rounded-full bg-emerald-950/90" aria-hidden="true" />
-                {completed ? <span className="relative z-10 text-4xl font-black text-white">✓</span> : <img className="relative z-10 h-12 w-12 sm:h-14 sm:w-14" src="/ui-buttons/feed-button.png" alt="" />}
+                <span className="absolute inset-1 rounded-full bg-emerald-950/90" aria-hidden="true" />
+                {completed ? <span className="relative z-10 text-3xl font-black text-white">✓</span> : <img className="relative z-10 h-10 w-10 sm:h-12 sm:w-12 pointer-events-none" src="/ui-buttons/feed-button.png" alt="" />}
             </button>
-            <div className="mt-2 flex w-full max-w-56 flex-col items-center justify-center rounded-2xl border-2 border-emerald-200/80 bg-emerald-950/90 px-4 py-2 text-center text-white shadow-xl backdrop-blur-md">
-                <span className="text-xs font-black uppercase tracking-wider text-amber-300">
-                    {animalName ? `${animalName}` : 'Animal'}
-                </span>
-                <span className="mt-0.5 text-[11px] font-extrabold uppercase tracking-wide text-emerald-100">
-                    {label}
-                </span>
-                {message ? <span className="mt-1 text-[10px] font-medium leading-snug text-slate-200">{message}</span> : null}
-            </div>
         </div>
     );
 }
@@ -1424,7 +1562,7 @@ export function AnimalCaution({ visible }) {
     if (!visible) return null;
 
     return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+13.8rem)] z-70 flex justify-center px-3 sm:bottom-52">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5.2rem)] z-70 flex justify-center px-3 sm:bottom-24">
             <div className="rounded-2xl border-2 border-red-200 bg-red-950/90 px-4 py-2 text-center text-white shadow-xl">
                 <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-300">Caution: Dangerous Animal</p>
                 <p className="mt-1 text-[11px] font-bold">Please avoid contact with the tiger. Do not feed it.</p>
@@ -1568,87 +1706,5 @@ export function PreGameScreen({ onStart }) {
 }
 
 export function RotateDeviceOverlay() {
-    const [needsRotation, setNeedsRotation] = useState(() => {
-        try {
-            const ua = navigator.userAgent || '';
-            if (!/android|iphone|ipad|ipod/i.test(ua)) return false;
-            return window.matchMedia('(orientation: portrait)').matches;
-        } catch {
-            return false;
-        }
-    });
-
-    const isMobileRef = useRef(false);
-
-    useEffect(() => {
-        const ua = navigator.userAgent || '';
-        const isMobile = /android|iphone|ipad|ipod/i.test(ua);
-        isMobileRef.current = isMobile;
-
-        if (!isMobile) return;
-
-        const tryLockLandscape = async () => {
-            try {
-                if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                    await screen.orientation.lock('landscape');
-                    setNeedsRotation(false);
-                    return;
-                }
-            } catch {
-                // Orientation lock not supported
-            }
-            try {
-                const isPortrait = window.matchMedia('(orientation: portrait)').matches;
-                setNeedsRotation(isPortrait);
-            } catch {
-                setNeedsRotation(false);
-            }
-        };
-        tryLockLandscape();
-
-        let mql;
-        const onOrientationChange = (e) => {
-            if (isMobileRef.current) {
-                setNeedsRotation(e.matches);
-            }
-        };
-
-        try {
-            mql = window.matchMedia('(orientation: portrait)');
-            if (mql.addEventListener) {
-                mql.addEventListener('change', onOrientationChange);
-            }
-        } catch {
-            // matchMedia not supported
-        }
-
-        return () => {
-            if (mql?.removeEventListener) {
-                mql.removeEventListener('change', onOrientationChange);
-            }
-        };
-    }, []);
-
-    if (!needsRotation) return null;
-
-    return (
-        <div className="fixed inset-0 z-9999 flex flex-col items-center justify-center bg-[#1a1a2e] text-white p-8">
-            <svg
-                className="w-20 h-20 mb-6 animate-rotate-phone"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            >
-                <rect x="5" y="1" width="14" height="22" rx="2" ry="2" />
-                <line x1="5" y1="17" x2="19" y2="17" />
-            </svg>
-            <h2 className="text-2xl font-black mb-2">Rotate Your Device</h2>
-            <p className="text-sm font-semibold text-slate-300 text-center max-w-xs">
-                Please rotate your device to landscape mode for the best experience.
-            </p>
-        </div>
-    );
+    return null;
 }

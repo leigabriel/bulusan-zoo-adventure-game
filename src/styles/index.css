@@ -292,12 +292,7 @@ canvas {
     animation: rotate-phone 2s ease-in-out infinite;
 }
 
-/* ==========================================================================
-   SKETCHBOOK - PAGE-FLIP BOOK OVERLAY
-   ========================================================================== */
-/* ==========================================================================
-   SKETCHBOOK - PAGE-FLIP BOOK OVERLAY (EXACT X-BOOK TRANSLATION)
-   ========================================================================== */
+/* SKETCHBOOK - PAGE-FLIP BOOK OVERLAY (EXACT X-BOOK TRANSLATION) */
 .sketchbook-overlay {
   position: fixed;
   inset: 0;
@@ -630,9 +625,7 @@ canvas {
     }
 }
 
-/* ==========================================================================
-   MINECRAFT-STYLE HOTBAR (book, feed, camera)
-   ========================================================================== */
+/* MINECRAFT-STYLE HOTBAR (book, feed, camera) */
 .hotbar-slot {
     position: relative;
     display: flex;
